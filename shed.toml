@@ -1,0 +1,3 @@
+[proofs]
+# Run proofs in a container; tests never run on the host.
+runner = ["scripts/in-dagger"]

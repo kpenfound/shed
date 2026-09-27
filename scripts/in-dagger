@@ -1,0 +1,23 @@
+#!/bin/sh
+# Runs a command in a Go container holding this repository and prints its
+# standard output. The command's exit code is not propagated: shed reads the
+# go test -json stream instead. shed.toml runs proofs through this script so
+# that tests never run on the host.
+set -eu
+root=$(cd "$(dirname "$0")/.." && pwd)
+args=""
+for a in "$@"; do
+	case "$a" in
+	*,*)
+		echo "in-dagger: argument contains a comma: $a" >&2
+		exit 2
+		;;
+	esac
+	args="${args:+$args,}$a"
+done
+exec dagger core container from --address golang:1.26-bookworm \
+	with-directory --path /src --source "$root" --exclude .git,.jj \
+	with-workdir --path /src \
+	with-mounted-temp --path /tmp \
+	with-exec --args="$args" --expect=ANY \
+	stdout

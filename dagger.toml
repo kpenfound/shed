@@ -1,0 +1,17 @@
+# Dagger workspace configuration. `dagger check` builds, lints and tests the
+# Go module.
+
+[modules.go]
+source = "github.com/dagger/go"
+
+[modules.go.settings]
+base = "golang:1.26-bookworm"
+
+# The Go patterns mount only Go sources. The repository's own documents are
+# checked by a test, so they are mounted too.
+includeExtraFiles = [
+  "charter.md",
+  "horizon.md",
+  "spec/**",
+  "shed.toml",
+]
