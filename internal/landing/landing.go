@@ -47,8 +47,9 @@ func Message(u tracker.Unit, diff docs.SpecDiff) string {
 }
 
 // Land lands a queued unit: it lands the unit's change on main as one commit
-// and records the landing in the tracker. A unit whose change already landed
-// is only recorded, so a landing interrupted after main moved completes.
+// and records the landing in the tracker, with the unit's actual footprint.
+// A unit whose change already landed is only recorded, so a landing
+// interrupted after main moved completes.
 func Land(ctx context.Context, tr *tracker.Tracker, repo *vcs.Repo, change string, actor unit.Actor) (string, error) {
 	u, err := tr.Unit(change)
 	if err != nil {
@@ -68,8 +69,18 @@ func Land(ctx context.Context, tr *tracker.Tracker, repo *vcs.Repo, change strin
 	if err != nil {
 		return "", err
 	}
-	if err := tr.Land(u.Change, commit, actor, "landed on main"); err != nil {
+	actual := Actual(repo.Root(), commit, u.Footprint)
+	if err := tr.Land(u.Change, commit, actual, actor, "landed on main"); err != nil {
 		return "", errors.Join(fmt.Errorf("unit %s landed as %s but the tracker did not record it; land it again to record it", unit.Short(u.Change), commit), err)
 	}
 	return commit, nil
+}
+
+// Actual is the actual footprint of a landed commit: the spec clauses it
+// adds, changes or removes against its parent, with the dependencies and
+// horizon clauses of the sealed footprint.
+func Actual(root, commit string, sealed tracker.Footprint) tracker.Footprint {
+	from, _ := docs.Load(revision.Git{Root: root, Rev: commit + "^"})
+	to, _ := docs.Load(revision.Git{Root: root, Rev: commit})
+	return tracker.Footprint{Modifies: docs.DiffSpec(from, to).Modified(), Depends: sealed.Depends, Advances: sealed.Advances}
 }

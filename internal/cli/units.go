@@ -308,6 +308,9 @@ func (e env) land(args []string) int {
 			return e.fail(err)
 		}
 		fmt.Fprintf(e.stdout, "landed %s on main as %s\n", unit.Short(u.Change), after.Landed)
+		if after.Actual != nil {
+			fmt.Fprintln(e.stdout, tracker.FootprintDrift(after.Footprint, *after.Actual))
+		}
 		return OK
 	})
 }

@@ -43,8 +43,12 @@ type Unit struct {
 	// Seal is set once the unit has been sealed.
 	Seal *Seal
 	// Landed is the commit on main the unit landed as.
-	Landed    string
+	Landed string
+	// Footprint is the footprint the unit declared, or recorded at its
+	// last seal.
 	Footprint Footprint
+	// Actual is the footprint recorded when the unit landed.
+	Actual *Footprint
 	// CostUSD is the total cost of the unit's sessions so far.
 	CostUSD float64
 	// Steps lists the unit's finished steps in the order they finished.
@@ -150,10 +154,11 @@ func (t *Tracker) Unit(ref string) (Unit, error) {
 func loadUnit(q querier, change string) (Unit, error) {
 	u := Unit{Change: change}
 	var opened, updated, shelf, state, openedBy string
-	err := q.QueryRow(`SELECT title, opened_by, state, bounces, amendments, round, reason, shelf, landed, opened_at, updated_at,
+	var actual bool
+	err := q.QueryRow(`SELECT title, opened_by, state, bounces, amendments, round, reason, shelf, landed, actual, opened_at, updated_at,
 		(SELECT COALESCE(SUM(cost_usd), 0) FROM sessions WHERE change = units.change)
 		FROM units WHERE change = ?`, change).
-		Scan(&u.Title, &openedBy, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Reason, &shelf, &u.Landed, &opened, &updated, &u.CostUSD)
+		Scan(&u.Title, &openedBy, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Reason, &shelf, &u.Landed, &actual, &opened, &updated, &u.CostUSD)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Unit{}, fmt.Errorf("unit %s: %w", unit.Short(change), ErrNotFound)
 	}
@@ -173,28 +178,18 @@ func loadUnit(q querier, change string) (Unit, error) {
 		return Unit{}, err
 	}
 
-	rows, err := q.Query(`SELECT relation, clause FROM footprints WHERE change = ? ORDER BY relation, clause`, change)
-	if err != nil {
+	if u.Footprint, err = loadFootprint(q, "footprints", change); err != nil {
 		return Unit{}, err
 	}
-	for rows.Next() {
-		var relation, id string
-		if err := rows.Scan(&relation, &id); err != nil {
-			rows.Close()
+	if actual {
+		fp, err := loadFootprint(q, "actual_footprints", change)
+		if err != nil {
 			return Unit{}, err
 		}
-		switch relation {
-		case "modifies":
-			u.Footprint.Modifies = append(u.Footprint.Modifies, id)
-		case "depends":
-			u.Footprint.Depends = append(u.Footprint.Depends, id)
-		case "advances":
-			u.Footprint.Advances = append(u.Footprint.Advances, id)
-		}
+		u.Actual = &fp
 	}
-	rows.Close()
 
-	rows, err = q.Query(`SELECT step FROM steps WHERE change = ? ORDER BY seq`, change)
+	rows, err := q.Query(`SELECT step FROM steps WHERE change = ? ORDER BY seq`, change)
 	if err != nil {
 		return Unit{}, err
 	}
@@ -207,6 +202,31 @@ func loadUnit(q querier, change string) (Unit, error) {
 		u.Steps = append(u.Steps, step)
 	}
 	return u, rows.Err()
+}
+
+// loadFootprint reads a unit's footprint from a footprint table.
+func loadFootprint(q querier, table, change string) (Footprint, error) {
+	var fp Footprint
+	rows, err := q.Query(`SELECT relation, clause FROM `+table+` WHERE change = ? ORDER BY relation, clause`, change)
+	if err != nil {
+		return fp, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var relation, id string
+		if err := rows.Scan(&relation, &id); err != nil {
+			return fp, err
+		}
+		switch relation {
+		case "modifies":
+			fp.Modifies = append(fp.Modifies, id)
+		case "depends":
+			fp.Depends = append(fp.Depends, id)
+		case "advances":
+			fp.Advances = append(fp.Advances, id)
+		}
+	}
+	return fp, rows.Err()
 }
 
 // Session returns a session by ID.
@@ -312,6 +332,9 @@ func Describe(e Event) string {
 		}
 		if e.Commit != "" {
 			fmt.Fprintf(&b, " as %s", shortHash(e.Commit))
+		}
+		if e.Drift != nil {
+			fmt.Fprintf(&b, " (%s)", e.Drift)
 		}
 	case UnitFootprint:
 		b.WriteString("footprint declared")

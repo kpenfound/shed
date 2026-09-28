@@ -84,12 +84,15 @@ func (t *Tracker) seal(change, main, commit string, fp Footprint, actor unit.Act
 		Seal: &Seal{Main: main, Change: change, Commit: commit}, Footprint: &fp}, onMain)
 }
 
-// Land records that a queued unit landed on main as a commit.
-func (t *Tracker) Land(change, commit string, actor unit.Actor, reason string) error {
+// Land records that a queued unit landed on main as a commit, with its
+// actual footprint: the clauses the commit modifies, with the dependencies
+// and horizon clauses recorded at its seal. The landing records how the
+// actual footprint drifted from the sealed one.
+func (t *Tracker) Land(change, commit string, actual Footprint, actor unit.Actor, reason string) error {
 	if strings.TrimSpace(commit) == "" {
 		return errors.New("a landing needs the commit on main")
 	}
-	return t.move(change, Event{To: unit.Landed, Commit: commit, Actor: actor, Reason: reason})
+	return t.move(change, Event{To: unit.Landed, Commit: commit, Actual: &actual, Actor: actor, Reason: reason})
 }
 
 // Archive moves a unit to the archive on a shelf.
@@ -150,6 +153,14 @@ func (t *Tracker) move(change string, e Event, onMain ...func(clause.ID) bool) e
 			if err := checkFootprint(tx, change, *e.Footprint, f); err != nil {
 				return nil, err
 			}
+		}
+		if e.Actual != nil {
+			sealed, err := loadFootprint(tx, "footprints", change)
+			if err != nil {
+				return nil, err
+			}
+			drift := FootprintDrift(sealed, *e.Actual)
+			e.Drift = &drift
 		}
 		e.Kind, e.Unit, e.From = UnitMoved, change, from
 		events := []Event{e}

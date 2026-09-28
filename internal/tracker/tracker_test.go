@@ -78,7 +78,7 @@ func through(t *testing.T, tr *Tracker, change string, states ...unit.State) {
 			must(t, tr.Seal(change, "main1", "unitcommit", Footprint{}, unit.Committee, "consensus", nil))
 			continue
 		case unit.Landed:
-			must(t, tr.Land(change, "landed1", unit.Wheelbuilder, "landed"))
+			must(t, tr.Land(change, "landed1", Footprint{}, unit.Wheelbuilder, "landed"))
 			continue
 		}
 		must(t, tr.Move(change, s, unit.Mechanic, "next"))
@@ -503,5 +503,92 @@ func TestUnitsByPrefix(t *testing.T) {
 	}
 	if _, err := tr.Unit("kkkk"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("unknown prefix: %v", err)
+	}
+}
+
+//shed:proves S.fp.3
+func TestLandingRecordsTheActualFootprint(t *testing.T) {
+	tr := open(t, t.TempDir(), Options{})
+	must(t, tr.OpenUnit(unitA, "Say goodbye", unit.Painter))
+	sealed := Footprint{Modifies: []string{"S.greet.2", "S.greet.3"}, Depends: []string{"S.greet.1"}, Advances: []string{"H.greet.2"}}
+	must(t, tr.Seal(unitA, "main1", "unitcommit", sealed, unit.Committee, "consensus", onMain("S.greet.1")))
+	through(t, tr, unitA, unit.Implementing, unit.Verifying, unit.Queued)
+	if u := get(t, tr, unitA); u.Actual != nil {
+		t.Errorf("actual footprint before landing = %+v", *u.Actual)
+	}
+	actual := Footprint{Modifies: []string{"S.greet.2", "S.greet.4"}, Depends: []string{"S.greet.1"}, Advances: []string{"H.greet.2"}}
+	must(t, tr.Land(unitA, "landed1", actual, unit.Wheelbuilder, "landed on main"))
+
+	check := func(when string) {
+		t.Helper()
+		u := get(t, tr, unitA)
+		if !reflect.DeepEqual(u.Footprint, sealed) {
+			t.Errorf("%s: sealed footprint = %+v, want %+v", when, u.Footprint, sealed)
+		}
+		if u.Actual == nil || !reflect.DeepEqual(*u.Actual, actual) {
+			t.Errorf("%s: actual footprint = %+v, want %+v", when, u.Actual, actual)
+		}
+	}
+	check("after landing")
+	must(t, tr.Rebuild())
+	check("after rebuild")
+}
+
+//shed:proves S.fp.4
+func TestFootprintDrift(t *testing.T) {
+	sealed := Footprint{Modifies: []string{"S.greet.2", "S.greet.3"}, Depends: []string{"S.greet.1"}}
+	for _, c := range []struct {
+		actual     []string
+		unsealed   []string
+		unmodified []string
+		text       string
+	}{
+		{[]string{"S.greet.2", "S.greet.3"}, nil, nil, "footprint held"},
+		{[]string{"S.greet.3", "S.greet.2"}, nil, nil, "footprint held"},
+		{[]string{"S.greet.2", "S.greet.4", "S.greet.5"}, []string{"S.greet.4", "S.greet.5"}, []string{"S.greet.3"},
+			"footprint drifted: not sealed S.greet.4, S.greet.5; not modified S.greet.3"},
+		{[]string{"S.greet.2", "S.greet.3", "S.greet.4"}, []string{"S.greet.4"}, nil,
+			"footprint drifted: not sealed S.greet.4; not modified none"},
+		{nil, nil, []string{"S.greet.2", "S.greet.3"},
+			"footprint drifted: not sealed none; not modified S.greet.2, S.greet.3"},
+	} {
+		d := FootprintDrift(sealed, Footprint{Modifies: c.actual, Depends: sealed.Depends})
+		if !reflect.DeepEqual(d.Unsealed, c.unsealed) || !reflect.DeepEqual(d.Unmodified, c.unmodified) {
+			t.Errorf("drift of %v = %+v, want unsealed %v, unmodified %v", c.actual, d, c.unsealed, c.unmodified)
+		}
+		if d.Held() != (c.text == "footprint held") {
+			t.Errorf("drift of %v held = %v", c.actual, d.Held())
+		}
+		if got := d.String(); got != c.text {
+			t.Errorf("drift of %v = %q, want %q", c.actual, got, c.text)
+		}
+	}
+}
+
+//shed:proves S.fp.4
+func TestLandingEventReportsDrift(t *testing.T) {
+	tr := open(t, t.TempDir(), Options{})
+	must(t, tr.OpenUnit(unitA, "Say goodbye", unit.Painter))
+	must(t, tr.Seal(unitA, "main1", "unitcommit", Footprint{Modifies: []string{"S.greet.2"}}, unit.Committee, "consensus", nil))
+	through(t, tr, unitA, unit.Implementing, unit.Verifying, unit.Queued)
+	must(t, tr.Land(unitA, "landed1", Footprint{Modifies: []string{"S.greet.3"}}, unit.Wheelbuilder, "landed on main"))
+	must(t, tr.OpenUnit(unitB, "Wave", unit.Painter))
+	must(t, tr.Seal(unitB, "main1", "unitcommit", Footprint{Modifies: []string{"S.greet.4"}}, unit.Committee, "consensus", nil))
+	through(t, tr, unitB, unit.Implementing, unit.Verifying, unit.Queued)
+	must(t, tr.Land(unitB, "landed2", Footprint{Modifies: []string{"S.greet.4"}}, unit.Wheelbuilder, "landed on main"))
+
+	for change, want := range map[string]string{
+		unitA: "footprint drifted: not sealed S.greet.3; not modified S.greet.2",
+		unitB: "footprint held",
+	} {
+		events, err := tr.Events(change)
+		must(t, err)
+		last := events[len(events)-1]
+		if last.To != unit.Landed {
+			t.Fatalf("last event of %s = %+v", change, last)
+		}
+		if got := Describe(last); !strings.Contains(got, want) {
+			t.Errorf("landing of %s = %q, want it to report %q", change, got, want)
+		}
 	}
 }

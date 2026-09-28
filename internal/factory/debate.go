@@ -74,13 +74,7 @@ func (f *Factory) Declare(ctx context.Context, change, title string, depends, ad
 // modified lists the spec clauses a unit's spec diff adds, changes or
 // removes.
 func modified(main, head *docs.Set) []string {
-	d := docs.DiffSpec(main, head)
-	var out []string
-	for _, id := range slices.Concat(d.Added, d.Changed, d.Removed) {
-		out = append(out, id.String())
-	}
-	slices.Sort(out)
-	return out
+	return docs.DiffSpec(main, head).Modified()
 }
 
 // refreshFootprint recomputes the clauses a proposal modifies from its spec

@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS units (
 	shelf TEXT NOT NULL DEFAULT '',
 	reason TEXT NOT NULL DEFAULT '',
 	landed TEXT NOT NULL DEFAULT '',
+	actual INTEGER NOT NULL DEFAULT 0,
 	round INTEGER NOT NULL DEFAULT 0,
 	opened_seq INTEGER NOT NULL,
 	opened_at TEXT NOT NULL,
@@ -112,6 +113,12 @@ CREATE TABLE IF NOT EXISTS seals (
 	sealed_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS footprints (
+	change TEXT NOT NULL,
+	relation TEXT NOT NULL,
+	clause TEXT NOT NULL,
+	PRIMARY KEY (change, relation, clause)
+);
+CREATE TABLE IF NOT EXISTS actual_footprints (
 	change TEXT NOT NULL,
 	relation TEXT NOT NULL,
 	clause TEXT NOT NULL,
@@ -159,12 +166,12 @@ CREATE TABLE IF NOT EXISTS notices (
 );
 `
 
-var tables = []string{"units", "seals", "footprints", "sessions", "steps", "notices", "objections", "meta"}
+var tables = []string{"units", "seals", "footprints", "actual_footprints", "sessions", "steps", "notices", "objections", "meta"}
 
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 5
+const schemaVersion = 6
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -349,15 +356,23 @@ func apply(tx *sql.Tx, e Event) error {
 				return err
 			}
 		}
+		if e.Actual != nil {
+			if err := exec(`UPDATE units SET actual = 1 WHERE change = ?`, e.Unit); err != nil {
+				return err
+			}
+			if err := writeFootprint(tx, "actual_footprints", e.Unit, *e.Actual); err != nil {
+				return err
+			}
+		}
 		if e.Footprint != nil {
-			return setFootprint(tx, e.Unit, *e.Footprint)
+			return writeFootprint(tx, "footprints", e.Unit, *e.Footprint)
 		}
 		return nil
 	case UnitFootprint:
 		if e.Footprint == nil {
 			return errors.New("footprint event without a footprint")
 		}
-		return setFootprint(tx, e.Unit, *e.Footprint)
+		return writeFootprint(tx, "footprints", e.Unit, *e.Footprint)
 	case SessionStarted:
 		s := e.Session
 		return exec(`INSERT INTO sessions (id, change, role, step, pid, status, started_at)
@@ -397,13 +412,15 @@ func apply(tx *sql.Tx, e Event) error {
 	return fmt.Errorf("unknown event kind %q", e.Kind)
 }
 
-func setFootprint(tx *sql.Tx, change string, fp Footprint) error {
-	if _, err := tx.Exec(`DELETE FROM footprints WHERE change = ?`, change); err != nil {
+// writeFootprint replaces a unit's footprint in a footprint table: the
+// sealed footprints or the actual ones.
+func writeFootprint(tx *sql.Tx, table, change string, fp Footprint) error {
+	if _, err := tx.Exec(`DELETE FROM `+table+` WHERE change = ?`, change); err != nil {
 		return err
 	}
 	for relation, ids := range fp.relations() {
 		for _, id := range ids {
-			if _, err := tx.Exec(`INSERT OR IGNORE INTO footprints (change, relation, clause) VALUES (?, ?, ?)`,
+			if _, err := tx.Exec(`INSERT OR IGNORE INTO `+table+` (change, relation, clause) VALUES (?, ?, ?)`,
 				change, relation, id); err != nil {
 				return err
 			}

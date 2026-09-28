@@ -184,7 +184,7 @@ distant and get promoted as the soon tier drains.
 - **H.fp.2** (soon, realised) Shed computes modified clauses from the spec diff. The
   painter declares dependencies and the horizon footprint, and the committee
   checks them.
-- **H.fp.3** (soon) Shed records the footprint predicted at sealing and the
+- **H.fp.3** (soon, realised) Shed records the footprint predicted at sealing and the
   actual footprint at landing, and reports the difference.
 - **H.fp.4** (soon) Two in-flight units whose spec footprints intersect are
   entangled. Shed reports entanglement as an advisory as soon as the second

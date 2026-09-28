@@ -9,6 +9,8 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/kpenfound/shed/internal/unit"
@@ -55,8 +57,12 @@ type Event struct {
 	// Seal is set when a unit is sealed.
 	Seal *Seal `json:"seal,omitempty"`
 	// Commit is the commit on main a unit landed as.
-	Commit    string       `json:"commit,omitempty"`
-	Footprint *Footprint   `json:"footprint,omitempty"`
+	Commit    string     `json:"commit,omitempty"`
+	Footprint *Footprint `json:"footprint,omitempty"`
+	// Actual and Drift are set when a unit lands: its actual footprint and
+	// how that differs from the footprint recorded at its seal.
+	Actual    *Footprint   `json:"actual,omitempty"`
+	Drift     *Drift       `json:"drift,omitempty"`
 	Session   *SessionEv   `json:"session,omitempty"`
 	Notice    *NoticeEv    `json:"notice,omitempty"`
 	Objection *ObjectionEv `json:"objection,omitempty"`
@@ -78,6 +84,51 @@ type Footprint struct {
 	Modifies []string `json:"modifies,omitempty"`
 	Depends  []string `json:"depends,omitempty"`
 	Advances []string `json:"advances,omitempty"`
+}
+
+// Drift is the difference between the clauses a unit was sealed to modify
+// and the clauses it modified when it landed.
+type Drift struct {
+	// Unsealed are the clauses the unit modified but was not sealed to.
+	Unsealed []string `json:"unsealed,omitempty"`
+	// Unmodified are the clauses the unit was sealed to modify but did not.
+	Unmodified []string `json:"unmodified,omitempty"`
+}
+
+// FootprintDrift compares the clauses a sealed footprint and an actual
+// footprint modify.
+func FootprintDrift(sealed, actual Footprint) Drift {
+	var d Drift
+	for _, id := range actual.Modifies {
+		if !slices.Contains(sealed.Modifies, id) {
+			d.Unsealed = append(d.Unsealed, id)
+		}
+	}
+	for _, id := range sealed.Modifies {
+		if !slices.Contains(actual.Modifies, id) {
+			d.Unmodified = append(d.Unmodified, id)
+		}
+	}
+	return d
+}
+
+// Held reports whether the unit modified exactly the clauses it was sealed
+// to modify.
+func (d Drift) Held() bool {
+	return len(d.Unsealed)+len(d.Unmodified) == 0
+}
+
+func (d Drift) String() string {
+	if d.Held() {
+		return "footprint held"
+	}
+	list := func(ids []string) string {
+		if len(ids) == 0 {
+			return "none"
+		}
+		return strings.Join(ids, ", ")
+	}
+	return fmt.Sprintf("footprint drifted: not sealed %s; not modified %s", list(d.Unsealed), list(d.Unmodified))
 }
 
 // SessionEv describes a session in the event log.

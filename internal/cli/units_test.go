@@ -191,7 +191,7 @@ func evalDir(t *testing.T, dir string) string {
 	return d
 }
 
-//shed:proves S.vcs.7
+//shed:proves S.vcs.7 S.fp.4
 func TestLandCommand(t *testing.T) {
 	r := testrepo.Colocated(t)
 	r.Write(".shed/config.toml", "[vcs]\nremote = \"origin\"\n")
@@ -209,7 +209,7 @@ func TestLandCommand(t *testing.T) {
 	}
 	out := mustRun(t, r.Dir, "land", change)
 	commit := r.GitRemote("rev-parse", "main")
-	if out != "landed "+unit.Short(change)+" on main as "+commit+"\n" {
+	if out != "landed "+unit.Short(change)+" on main as "+commit+"\nfootprint held\n" {
 		t.Errorf("land = %q, remote main %s", out, commit)
 	}
 	if !strings.Contains(r.Git("log", "-1", "--format=%B", commit), "Unit: "+change) {
@@ -217,6 +217,57 @@ func TestLandCommand(t *testing.T) {
 	}
 	if status := mustRun(t, r.Dir, "status"); !strings.Contains(status, "landed") {
 		t.Errorf("status after landing:\n%s", status)
+	}
+}
+
+//shed:proves S.fp.3 S.fp.4
+func TestLandReportsFootprintDrift(t *testing.T) {
+	r := testrepo.Colocated(t)
+	r.Write(".shed/config.toml", "[vcs]\nremote = \"origin\"\n")
+	change := openUnit(t, r.Dir, "Say goodbye")
+	dir := strings.TrimSpace(mustRun(t, r.Dir, "unit", "path", change))
+	spec := testrepo.Spec + "- **S.core.2** (H.greet.2) Running the tool with --bye prints goodbye.\n"
+	if err := os.WriteFile(filepath.Join(dir, "spec", "core.md"), []byte(spec), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	state := filepath.Join(r.Dir, DefaultStateDir)
+	tr, err := tracker.Open(state, tracker.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = tr.Seal(change, "main1", "unitcommit", tracker.Footprint{Modifies: []string{"S.core.3"}, Advances: []string{"H.greet.2"}}, unit.Committee, "consensus", nil)
+	tr.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range []string{"implementing", "verifying", "queued"} {
+		mustRun(t, r.Dir, "unit", "move", change, s, "by hand")
+	}
+
+	drift := "footprint drifted: not sealed S.core.2; not modified S.core.3"
+	out := mustRun(t, r.Dir, "land", change)
+	commit := r.GitRemote("rev-parse", "main")
+	if want := "landed " + unit.Short(change) + " on main as " + commit + "\n" + drift + "\n"; out != want {
+		t.Errorf("land = %q, want %q", out, want)
+	}
+	log := strings.Split(strings.TrimSuffix(mustRun(t, r.Dir, "unit", "log", change), "\n"), "\n")
+	last := log[len(log)-1]
+	if !strings.Contains(last, "queued -> landed as "+commit[:12]) || !strings.Contains(last, drift) {
+		t.Errorf("landing line = %q, want it to report %q", last, drift)
+	}
+
+	mustRun(t, r.Dir, "tracker", "rebuild")
+	tr, err = tracker.Open(state, tracker.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Close()
+	u, err := tr.Unit(change)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Actual == nil || strings.Join(u.Actual.Modifies, " ") != "S.core.2" || strings.Join(u.Footprint.Modifies, " ") != "S.core.3" {
+		t.Errorf("after rebuild: sealed %+v, actual %+v", u.Footprint, u.Actual)
 	}
 }
 

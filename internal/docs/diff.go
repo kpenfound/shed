@@ -19,6 +19,16 @@ func (d SpecDiff) Empty() bool {
 	return len(d.Added)+len(d.Removed)+len(d.Changed) == 0
 }
 
+// Modified lists the clauses the diff adds, changes or removes, sorted.
+func (d SpecDiff) Modified() []string {
+	var out []string
+	for _, id := range slices.Concat(d.Added, d.Changed, d.Removed) {
+		out = append(out, id.String())
+	}
+	slices.Sort(out)
+	return out
+}
+
 // DiffSpec compares the spec clauses of two sets. A clause changes when its
 // text or the horizon clauses it advances change; whitespace does not count.
 func DiffSpec(from, to *Set) SpecDiff {

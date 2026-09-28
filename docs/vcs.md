@@ -63,7 +63,8 @@ unit's change.
 6. Push main to the remote. jj refuses the push if the remote's main moved
    after the fetch.
 7. Remove the unit's workspace and record the unit as landed, with its
-   commit.
+   commit and its actual footprint, and report how that footprint drifted
+   from the sealed one. See [the tracker](tracker.md#footprints-and-seals).
 
 A unit lands as one commit, so `git log main` reads as the spec changelog:
 
@@ -91,4 +92,5 @@ repository restores it the same way.
 
 A landing that moved main but stopped before the tracker recorded it is
 completed by running `shed land` again: the unit's change is already on
-main, so shed only records it.
+main, so shed only records it. It records the actual footprint if none is
+recorded yet and reports the drift, as a normal landing does.

@@ -59,6 +59,22 @@ commit that change points to, together with the unit's footprint. The footprint 
 modifies, the spec clauses it depends on and the horizon clauses it
 advances.
 
+Landing records the unit's actual footprint beside the sealed one: the spec
+clauses the landed commit adds, changes or removes against its parent, with
+the dependencies and horizon clauses recorded at the last seal. The drift is
+the difference between the clauses the two footprints modify: the clauses
+the unit modified but was not sealed to, and the clauses it was sealed to
+modify but did not. `shed land` prints the drift after the landed commit,
+and the landing's line in `shed unit log` ends with it:
+
+```
+landed qpvuntsm on main as 3f2a9c1d7e4b5a6f8c9d0e1f2a3b4c5d6e7f8091
+footprint drifted: not sealed S.greet.3; not modified none
+```
+
+When both lists are empty the report reads `footprint held`.
+`shed tracker rebuild` gives back both footprints.
+
 A unit may depend only on spec clauses that are on main or that it modifies
 itself. Depending on a clause another in-flight unit is adding is refused.
 Wait for that unit to land, or merge the two units.
@@ -73,7 +89,7 @@ Wait for that unit to land, or merge the two units.
 | `shed unit reopen [-amendment] <unit> <reason>` | Sends a unit back to the shed. |
 | `shed unit log <unit>` | Prints a unit's events. |
 | `shed unit path <unit>` | Prints the directory of the unit's workspace. |
-| `shed land <unit>` | Lands a queued unit on main. See [version control](vcs.md). |
+| `shed land <unit>` | Lands a queued unit on main and reports its footprint drift. See [version control](vcs.md). |
 | `shed tracker rebuild` | Rebuilds the database from the event log. |
 | `shed config` | Prints the operator settings in effect. |
 
