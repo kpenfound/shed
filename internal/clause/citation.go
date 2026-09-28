@@ -2,6 +2,7 @@ package clause
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -30,4 +31,18 @@ func (c Citation) String() string {
 		return c.ID.String()
 	}
 	return c.ID.String() + "@" + c.Rev
+}
+
+// Mentioned returns the well-formed clause IDs a text mentions, in order and
+// without repeats. Revisions are dropped.
+func Mentioned(text string) []ID {
+	var ids []ID
+	for _, m := range mentionPattern.FindAllString(text, -1) {
+		c, err := ParseCitation(m)
+		if err != nil || slices.Contains(ids, c.ID) {
+			continue
+		}
+		ids = append(ids, c.ID)
+	}
+	return ids
 }

@@ -216,6 +216,37 @@ func TestCoreRunsSandboxedSessions(t *testing.T) {
 	}
 }
 
+// The done tool refuses an outcome the turn's check refuses, such as a
+// mechanic's amend whose note cites no clause of the sealed spec.
+//
+//shed:proves S.impl.5
+func TestDoneChecksTheOutcome(t *testing.T) {
+	c := testCore(t, func(ctx context.Context, req agent.Request) (*agent.Result, error) {
+		if _, err := callTool(ctx, req, "done", map[string]any{"status": "amend", "note": "the spec is wrong"}); err == nil {
+			t.Error("done accepted an amend the turn's check refuses")
+		}
+		if _, err := callTool(ctx, req, "done", map[string]any{"status": "amend", "note": "S.core.2 should say where goodbye is printed"}); err != nil {
+			t.Errorf("done refused an amend the turn's check accepts: %v", err)
+		}
+		return &agent.Result{}, nil
+	})
+	var checked []string
+	turn := Turn{Unit: change, Role: unit.Mechanic, Step: "implement", Dir: t.TempDir(), Writable: true,
+		SessionDir: t.TempDir(), Prompt: "work", Outcomes: []string{"done", "reopen", "amend"},
+		Check: func(status, note string) error {
+			checked = append(checked, status)
+			if status == "amend" && !strings.Contains(note, "S.core.2") {
+				return errors.New("an amend cites a clause of the sealed spec")
+			}
+			return nil
+		}}
+	res, err := c.Run(ctx, turn)
+	must(t, err)
+	if res.Status != "amend" || res.Note != "S.core.2 should say where goodbye is printed" || len(checked) != 2 {
+		t.Errorf("result = %+v after checking %v", res, checked)
+	}
+}
+
 func evalDir(t *testing.T, dir string) string {
 	t.Helper()
 	d, err := filepath.EvalSymlinks(dir)

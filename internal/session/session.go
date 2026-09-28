@@ -89,6 +89,8 @@ type Turn struct {
 	Tools   []Tool
 	// Outcomes are the statuses the done tool accepts.
 	Outcomes []string
+	// Check, when set, vets each outcome before the done tool accepts it.
+	Check func(status, note string) error
 	// StepDone is the outcome that finishes Step.
 	StepDone string
 	// ResumeID continues an earlier session of the same role on the unit.

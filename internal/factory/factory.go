@@ -100,6 +100,8 @@ type work struct {
 	// documents in it.
 	Tools    func(dir string, head *docs.Set) []session.Tool
 	Outcomes []string
+	// Check vets each outcome before the done tool accepts it.
+	Check    func(status, note string) error
 	StepDone string
 	Extra    []bundle.Section
 }
@@ -149,7 +151,7 @@ func (f *Factory) session(ctx context.Context, w work) (session.Result, error) {
 	res, err := f.Sessions.Run(ctx, session.Turn{
 		Unit: w.Unit.Change, Role: w.Role, Step: w.Step, Dir: view, Writable: w.Writable,
 		SystemPrompt: system, Prompt: w.Task, Bundle: b.Render(), Notices: ids, Tools: tools,
-		Outcomes: w.Outcomes, StepDone: w.StepDone,
+		Outcomes: w.Outcomes, Check: w.Check, StepDone: w.StepDone,
 	})
 	if err != nil {
 		return res, err

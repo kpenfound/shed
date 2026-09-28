@@ -27,6 +27,7 @@ import (
 const (
 	outcomeDone         = "done"
 	outcomeReopen       = "reopen"
+	outcomeAmend        = "amend"
 	outcomePass         = "pass"
 	outcomeFail         = "fail"
 	outcomeSpecWrong    = "spec-wrong"
@@ -110,7 +111,8 @@ func (f *Factory) Implement(ctx context.Context, change string) (Outcome, error)
 			Unit: u, Role: unit.Mechanic, Prompt: roles.Mechanic, Step: step.Name, Writable: true,
 			Task:     fmt.Sprintf("Work on the %s step of %q.", step.Name, u.Title),
 			Tools:    f.testTools,
-			Outcomes: []string{outcomeDone, outcomeReopen},
+			Outcomes: []string{outcomeDone, outcomeReopen, outcomeAmend},
+			Check:    amendCheck(u.Footprint),
 			StepDone: outcomeDone,
 			Extra:    []bundle.Section{{Title: "Step", Body: formulaText(formula, step.Name, u.Steps)}},
 		})
@@ -120,10 +122,29 @@ func (f *Factory) Implement(ctx context.Context, change string) (Outcome, error)
 		switch {
 		case res.Status == outcomeReopen:
 			return f.reopen(u, unit.Mechanic, "the mechanic found the sealed spec wrong: "+res.Note, false)
+		case res.Status == outcomeAmend:
+			return f.reopen(u, unit.Mechanic, "the mechanic requested an amendment:\n"+res.Note, true)
 		case res.Failure != session.NoFailure:
 			// Tried again next time, until the step has failed too often.
 			return Failed, nil
 		}
+	}
+}
+
+// amendCheck refuses an amend whose note cites no clause of the unit's
+// sealed spec: the clauses its footprint modifies or depends on.
+func amendCheck(fp tracker.Footprint) func(status, note string) error {
+	return func(status, note string) error {
+		if status != outcomeAmend {
+			return nil
+		}
+		for _, id := range clause.Mentioned(note) {
+			if slices.Contains(fp.Modifies, id.String()) || slices.Contains(fp.Depends, id.String()) {
+				return nil
+			}
+		}
+		sealed := append(slices.Clone(fp.Modifies), fp.Depends...)
+		return fmt.Errorf("an amend names each sealed clause it wants changed; the note cites none of %s", strings.Join(sealed, ", "))
 	}
 }
 

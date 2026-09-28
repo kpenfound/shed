@@ -140,6 +140,11 @@ func (c *Core) Run(ctx context.Context, t Turn) (Result, error) {
 			if err := agent.ValidateOutcome(string(t.Role), o.Status, t.Outcomes); err != nil {
 				return o, err
 			}
+			if t.Check != nil {
+				if err := t.Check(o.Status, o.Note); err != nil {
+					return o, err
+				}
+			}
 			mu.Lock()
 			reported, hasOutcome = o, true
 			mu.Unlock()

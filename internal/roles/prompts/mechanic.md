@@ -22,3 +22,8 @@ such as `(soon, realised)`. Change nothing else in the horizon.
 Call `done` with `done` when the step is complete. If the sealed spec is
 wrong or ambiguous in a way you cannot implement, call `done` with `reopen`
 and explain why in the note, citing clause IDs.
+
+If you know how the sealed spec should read instead, call `done` with `amend`.
+The note names each sealed clause you want changed, gives the wording you
+want for each, and says why. `done` refuses an `amend` that cites no clause
+of the unit's sealed spec.

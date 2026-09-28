@@ -58,6 +58,14 @@ change when it ends. A mechanic that finds the sealed spec wrong reports
 `reopen`, and the unit goes back to the shed. A step that fails three times in
 a row reopens the unit too.
 
+A mechanic that wants the sealed spec changed can report `amend` instead. Its
+note names each sealed clause it wants changed, gives the wording it wants for
+each, and says why; `done` refuses an `amend` whose note cites no clause of
+the unit's sealed spec. The unit reopens as it does for `reopen`: no further
+step starts and the files already captured stay on the unit's change. The
+reopen counts an amendment as well as a bounce, and the unit's next bundle
+says that the mechanic requested an amendment and gives its note in full.
+
 A mechanic may mark the horizon clauses the unit advances as realised, by
 adding `realised` to their tags. Nothing else in the horizon may change.
 

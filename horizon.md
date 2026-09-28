@@ -198,7 +198,7 @@ distant and get promoted as the soon tier drains.
 - **H.impl.2** (soon, realised) The default formula writes proofs before implementation.
 - **H.impl.3** (soon, realised) A mechanic session works one formula step and ends. Shed
   records the result and dispatches the next step whose needs are met.
-- **H.impl.4** (soon) A mechanic may request an amendment instead of finishing
+- **H.impl.4** (soon, realised) A mechanic may request an amendment instead of finishing
   a step (H.shed.11). Shed counts amendments per unit.
 - **H.impl.5** (distant) A unit whose cost passes a configured multiple of its
   estimate reopens for debate. Cost alone never stops a unit.

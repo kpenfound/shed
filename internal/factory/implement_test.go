@@ -156,6 +156,89 @@ func TestMechanicReopens(t *testing.T) {
 	}
 }
 
+//shed:proves S.impl.5
+func TestMechanicRequestsAnAmendment(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[concurrency]\nin_flight = 0\n")
+	change := sealed(t, f, fake)
+	mechanic(t, fake)
+	note := "S.core.2 should read: Running the tool with --bye prints goodbye on standard output.\n" +
+		"Why: the clause does not say where goodbye is printed, so no proof can check it."
+	fake.on(unit.Mechanic, "implement", func(turn session.Turn) session.Result {
+		if !slices.Contains(turn.Outcomes, "amend") || turn.Check == nil {
+			t.Fatalf("the mechanic cannot request an amendment: outcomes %v", turn.Outcomes)
+		}
+		for _, refused := range []string{
+			"The spec is wrong.",
+			"S.core.9 should say where goodbye is printed.",
+			"C2 should allow printing goodbye anywhere.",
+		} {
+			if err := turn.Check("amend", refused); err == nil {
+				t.Errorf("done accepted an amend citing no clause of the sealed spec: %q", refused)
+			}
+		}
+		for _, status := range []string{"done", "reopen"} {
+			if err := turn.Check(status, "The spec is wrong."); err != nil {
+				t.Errorf("done refused %s: %v", status, err)
+			}
+		}
+		if err := turn.Check("amend", note); err != nil {
+			t.Errorf("done refused an amend citing S.core.2: %v", err)
+		}
+		res := done("amend")
+		res.Note = note
+		return res
+	})
+	out, err := f.Implement(ctx, change)
+	must(t, err)
+	u, _ := f.Tracker.Unit(change)
+	if out != Reopened || u.State != unit.Proposed || u.Bounces != 1 || u.Amendments != 1 || len(u.Steps) != 0 {
+		t.Errorf("amend = %s, %+v", out, u)
+	}
+	var steps []string
+	for _, turn := range fake.ran(unit.Mechanic) {
+		steps = append(steps, turn.Step)
+	}
+	if !slices.Equal(steps, []string{"proofs", "implement"}) {
+		t.Errorf("mechanic steps = %v", steps)
+	}
+	commit, _ := f.Repo.Commit(ctx, change)
+	if got := r.Git("show", commit+":bye_test.go"); !strings.Contains(got, "func TestBye") {
+		t.Errorf("the captured proofs left the change: %q", got)
+	}
+
+	// The next bundle says an amendment was requested and carries the note.
+	var bundles []string
+	fake.on(unit.Committee, "debate", func(turn session.Turn) session.Result {
+		bundles = append(bundles, turn.Bundle)
+		return done("clean")
+	})
+	_, err = f.Debate(ctx, change)
+	must(t, err)
+	if len(bundles) == 0 {
+		t.Fatal("no debate followed the amendment request")
+	}
+	if b := bundles[0]; !strings.Contains(b, "requested an amendment") || !strings.Contains(b, note) {
+		t.Errorf("the next bundle lacks the amendment request:\n%s", b)
+	}
+
+	// A reopen counts a bounce but no amendment.
+	change = sealed(t, f, fake)
+	mechanic(t, fake)
+	fake.on(unit.Mechanic, "implement", func(turn session.Turn) session.Result {
+		res := done("reopen")
+		res.Note = "S.core.2 does not say where goodbye is printed"
+		return res
+	})
+	if out, err := f.Implement(ctx, change); err != nil || out != Reopened {
+		t.Fatalf("reopen = %s, %v", out, err)
+	}
+	if u, _ := f.Tracker.Unit(change); u.Bounces != 1 || u.Amendments != 0 || strings.Contains(u.Reason, "requested an amendment") {
+		t.Errorf("reopen = %+v", u)
+	}
+}
+
 //shed:proves S.verify.1 S.verify.4
 func TestVerifyChecksProofsFirst(t *testing.T) {
 	r := project(t)
