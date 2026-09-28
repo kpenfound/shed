@@ -47,6 +47,12 @@ func (f *fakeRunner) on(role unit.Actor, prefix string, a player) {
 }
 
 func (f *fakeRunner) Run(_ context.Context, t session.Turn) (session.Result, error) {
+	// Sessions are granted these paths, and core refuses a relative one.
+	for _, p := range []string{t.Dir, t.SessionDir} {
+		if !filepath.IsAbs(p) {
+			f.t.Errorf("%s's turn %q has the relative path %q", t.Role, t.Step, p)
+		}
+	}
 	f.mu.Lock()
 	f.turns = append(f.turns, t)
 	var found player

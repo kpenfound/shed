@@ -140,11 +140,10 @@ go install github.com/kpenfound/shed/cmd/shed@latest
    runner = ["scripts/in-dagger"]
    ```
 
-4. Colocate jj with git, and check the documents:
+4. Colocate jj with git:
 
    ```sh
    jj git init --colocate
-   shed check
    ```
 
 5. Set the operator settings in `.shed/config.toml`: at least the remote to
@@ -162,7 +161,15 @@ go install github.com/kpenfound/shed/cmd/shed@latest
 
 ### Run it
 
-Run the whole factory:
+Check that everything the factory needs is in place:
+
+```sh
+shed doctor
+```
+
+It checks the documents and proofs, the settings, the test runner, jj, the
+repository, the remote and sbx, and says what to fix. Then run the whole
+factory:
 
 ```sh
 shed serve
@@ -196,6 +203,7 @@ shed run <unit>                    # debate, implement, verify, land
 | `shed debate\|land\|run <unit>` | Runs one stage of a unit, or all of them. |
 | `shed serve [-once]` | Runs the factory. |
 | `shed config` | Prints the operator settings in effect. |
+| `shed doctor` | Checks that everything running the factory needs is in place. |
 
 ## Status
 

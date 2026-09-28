@@ -68,6 +68,33 @@ var (
 // Open checks the jj release and the repository, then restores any
 // operation a crash interrupted.
 func Open(ctx context.Context, root, state string, opts Options) (*Repo, error) {
+	if err := os.MkdirAll(filepath.Join(state, WorkspacesDir), 0o755); err != nil {
+		return nil, err
+	}
+	r, err := check(ctx, root, state, opts)
+	if err != nil {
+		return nil, err
+	}
+	unlock, err := r.lock()
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	if _, err := r.recover(ctx); err != nil {
+		return nil, fmt.Errorf("restoring an interrupted operation: %w", err)
+	}
+	return r, nil
+}
+
+// Check reports whether shed can work in a repository, as Open would find
+// it, and changes nothing: the jj release, a jj repository colocated with
+// git at the root, a state directory git ignores, and the main bookmark.
+func Check(ctx context.Context, root, state string, opts Options) error {
+	_, err := check(ctx, root, state, opts)
+	return err
+}
+
+func check(ctx context.Context, root, state string, opts Options) (*Repo, error) {
 	if opts.Main == "" {
 		opts.Main = "main"
 	}
@@ -78,11 +105,9 @@ func Open(ctx context.Context, root, state string, opts Options) (*Repo, error) 
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Join(state, WorkspacesDir), 0o755); err != nil {
-		return nil, err
-	}
-	state, err = canonical(state)
-	if err != nil {
+	if resolved, err := canonical(state); err == nil {
+		state = resolved
+	} else if state, err = filepath.Abs(state); err != nil {
 		return nil, err
 	}
 	if _, err := CheckJJ(ctx, opts.JJ); err != nil {
@@ -99,14 +124,6 @@ func Open(ctx context.Context, root, state string, opts Options) (*Repo, error) 
 	if _, err := r.MainCommit(ctx); err != nil {
 		return nil, err
 	}
-	unlock, err := r.lock()
-	if err != nil {
-		return nil, err
-	}
-	defer unlock()
-	if _, err := r.recover(ctx); err != nil {
-		return nil, fmt.Errorf("restoring an interrupted operation: %w", err)
-	}
 	return r, nil
 }
 
@@ -119,18 +136,19 @@ func canonical(path string) (string, error) {
 }
 
 func (r *Repo) checkColocated(ctx context.Context) error {
+	const fix = "run `jj git init --colocate` at the repository root"
 	jjRoot, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "root")
 	if err != nil {
-		return fmt.Errorf("%w: %s: %v", ErrNotColocated, r.root, err)
+		return fmt.Errorf("%w: %s; %s", ErrNotColocated, r.root, fix)
 	}
 	gitDir, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "git", "root")
 	if err != nil {
-		return fmt.Errorf("%w: %s: %v", ErrNotColocated, r.root, err)
+		return fmt.Errorf("%w: %s; %s", ErrNotColocated, r.root, fix)
 	}
 	jjRoot, _ = canonical(jjRoot)
 	gitDir, _ = canonical(gitDir)
 	if jjRoot != r.root || gitDir != filepath.Join(r.root, ".git") {
-		return fmt.Errorf("%w: %s; run `jj git init --colocate` at the repository root", ErrNotColocated, r.root)
+		return fmt.Errorf("%w: %s; %s", ErrNotColocated, r.root, fix)
 	}
 	if rel, err := filepath.Rel(r.root, r.state); err == nil && !strings.HasPrefix(rel, "..") {
 		if _, err := r.git(ctx, "check-ignore", "-q", rel+"/"); err != nil {
@@ -153,7 +171,7 @@ func (r *Repo) MainCommit(ctx context.Context) (string, error) {
 		return "", err
 	}
 	if out == "" {
-		return "", fmt.Errorf("the repository has no %s bookmark", r.opts.Main)
+		return "", fmt.Errorf("the repository has no %s bookmark; create it with `jj bookmark create %s -r <commit>`", r.opts.Main, r.opts.Main)
 	}
 	return out, nil
 }

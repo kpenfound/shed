@@ -45,6 +45,12 @@ type Factory struct {
 // Open opens the factory of a repository with its state directory. Runner
 // runs sessions; nil runs them in Docker Sandboxes through busybees/core.
 func Open(ctx context.Context, root, state string, runner session.Runner) (*Factory, error) {
+	// Session directories and views are granted to sessions by path, and a
+	// grant must be absolute.
+	state, err := filepath.Abs(state)
+	if err != nil {
+		return nil, err
+	}
 	op, err := config.LoadOperator(filepath.Join(state, config.OperatorFile))
 	if err != nil {
 		return nil, err

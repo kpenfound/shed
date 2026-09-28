@@ -115,9 +115,10 @@ sessions have failed for infrastructure reasons in a row. After a crash,
 2. Store a credential for each agent with `sbx secret set`.
 3. Optionally write `.shed/config.toml`: at least `vcs.remote = "origin"` to
    push landings, and the models, budgets and caps you want.
-4. Build and serve:
+4. Build shed, check that everything is in place, and serve:
 
    ```sh
    go build -o shed ./cmd/shed
+   ./shed doctor
    ./shed serve
    ```

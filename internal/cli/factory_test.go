@@ -78,3 +78,23 @@ func TestOwnerDrivesAUnitToMain(t *testing.T) {
 		t.Errorf("serve = %d, %q", code, out)
 	}
 }
+
+//shed:proves S.track.1
+func TestServeFromInsideTheRepository(t *testing.T) {
+	r := testrepo.Colocated(t)
+	r.Write("go.mod", "module example.com/greet\n\ngo 1.21\n")
+	r.Write("greet_test.go", "package greet\n\nimport \"testing\"\n\n//shed:proves S.core.1\nfunc TestHello(t *testing.T) {}\n")
+	r.JJ("commit", "-m", "module")
+	r.JJ("bookmark", "set", "main", "-r", "@-")
+	// Run as the owner would, from the repository root with its defaults:
+	// the root is "." and the state directory ".shed".
+	t.Chdir(r.Dir)
+	var out, errOut bytes.Buffer
+	code := RunWith(context.Background(), []string{"serve", "-once"}, &out, &errOut, crew{t})
+	if code != OK || strings.Contains(out.String(), "error") {
+		t.Fatalf("serve = %d\n%s%s", code, out.String(), errOut.String())
+	}
+	if !strings.HasPrefix(out.String(), "painter: ") {
+		t.Errorf("serve ran no painter session:\n%s", out.String())
+	}
+}

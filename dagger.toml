@@ -8,9 +8,10 @@ source = ".dagger/modules/shed-go"
 
 [modules.go.settings]
 base = "golang:1.26-trixie"
-# Keep the module's own helper out of the modules under test.
-test = ["**", "!.dagger"]
-generate = ["**", "!.dagger"]
+# Keep the module's own helper out of the modules under test, and shed's
+# state directory too: its unit workspaces hold whole copies of this module.
+test = ["**", "!.dagger", "!.shed/**"]
+generate = ["**", "!.dagger", "!.shed/**"]
 
 # The Go patterns mount only Go sources. The repository's own documents are
 # checked by a test, so they are mounted too.

@@ -88,6 +88,7 @@ Units:
 
 State:
   config             print the operator settings in effect
+  doctor             check that everything running the factory needs is in place
   tracker rebuild    rebuild the tracker database from the event log
   version            print the release shed was built from
 
@@ -129,6 +130,15 @@ func RunWith(ctx context.Context, args []string, stdout, stderr io.Writer, runne
 	if e.state == "" {
 		e.state = filepath.Join(e.root, DefaultStateDir)
 	}
+	// Sessions are granted paths, which must be absolute.
+	for _, p := range []*string{&e.root, &e.state} {
+		abs, err := filepath.Abs(*p)
+		if err != nil {
+			fmt.Fprintf(stderr, "shed: %v\n", err)
+			return Failed
+		}
+		*p = abs
+	}
 	cmd, rest := fs.Arg(0), fs.Args()[1:]
 	switch cmd {
 	case "check":
@@ -159,6 +169,8 @@ func RunWith(ctx context.Context, args []string, stdout, stderr io.Writer, runne
 		return e.config(rest)
 	case "tracker":
 		return e.tracker(rest)
+	case "doctor":
+		return e.doctor(rest)
 	case "version":
 		fmt.Fprintf(stdout, "shed %s\n", buildVersion())
 		return OK
