@@ -343,7 +343,14 @@ func (e env) trace(args []string, gapOnly bool) int {
 		if gapOnly {
 			fmt.Fprintf(w, "%s\t%s\t%s\n", en.Clause.ID, en.Tier, advanced)
 		} else {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", en.Clause.ID, en.Tier, state, advanced)
+			var refinement string
+			switch {
+			case en.Refines != (clause.ID{}):
+				refinement = "\trefines " + en.Refines.String()
+			case len(en.RefinedBy) > 0:
+				refinement = "\trefined by " + docs.JoinIDs(en.RefinedBy)
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s%s\n", en.Clause.ID, en.Tier, state, advanced, refinement)
 		}
 	}
 	if err := w.Flush(); err != nil {

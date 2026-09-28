@@ -47,6 +47,18 @@ A horizon clause opens with a tag list holding its tier (`near`, `soon`,
 A realised clause needs at least one spec clause that advances it. Milestones
 carry no tier.
 
+A near or soon clause may name the distant or eventual clause it refines with
+a `refines` tag:
+
+```markdown
+- **H.greet.3** (distant) The tool speaks every language.
+- **H.greet.4** (soon, refines H.greet.3) The tool greets in French.
+```
+
+`shed check` refuses a `refines` tag on a distant or eventual clause, a second
+`refines` tag, and one naming anything other than a distant or eventual clause
+in the horizon.
+
 ### Spec clauses
 
 A spec clause opens with the horizon clauses it advances:
@@ -97,6 +109,6 @@ runner = ["scripts/in-dagger"]
 | `shed check` | Validates documents, IDs, history, citations and proofs. Exits non-zero on any problem. |
 | `shed show <citation>...` | Prints the clauses the citations name. |
 | `shed diff <from> [<to>]` | Lists spec clauses added, removed or changed between revisions, or between a revision and the working tree. |
-| `shed trace` | Lists every horizon clause with its tier, whether it is realised, and the spec clauses advancing it. |
+| `shed trace` | Lists every horizon clause with its tier, whether it is realised, the spec clauses advancing it, and the clause it refines or the clauses refining it. |
 | `shed gap` | Lists the horizon clauses not yet realised. |
 | `shed prove [<id>...]` | Runs proofs and reports per clause. |

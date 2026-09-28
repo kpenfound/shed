@@ -194,7 +194,7 @@ shed run <unit>                    # debate, implement, verify, land
 | Command | Does |
 | --- | --- |
 | `shed check` | Validates the documents, IDs, citations and proofs. |
-| `shed gap`, `shed trace` | List the horizon clauses not yet realised, or every horizon clause with the spec clauses that advance it. |
+| `shed gap`, `shed trace` | List the horizon clauses not yet realised, or every horizon clause with the spec clauses that advance it and its refinement links. |
 | `shed prove [<id>...]` | Runs the proofs of spec clauses and reports per clause. |
 | `shed show <citation>...` | Prints the clauses citations name, at any revision. |
 | `shed diff <from> [<to>]` | Lists spec clauses added, changed and removed between revisions. |

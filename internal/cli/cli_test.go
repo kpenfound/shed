@@ -132,6 +132,35 @@ func TestTraceAndGap(t *testing.T) {
 	}
 }
 
+//shed:proves S.horizon.7
+func TestTraceShowsRefinement(t *testing.T) {
+	r := project(t)
+	r.Write("horizon.md", `- **H.greet.1** (soon, realised) Fine.
+- **H.greet.2** (soon, refines H.greet.3) Refines.
+- **H.greet.3** (distant) Parent.
+- **H.greet.4** (near, refines H.greet.3) Also refines.
+`)
+	stdout, stderr, code := run(t, r.Dir, "trace")
+	if code != OK {
+		t.Fatalf("trace = %d, stderr %q", code, stderr)
+	}
+	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
+	want := []string{
+		"H.greet.1 soon realised S.core.1",
+		"H.greet.2 soon - refines H.greet.3",
+		"H.greet.3 distant - refined by H.greet.2, H.greet.4",
+		"H.greet.4 near - refines H.greet.3",
+	}
+	if len(lines) != len(want) {
+		t.Fatalf("trace =\n%s\nwant %d lines", stdout, len(want))
+	}
+	for i, line := range lines {
+		if got := strings.Join(strings.Fields(line), " "); got != want[i] {
+			t.Errorf("trace line %d = %q, want %q", i+1, got, want[i])
+		}
+	}
+}
+
 //shed:proves S.proof.4 S.proof.5
 func TestProve(t *testing.T) {
 	r := project(t)

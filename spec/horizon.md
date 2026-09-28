@@ -2,8 +2,9 @@
 
 - **S.horizon.1** (H.doc.7) A horizon clause opens, after its ID, with a
   parenthesised tag list holding exactly one tier (`near`, `soon`, `distant`
-  or `eventual`) and optionally `realised`. Shed refuses a missing tier, a
-  second tier and an unknown tag.
+  or `eventual`), optionally `realised` and optionally a `refines` tag
+  (S.horizon.6). Shed refuses a missing tier, a second tier and an unknown
+  tag.
 - **S.horizon.2** (H.doc.8) A spec clause opens, after its ID, with a
   parenthesised list of the horizon clauses it advances. Shed refuses a spec
   clause that names none, or names anything other than a horizon clause in
@@ -16,3 +17,12 @@
 - **S.horizon.5** (H.doc.9) `shed gap` lists, in document order, the horizon
   clauses not marked realised, with their tier and the spec clauses that
   already advance them.
+- **S.horizon.6** (H.hz.3) A near or soon horizon clause may carry, in its
+  tag list, `refines` followed by the ID of the distant or eventual horizon
+  clause it refines, such as `(soon, refines H.vision.1)`. Shed refuses a
+  `refines` tag on a distant or eventual clause, a second `refines` tag, and
+  one that names anything other than a distant or eventual clause in the
+  horizon.
+- **S.horizon.7** (H.hz.3) `shed trace` shows, for each horizon clause that
+  refines another, the clause it refines, and for each distant or eventual
+  clause, the clauses that refine it.

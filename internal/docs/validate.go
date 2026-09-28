@@ -14,6 +14,24 @@ var Tiers = []string{"near", "soon", "distant", "eventual"}
 // Realised marks a horizon clause the spec fully satisfies.
 const Realised = "realised"
 
+// Refines opens the tag naming the distant or eventual clause a near or soon
+// clause refines, such as "refines H.vision.1".
+const Refines = "refines"
+
+// refinesTarget returns the ID text of a refines tag.
+func refinesTarget(tag string) (string, bool) {
+	rest, ok := strings.CutPrefix(tag, Refines)
+	if !ok || rest == "" || (rest[0] != ' ' && rest[0] != '\t') {
+		return "", false
+	}
+	return strings.TrimSpace(rest), true
+}
+
+// parentTier reports whether a tier is one a refines tag may name.
+func parentTier(tier string) bool {
+	return tier == "distant" || tier == "eventual"
+}
+
 // Validate checks tags and citations across the set.
 func Validate(s *Set, r *Resolver) []clause.Problem {
 	var problems []clause.Problem
@@ -21,13 +39,21 @@ func Validate(s *Set, r *Resolver) []clause.Problem {
 		problems = append(problems, clause.Problem{File: c.File, Line: c.Line, Msg: fmt.Sprintf(format, args...)})
 	}
 
+	tierOf := map[clause.ID]string{}
+	for _, e := range Trace(s) {
+		tierOf[e.Clause.ID] = e.Tier
+	}
 	for _, c := range s.Clauses(clause.Horizon) {
 		if !c.Tagged {
 			add(c, "%s has no tier; start it with (near), (soon), (distant) or (eventual)", c.ID)
 			continue
 		}
-		var tiers []string
+		var tiers, refines []string
 		for _, t := range c.Tags {
+			if target, ok := refinesTarget(t); ok {
+				refines = append(refines, target)
+				continue
+			}
 			switch {
 			case slices.Contains(Tiers, t):
 				tiers = append(tiers, t)
@@ -38,6 +64,27 @@ func Validate(s *Set, r *Resolver) []clause.Problem {
 		}
 		if len(tiers) != 1 {
 			add(c, "%s must have exactly one tier, has %d", c.ID, len(tiers))
+		}
+		switch {
+		case len(refines) == 0:
+		case len(tiers) == 1 && parentTier(tiers[0]):
+			add(c, "%s is %s and cannot refine another clause", c.ID, tiers[0])
+		case len(refines) > 1:
+			add(c, "%s has more than one refines tag", c.ID)
+		default:
+			id, err := clause.ParseID(refines[0])
+			switch {
+			case err != nil:
+				add(c, "%s: %v", c.ID, err)
+			case id.Kind != clause.Horizon:
+				add(c, "%s refines %s, which is not a horizon clause", c.ID, id)
+			default:
+				if _, ok := s.Lookup(id); !ok {
+					add(c, "%s refines %s, which is not in the horizon", c.ID, id)
+				} else if tier := tierOf[id]; !parentTier(tier) {
+					add(c, "%s refines %s, which is %s, not distant or eventual", c.ID, id, tier)
+				}
+			}
 		}
 	}
 
@@ -94,16 +141,21 @@ func resolveMention(r *Resolver, m clause.Mention) error {
 	return err
 }
 
-// TraceEntry is a horizon clause and the spec clauses that advance it.
+// TraceEntry is a horizon clause, the spec clauses that advance it and its
+// refinement links.
 type TraceEntry struct {
 	Clause     clause.Clause
 	Tier       string
 	Realised   bool
 	AdvancedBy []clause.ID
+	// Refines is the clause this one refines, or the zero ID.
+	Refines clause.ID
+	// RefinedBy holds the clauses that refine this one, in document order.
+	RefinedBy []clause.ID
 }
 
-// Trace returns every horizon clause, in ID order, with the spec clauses that
-// advance it.
+// Trace returns every horizon clause, in document order, with the spec
+// clauses that advance it and its refinement links (S.horizon.7).
 func Trace(s *Set) []TraceEntry {
 	advancedBy := map[clause.ID][]clause.ID{}
 	for _, c := range s.Clauses(clause.Spec) {
@@ -114,16 +166,25 @@ func Trace(s *Set) []TraceEntry {
 		}
 	}
 	var out []TraceEntry
+	refinedBy := map[clause.ID][]clause.ID{}
 	for _, c := range s.Clauses(clause.Horizon) {
 		e := TraceEntry{Clause: c, AdvancedBy: advancedBy[c.ID]}
 		for _, t := range c.Tags {
-			if t == Realised {
+			if target, ok := refinesTarget(t); ok {
+				if id, err := clause.ParseID(target); err == nil && e.Refines == (clause.ID{}) {
+					e.Refines = id
+					refinedBy[id] = append(refinedBy[id], c.ID)
+				}
+			} else if t == Realised {
 				e.Realised = true
 			} else if slices.Contains(Tiers, t) {
 				e.Tier = t
 			}
 		}
 		out = append(out, e)
+	}
+	for i := range out {
+		out[i].RefinedBy = refinedBy[out[i].Clause.ID]
 	}
 	return out
 }

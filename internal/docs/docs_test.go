@@ -81,6 +81,8 @@ func TestHorizonTiers(t *testing.T) {
 - **H.greet.3** (soon, distant) Two tiers.
 - **H.greet.4** (later) Unknown tag.
 - **H.greet.5** (realised) Realised without a tier.
+- **H.greet.6** (near, refines H.greet.7) A refines tag is allowed.
+- **H.greet.7** (eventual) Refined.
 `)
 	_, problems := load(t, r)
 	wantProblems(t, problems,
@@ -91,6 +93,61 @@ func TestHorizonTiers(t *testing.T) {
 		"horizon.md:5: H.greet.5 must have exactly one tier, has 0",
 		"horizon.md:5: H.greet.5 is marked realised but no spec clause advances it",
 	)
+}
+
+//shed:proves S.horizon.6
+func TestRefinesTag(t *testing.T) {
+	r := testrepo.Minimal(t)
+	r.Write("horizon.md", `- **H.greet.1** (soon, realised) Fine.
+- **H.greet.2** (soon, refines H.greet.3) Refines a distant clause.
+- **H.greet.3** (distant) Parent.
+- **H.greet.4** (eventual) Parent.
+- **H.greet.5** (near, refines H.greet.4) Refines an eventual clause.
+- **H.greet.6** (distant, refines H.greet.4) Distant refines.
+- **H.greet.7** (eventual, refines H.greet.3) Eventual refines.
+- **H.greet.8** (soon, refines H.greet.3, refines H.greet.4) Two refines tags.
+- **H.greet.9** (soon, refines H.greet.1) Refines a soon clause.
+- **H.greet.10** (soon, refines H.greet.99) Refines a missing clause.
+- **H.greet.11** (soon, refines S.core.1) Refines a spec clause.
+- **H.greet.12** (soon, refines H.greet.01) Malformed.
+`)
+	_, problems := load(t, r)
+	wantProblems(t, problems,
+		"horizon.md:6: H.greet.6 is distant and cannot refine another clause",
+		"horizon.md:7: H.greet.7 is eventual and cannot refine another clause",
+		"horizon.md:8: H.greet.8 has more than one refines tag",
+		"horizon.md:9: H.greet.9 refines H.greet.1, which is soon, not distant or eventual",
+		"horizon.md:10: H.greet.10 refines H.greet.99, which is not in the horizon",
+		"horizon.md:11: H.greet.11 refines S.core.1, which is not a horizon clause",
+		`horizon.md:12: H.greet.12: malformed clause ID "H.greet.01"`,
+	)
+}
+
+//shed:proves S.horizon.7
+func TestTraceShowsRefinement(t *testing.T) {
+	r := testrepo.Minimal(t)
+	r.Write("horizon.md", `- **H.greet.1** (soon, realised) Fine.
+- **H.greet.2** (soon, refines H.greet.3) Refines.
+- **H.greet.3** (distant) Parent.
+- **H.greet.4** (near, refines H.greet.3) Also refines.
+`)
+	s, problems := load(t, r)
+	if len(problems) > 0 {
+		t.Fatalf("problems: %s", messages(problems))
+	}
+	var got []string
+	for _, e := range Trace(s) {
+		got = append(got, e.Clause.ID.String()+" "+e.Tier+" refines "+e.Refines.String()+" refined by "+JoinIDs(e.RefinedBy))
+	}
+	want := []string{
+		"H.greet.1 soon refines  refined by ",
+		"H.greet.2 soon refines H.greet.3 refined by ",
+		"H.greet.3 distant refines  refined by H.greet.2, H.greet.4",
+		"H.greet.4 near refines H.greet.3 refined by ",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("trace = %q, want %q", got, want)
+	}
 }
 
 //shed:proves S.horizon.2
