@@ -48,6 +48,15 @@ amendment lane. Every rule above holds, but the round cap is
 session is told that cap. The unit stays in the lane, even after a bounce at
 the cap, until it is next sealed.
 
+An amendment is scoped to the sealed spec: the clauses the footprint
+recorded at the unit's last seal modified or depended on. Every member's and
+the painter's session is told those clauses. A clause outside that scope
+must keep the text it had on the main commit recorded in the seal, so clauses
+that main changed after the seal never count against the amendment. When a
+round ends with no objection standing but the proposal changes a clause
+outside its scope, the unit is not sealed. It bounces to its painter, with a
+reason naming each clause outside the scope.
+
 Rejected and deferred proposals go to the archive: a Markdown entry under
 `archive/rejected/` or `archive/deferred/` on the `shed/archive` branch,
 which shares no history with main, so archiving never moves main. The entry

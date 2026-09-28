@@ -263,6 +263,10 @@ func (f *Factory) Serve(ctx context.Context, opts ServeOptions) error {
 		}
 		if paused == "" {
 			if err := f.pass(ctx, s); err != nil {
+				// A controller cut short by the end of ctx has not failed.
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
 				return err
 			}
 		} else if opts.Log != nil {

@@ -45,3 +45,13 @@
   `shed.amendment_rounds` in place of `shed.max_rounds`, and each member's
   session is told that cap. The unit stays in the amendment lane,
   including after a bounce at the cap, until it is next sealed.
+- **S.shed.12** (H.shed.11) In the amendment lane (S.shed.11) the proposal's
+  scope is the spec clauses in the footprint recorded at the unit's last seal,
+  both those it modified and those it depended on, and every member's and the
+  painter's session is told those clauses. A clause is outside the scope when
+  it is not in the scope and its text in the proposal differs from its text
+  on the main commit recorded in that seal (S.shed.8), so clauses that main
+  changed after the seal never count against the proposal. When a round ends
+  with no objection standing but a clause is outside the scope, the unit is
+  not sealed: it bounces to its painter as under S.shed.6, with a reason
+  naming each clause outside the scope.

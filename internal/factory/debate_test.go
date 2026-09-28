@@ -1,6 +1,7 @@
 package factory
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/kpenfound/shed/internal/archive"
 	"github.com/kpenfound/shed/internal/session"
+	"github.com/kpenfound/shed/internal/testrepo"
 	"github.com/kpenfound/shed/internal/tracker"
 	"github.com/kpenfound/shed/internal/unit"
 	"github.com/kpenfound/shed/internal/vcs"
@@ -373,4 +375,120 @@ func TestAmendmentLaneHasItsOwnCap(t *testing.T) {
 		t.Errorf("%d committee sessions after an ordinary reopen, want 3 members for 3 rounds", len(turns))
 	}
 	told(turns, 3)
+}
+
+//shed:proves S.shed.12
+func TestAmendmentLaneKeepsToTheSealedScope(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[shed]\nmax_rounds = 3\namendment_rounds = 2\nbounce_threshold = 10\n")
+	change := propose(t, f)
+
+	var mu sync.Mutex
+	objection := ""
+	object := false
+	fake.on(unit.Committee, "debate", func(turn session.Turn) session.Result {
+		if !object || member(turn) != 1 {
+			return done("clean")
+		}
+		if strings.HasPrefix(turn.Step, "debate round 1") {
+			out, err := call(t, turn, "object", map[string]any{"kind": "spec", "citations": []string{"S.core.2"}, "text": "Say what goodbye prints."})
+			must(t, err)
+			mu.Lock()
+			objection = strings.Fields(out)[1]
+			mu.Unlock()
+			return done("objecting")
+		}
+		mu.Lock()
+		id := objection
+		mu.Unlock()
+		_, err := call(t, turn, "withdraw", map[string]any{"objection": id, "reason": "answered"})
+		must(t, err)
+		return done("clean")
+	})
+	revision := ""
+	fake.on(unit.Painter, "reply", func(turn session.Turn) session.Result {
+		write(t, turn.Dir, "spec/core.md", revision)
+		return done("replied")
+	})
+
+	out, err := f.Debate(ctx, change)
+	must(t, err)
+	if out != Sealed {
+		t.Fatalf("first debate = %s", out)
+	}
+
+	// Another unit lands after the seal and adds a clause this unit never
+	// touched, so the proposal's spec no longer matches main's there.
+	other, err := f.Repo.NewUnit(ctx, "Wave")
+	must(t, err)
+	dir, err := f.Repo.Workspace(ctx, other)
+	must(t, err)
+	write(t, dir, "spec/core.md", testrepo.Spec+"- **S.core.3** (H.greet.3) Running the tool with --wave waves.\n")
+	_, err = f.Repo.Land(ctx, other, func(context.Context, string, string) (string, error) { return "Wave", nil })
+	must(t, err)
+	main, err := f.Repo.MainCommit(ctx)
+	must(t, err)
+
+	// told checks that the sessions of the amendment lane were told the
+	// sealed scope: the clause it modified and the clause it depended on.
+	told := func(turns []session.Turn) {
+		t.Helper()
+		if len(turns) == 0 {
+			t.Error("no sessions to check")
+		}
+		for _, turn := range turns {
+			for _, id := range []string{"S.core.1", "S.core.2"} {
+				if !strings.Contains(turn.Prompt, id) {
+					t.Errorf("%s's %s was not told the scope clause %s: %q", turn.Role, turn.Step, id, turn.Prompt)
+				}
+			}
+		}
+	}
+
+	// An amendment that adds a clause outside the scope bounces, naming it,
+	// even with no objection standing.
+	must(t, f.Tracker.Reopen(change, unit.Mechanic, "the mechanic requested an amendment:\nS.core.2 should say more.", true))
+	object = true
+	revision = strings.Replace(goodbyeSpec, "prints goodbye.", "prints the word goodbye.", 1) +
+		"- **S.core.4** (H.greet.3) Running the tool with --hola prints hola.\n"
+	committee, painter := len(fake.ran(unit.Committee)), len(fake.ran(unit.Painter))
+	out, err = f.Debate(ctx, change)
+	must(t, err)
+	if out != Bounced {
+		t.Fatalf("an amendment outside the scope = %s", out)
+	}
+	if standing, _ := f.Tracker.Standing(change); len(standing) != 0 {
+		t.Errorf("objections still stand: %+v", standing)
+	}
+	told(fake.ran(unit.Committee)[committee:])
+	told(fake.ran(unit.Painter)[painter:])
+	// The reopen counted one bounce and the scope counts another.
+	u, err := f.Tracker.Unit(change)
+	must(t, err)
+	if u.State != unit.Proposed || u.Bounces != 2 || !strings.Contains(u.Reason, "S.core.4") {
+		t.Errorf("after an amendment outside the scope = %+v", u)
+	}
+	for _, id := range []string{"S.core.1", "S.core.2", "S.core.3"} {
+		if strings.Contains(u.Reason, id) {
+			t.Errorf("the bounce names %s, which is not outside the scope: %q", id, u.Reason)
+		}
+	}
+
+	// An amendment that changes the clauses it modified and depended on
+	// seals, though main changed S.core.3 after the last seal.
+	revision = strings.Replace(strings.Replace(goodbyeSpec, "prints goodbye.", "prints the word goodbye.", 1),
+		"prints hello.", "prints the word hello.", 1)
+	committee, painter = len(fake.ran(unit.Committee)), len(fake.ran(unit.Painter))
+	out, err = f.Debate(ctx, change)
+	must(t, err)
+	if out != Sealed {
+		u, _ := f.Tracker.Unit(change)
+		t.Fatalf("an amendment within the scope = %s: %s", out, u.Reason)
+	}
+	told(fake.ran(unit.Committee)[committee:])
+	told(fake.ran(unit.Painter)[painter:])
+	if u, _ := f.Tracker.Unit(change); u.Seal == nil || u.Seal.Main != main {
+		t.Errorf("the amendment's seal = %+v, want main %s", u.Seal, main)
+	}
 }

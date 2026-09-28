@@ -12,6 +12,7 @@ import (
 	"github.com/kpenfound/shed/internal/bundle"
 	"github.com/kpenfound/shed/internal/clause"
 	"github.com/kpenfound/shed/internal/docs"
+	"github.com/kpenfound/shed/internal/revision"
 	"github.com/kpenfound/shed/internal/roles"
 	"github.com/kpenfound/shed/internal/session"
 	"github.com/kpenfound/shed/internal/tracker"
@@ -123,10 +124,11 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 	if _, _, err := f.refreshFootprint(ctx, u); err != nil {
 		return f.bounce(u, err.Error())
 	}
-	max, err := f.roundCap(u.Change)
+	lane, err := f.amendmentOf(u.Change)
 	if err != nil {
 		return "", err
 	}
+	max := lane.cap
 	for round := u.Round; ; {
 		if round < max {
 			round++
@@ -136,7 +138,7 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 			if u, err = f.Tracker.Unit(u.Change); err != nil {
 				return "", err
 			}
-			if err := f.committeeRound(ctx, u, round, max); err != nil {
+			if err := f.committeeRound(ctx, u, round, max, lane); err != nil {
 				return "", err
 			}
 		}
@@ -148,6 +150,15 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 			return f.archive(ctx, u, unit.Rejected, veto)
 		}
 		if len(standing) == 0 {
+			if lane.in() {
+				out, err := f.outside(ctx, lane, u.Change)
+				if err != nil {
+					return "", err
+				}
+				if len(out) > 0 {
+					return f.bounce(u, "the amendment changes clauses outside its sealed scope: "+strings.Join(out, ", "))
+				}
+			}
 			return f.seal(ctx, u, round)
 		}
 		if round >= max {
@@ -156,7 +167,7 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 			}
 			return f.bounce(u, fmt.Sprintf("%d objections still stand after %d rounds: %s", len(standing), round, ids(standing)))
 		}
-		if err := f.reply(ctx, u, round); err != nil {
+		if err := f.reply(ctx, u, round, lane); err != nil {
 			return "", err
 		}
 		if u, err = f.Tracker.Unit(u.Change); err != nil {
@@ -171,35 +182,95 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 	}
 }
 
-// roundCap is the round cap of a unit's debate. A unit whose latest reopen
-// requested an amendment is in the amendment lane until it is next sealed,
-// and its cap is shed.amendment_rounds (S.shed.11). Any other unit's cap is
-// shed.max_rounds.
-func (f *Factory) roundCap(change string) (int, error) {
+// lane reports whether a unit is in the amendment lane: its latest reopen
+// requested an amendment and it has not been sealed since (S.shed.11). A
+// unit in the lane comes with its last seal event, which holds the sealed
+// main commit and footprint.
+func (f *Factory) lane(change string) (*tracker.Event, error) {
 	events, err := f.Tracker.Events(change)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
+	amended := false
 	for i := len(events) - 1; i >= 0; i-- {
 		e := events[i]
 		if e.Kind != tracker.UnitMoved {
 			continue
 		}
 		if e.To == unit.Sealed {
-			break
-		}
-		if e.To == unit.Proposed && e.Bounce {
-			if e.Amendment {
-				return f.Operator.Shed.AmendmentRounds, nil
+			if amended && e.Seal != nil {
+				return &e, nil
 			}
-			break
+			return nil, nil
+		}
+		if e.To == unit.Proposed && e.Bounce && !amended {
+			if !e.Amendment {
+				return nil, nil
+			}
+			amended = true
 		}
 	}
-	return f.Operator.Shed.MaxRounds, nil
+	return nil, nil
+}
+
+// amendment is what the amendment lane holds a debate to: its round cap and
+// the scope and main commit of the unit's last seal. A unit outside the lane
+// has no scope, and its cap is shed.max_rounds.
+type amendment struct {
+	cap   int
+	scope []string
+	main  string
+}
+
+func (a amendment) in() bool { return a.main != "" }
+
+// amendmentOf is a unit's amendment lane. Its cap is shed.amendment_rounds
+// (S.shed.11), and its scope is every spec clause the footprint recorded at
+// the last seal modified or depended on (S.shed.12).
+func (f *Factory) amendmentOf(change string) (amendment, error) {
+	sealed, err := f.lane(change)
+	if err != nil || sealed == nil {
+		return amendment{cap: f.Operator.Shed.MaxRounds}, err
+	}
+	a := amendment{cap: f.Operator.Shed.AmendmentRounds, main: sealed.Seal.Main}
+	if fp := sealed.Footprint; fp != nil {
+		for _, id := range slices.Concat(fp.Modifies, fp.Depends) {
+			if !slices.Contains(a.scope, id) {
+				a.scope = append(a.scope, id)
+			}
+		}
+	}
+	slices.Sort(a.scope)
+	return a, nil
+}
+
+// told is what a session in the amendment lane is told of its scope.
+func (a amendment) told() string {
+	if !a.in() {
+		return ""
+	}
+	return fmt.Sprintf(" This is an amendment: its scope is the sealed spec clauses %s, and a change to any other clause bounces it.", orNone(a.scope))
+}
+
+// outside lists the spec clauses a proposal changes outside its amendment
+// scope: those whose text differs from the sealed main commit's (S.shed.12).
+func (f *Factory) outside(ctx context.Context, a amendment, change string) ([]string, error) {
+	sealed, _ := docs.Load(revision.Git{Root: f.Root, Rev: a.main})
+	head, err := f.headSet(ctx, change)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, id := range modified(sealed, head) {
+		if !slices.Contains(a.scope, id) {
+			out = append(out, id)
+		}
+	}
+	return out, nil
 }
 
 // committeeRound runs every committee member's session of a round at once.
-func (f *Factory) committeeRound(ctx context.Context, u tracker.Unit, round, max int) error {
+func (f *Factory) committeeRound(ctx context.Context, u tracker.Unit, round, max int, lane amendment) error {
 	members := f.Operator.Concurrency.Committee
 	errs := make([]error, members)
 	var wg sync.WaitGroup
@@ -215,7 +286,7 @@ func (f *Factory) committeeRound(ctx context.Context, u tracker.Unit, round, max
 			res, err := f.session(ctx, work{
 				Unit: u, Role: unit.Committee, Prompt: roles.Committee,
 				Step:     fmt.Sprintf("debate round %d, member %d", round, member),
-				Task:     fmt.Sprintf("Debate the proposal %q. This is round %d of at most %d, and you are member %d.", u.Title, round, max, member),
+				Task:     fmt.Sprintf("Debate the proposal %q. This is round %d of at most %d, and you are member %d.", u.Title, round, max, member) + lane.told(),
 				Tools:    func(_ string, head *docs.Set) []session.Tool { return f.committeeTools(u.Change, member, head) },
 				Outcomes: []string{outcomeClean, outcomeObjecting},
 				Extra:    []bundle.Section{{Title: "Your standing objections", Body: mine}},
@@ -289,7 +360,7 @@ func (f *Factory) committeeTools(change string, member int, head *docs.Set) []se
 }
 
 // reply runs the painter's answer to the standing objections.
-func (f *Factory) reply(ctx context.Context, u tracker.Unit, round int) error {
+func (f *Factory) reply(ctx context.Context, u tracker.Unit, round int, lane amendment) error {
 	type answerIn struct {
 		Objection string `json:"objection" jsonschema:"the objection's ID"`
 		Text      string `json:"text" jsonschema:"your answer, citing clause IDs"`
@@ -297,7 +368,7 @@ func (f *Factory) reply(ctx context.Context, u tracker.Unit, round int) error {
 	res, err := f.session(ctx, work{
 		Unit: u, Role: unit.Painter, Prompt: roles.PainterReply, Writable: true,
 		Step: fmt.Sprintf("reply to round %d", round),
-		Task: fmt.Sprintf("Answer the committee's standing objections to %q after round %d.", u.Title, round),
+		Task: fmt.Sprintf("Answer the committee's standing objections to %q after round %d.", u.Title, round) + lane.told(),
 		Tools: func(string, *docs.Set) []session.Tool {
 			return []session.Tool{session.NewTool("answer", "Answer one standing objection.",
 				func(_ context.Context, in answerIn) (string, error) {
