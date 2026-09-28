@@ -17,7 +17,7 @@ distant and get promoted as the soon tier drains.
 
 ## Documents
 
-- **H.doc.1** (soon) The repository holds the charter in `charter.md`, the spec
+- **H.doc.1** (soon, realised) The repository holds the charter in `charter.md`, the spec
   in `spec/`, the horizon in `horizon.md` and the archive in `archive/`.
 - **H.doc.2** (soon, realised) Every clause in the charter, spec and horizon is a Markdown
   list item that starts with its ID in bold. A clause's text is the rest of
@@ -58,7 +58,7 @@ distant and get promoted as the soon tier drains.
 - **H.track.3** (soon, realised) Shed can rebuild the tracker from the event log.
 - **H.track.4** (soon, realised) Each session has its own directory holding its bundle,
   transcript, outcome and result.
-- **H.track.5** (soon) After a crash, shed rereads the tracker and resumes
+- **H.track.5** (soon, realised) After a crash, shed rereads the tracker and resumes
   without the owner. It treats a session that was running as interrupted and
   resumes the unit from its last finished step.
 - **H.track.6** (soon, realised) Operator settings live in one operator configuration
@@ -96,7 +96,7 @@ distant and get promoted as the soon tier drains.
 
 - **H.vcs.1** (soon, realised) Shed works in a jj repository colocated with git and
   refuses to run with a jj version outside the pinned range.
-- **H.vcs.2** (soon) Shed performs every VCS operation itself. A session gets a
+- **H.vcs.2** (soon, realised) Shed performs every VCS operation itself. A session gets a
   directory with no `.git` or `.jj`, and no VCS tools or credentials.
 - **H.vcs.3** (soon, realised) Each unit is a jj change descending from main. Shed
   snapshots session output onto that change.
@@ -115,53 +115,53 @@ distant and get promoted as the soon tier drains.
 
 ## Sessions
 
-- **H.sess.1** (soon) Every role runs as an ephemeral headless agent session
+- **H.sess.1** (soon, realised) Every role runs as an ephemeral headless agent session
   through busybees/core. No session outlives its step.
-- **H.sess.2** (soon) Each role has its own prompt and grants. A session gets
+- **H.sess.2** (soon, realised) Each role has its own prompt and grants. A session gets
   only the files and tools its role needs.
-- **H.sess.3** (soon) A session reports through its role's outcome tool, and
+- **H.sess.3** (soon, realised) A session reports through its role's outcome tool, and
   shed accepts only the outcomes valid for that role and step.
-- **H.sess.4** (soon) Before every session shed assembles the unit's bundle:
+- **H.sess.4** (soon, realised) Before every session shed assembles the unit's bundle:
   sealed spec, proofs, footprint, debate record, unit notes and pending
   notices.
-- **H.sess.5** (soon) Shed delivers notices between sessions, never during one.
-- **H.sess.6** (soon) Shed gets context through a context provider interface.
+- **H.sess.5** (soon, realised) Shed delivers notices between sessions, never during one.
+- **H.sess.6** (soon, realised) Shed gets context through a context provider interface.
   The default provider supplies the three documents and the unit's own record.
-- **H.sess.7** (soon) Each session runs under a per-session cost cap. A session
+- **H.sess.7** (soon, realised) Each session runs under a per-session cost cap. A session
   that reaches it ends, and shed records an infrastructure failure.
-- **H.sess.8** (soon) Shed classifies each failure as infrastructure or
+- **H.sess.8** (soon, realised) Shed classifies each failure as infrastructure or
   behavioural. It retries infrastructure failures or falls back to another
   profile. Behavioural failures are outcomes that feed the state machine.
-- **H.sess.9** (soon) A session that implements or verifies can run the
+- **H.sess.9** (soon, realised) A session that implements or verifies can run the
   project's proofs and tests the way the project runs them, through the runner
   `shed.toml` configures, even when that runner needs a container engine such
   as Dagger. The session still holds no version control.
 
 ## The shed
 
-- **H.shed.1** (soon) A committee of several members debates every proposed
+- **H.shed.1** (soon, realised) A committee of several members debates every proposed
   unit. The members run in parallel against the same revision of the proposal.
-- **H.shed.2** (soon) Every objection cites clause IDs. Shed refuses an
+- **H.shed.2** (soon, realised) Every objection cites clause IDs. Shed refuses an
   objection whose citations do not resolve.
-- **H.shed.3** (soon) An objection citing a charter clause the proposal
+- **H.shed.3** (soon, realised) An objection citing a charter clause the proposal
   violates is a veto. Shed archives the unit on the rejected shelf with the
   citation, whatever other members say.
-- **H.shed.4** (soon) A proposal that is clean against the charter but does not
+- **H.shed.4** (soon, realised) A proposal that is clean against the charter but does not
   move the spec toward the horizon goes to the deferred shelf, with a note on
   what would change the decision.
-- **H.shed.5** (soon) The proposer answers once per round. An objection stands
+- **H.shed.5** (soon, realised) The proposer answers once per round. An objection stands
   until the member who raised it withdraws it.
-- **H.shed.6** (soon) Consensus is zero standing objections. Rounds are capped,
+- **H.shed.6** (soon, realised) Consensus is zero standing objections. Rounds are capped,
   and reaching the cap approves nothing. A proposal that still carries
   objections at the cap goes back to its painter and counts a bounce.
-- **H.shed.7** (soon) Any member may object that a proposal's footprint is too
+- **H.shed.7** (soon, realised) Any member may object that a proposal's footprint is too
   large. The split it asks for is by footprint, not by cost.
-- **H.shed.8** (soon) On consensus shed seals the unit. It records the seal
+- **H.shed.8** (soon, realised) On consensus shed seals the unit. It records the seal
   `(main commit, change ID)`, computes the unit's footprints and moves it to
   sealed.
-- **H.shed.9** (soon) Shed records every debate in full. The record joins the
+- **H.shed.9** (soon, realised) Shed records every debate in full. The record joins the
   unit's bundle, and its archive entry if it has one.
-- **H.shed.10** (soon) The archive has two shelves. A rejected entry records
+- **H.shed.10** (soon, realised) The archive has two shelves. A rejected entry records
   the charter clauses it violated. A deferred entry records what would change
   the decision. Each entry is a file painters can read.
 - **H.shed.11** (soon) A mechanic's amendment request reopens the unit into a
@@ -170,18 +170,18 @@ distant and get promoted as the soon tier drains.
   new seal and returns the unit to implementing with the mechanic told the
   diff. If it is rejected, the mechanic implements as written or the unit is
   discarded.
-- **H.shed.12** (soon) The painter reads the gap and the deferred shelf and
+- **H.shed.12** (soon, realised) The painter reads the gap and the deferred shelf and
   drafts proposals, throttled by a proposal rate.
-- **H.shed.13** (soon) The painter proposes against near and soon clauses
+- **H.shed.13** (soon, realised) The painter proposes against near and soon clauses
   only. It does not propose against a horizon clause an in-flight unit already
   advances, or re-propose an idea on the rejected shelf.
 
 ## Footprints
 
-- **H.fp.1** (soon) A unit's spec footprint is the clauses its spec diff
+- **H.fp.1** (soon, realised) A unit's spec footprint is the clauses its spec diff
   modifies plus the clauses it depends on. Its horizon footprint is the horizon
   clauses it advances.
-- **H.fp.2** (soon) Shed computes modified clauses from the spec diff. The
+- **H.fp.2** (soon, realised) Shed computes modified clauses from the spec diff. The
   painter declares dependencies and the horizon footprint, and the committee
   checks them.
 - **H.fp.3** (distant) Shed records the footprint predicted at sealing and the
@@ -192,11 +192,11 @@ distant and get promoted as the soon tier drains.
 
 ## Implementation
 
-- **H.impl.1** (soon) A formula is the DAG of steps inside implementing for one
+- **H.impl.1** (soon, realised) A formula is the DAG of steps inside implementing for one
   unit type, with `needs` edges. Formulas are operator configuration and change
   without rebuilding shed.
-- **H.impl.2** (soon) The default formula writes proofs before implementation.
-- **H.impl.3** (soon) A mechanic session works one formula step and ends. Shed
+- **H.impl.2** (soon, realised) The default formula writes proofs before implementation.
+- **H.impl.3** (soon, realised) A mechanic session works one formula step and ends. Shed
   records the result and dispatches the next step whose needs are met.
 - **H.impl.4** (soon) A mechanic may request an amendment instead of finishing
   a step (H.shed.11). Shed counts amendments per unit.
@@ -208,20 +208,20 @@ distant and get promoted as the soon tier drains.
 
 ## Verification
 
-- **H.verify.1** (soon) Verification covers the unit's spec footprint. Every
+- **H.verify.1** (soon, realised) Verification covers the unit's spec footprint. Every
   affected clause has a proof, and every one of those proofs passes.
-- **H.verify.2** (soon) A committee member who did not work on the unit reads
+- **H.verify.2** (soon, realised) A committee member who did not work on the unit reads
   the sealed spec against the unit's behaviour. Every finding cites clause IDs.
-- **H.verify.3** (soon) The committee checks the charter against the unit's
+- **H.verify.3** (soon, realised) The committee checks the charter against the unit's
   code as well as its spec.
-- **H.verify.4** (soon) A unit that fails returns to implementing with the
+- **H.verify.4** (soon, realised) A unit that fails returns to implementing with the
   failing clause IDs. If the spec itself is in question it reopens instead.
 
 ## Merge queue and reconcile
 
-- **H.queue.1** (soon) Verified units wait in a merge queue. One lander lands
+- **H.queue.1** (soon, realised) Verified units wait in a merge queue. One lander lands
   them one at a time.
-- **H.queue.2** (soon) Before landing, the wheelbuilder rebases the unit onto
+- **H.queue.2** (soon, realised) Before landing, the wheelbuilder rebases the unit onto
   main. A unit whose conflicts cannot be resolved against its sealed spec
   reopens.
 - **H.queue.3** (distant) The wheelbuilder orders the queue to reduce
@@ -238,25 +238,25 @@ distant and get promoted as the soon tier drains.
 
 ## Scheduling
 
-- **H.sched.1** (soon) The owner can take one unit from proposed to landed with
+- **H.sched.1** (soon, realised) The owner can take one unit from proposed to landed with
   shed commands and no VCS work of their own.
-- **H.sched.2** (soon) `shed serve` runs one controller for each role that has
+- **H.sched.2** (soon, realised) `shed serve` runs one controller for each role that has
   work, all sharing the tracker.
-- **H.sched.3** (soon) Controllers are level-triggered. They reconcile
+- **H.sched.3** (soon, realised) Controllers are level-triggered. They reconcile
   against current tracker state, and events only wake them early. A missed
   event costs latency, never correctness.
-- **H.sched.4** (soon) The scheduler never waits on a model. Sessions report
+- **H.sched.4** (soon, realised) The scheduler never waits on a model. Sessions report
   by writing transitions, which wake the relevant controller.
-- **H.sched.5** (soon) A cap limits units across implementing and verifying.
+- **H.sched.5** (soon, realised) A cap limits units across implementing and verifying.
   Dispatch goes downstream first: verify, then implement, then debate, then
   propose.
-- **H.sched.6** (soon) A proposal rate throttles the painter. The sweeper is
+- **H.sched.6** (soon, realised) A proposal rate throttles the painter. The sweeper is
   the only controller on a timer.
-- **H.sched.7** (soon) A global daily budget pauses dispatch when spent.
+- **H.sched.7** (soon, realised) A global daily budget pauses dispatch when spent.
   Status shows streaks of degraded operation.
 - **H.sched.8** (distant) When the gap is empty the painter proposes nothing
   until the horizon moves. The sweeper keeps patrolling.
-- **H.sched.9** (soon) The operator can cap the units in flight from sealed
+- **H.sched.9** (soon, realised) The operator can cap the units in flight from sealed
   through queued. Shed seals no unit while the cap is reached.
 
 ## Horizon governance
@@ -282,7 +282,7 @@ distant and get promoted as the soon tier drains.
   horizon moves.
 - **H.hz.9** (distant) Shed reports progress per horizon clause and per
   milestone. A milestone is done when every clause in it is realised on main.
-- **H.hz.10** (soon) A unit may mark the horizon clauses it fully realises as
+- **H.hz.10** (soon, realised) A unit may mark the horizon clauses it fully realises as
   realised, in the same diff as its spec change. Verification checks each
   claim against the unit's behaviour, and refuses one the spec does not
   fully satisfy.
@@ -356,6 +356,11 @@ distant and get promoted as the soon tier drains.
   remove it.
 - **H.adopt.3** (distant) Normal operation starts only once main is
   spec-conformant.
+
+## Releases
+
+- **H.release.1** (soon, realised) Every shed binary reports the release it
+  was built from.
 
 ## Vision
 

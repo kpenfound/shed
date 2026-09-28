@@ -99,6 +99,7 @@ overrun_multiple = 3    # how far past its estimate a unit's cost may go
 units = 4               # units across implementing and verifying
 mechanics_per_unit = 1
 committee = 3           # committee members per debate
+in_flight = 1           # units from sealed through queued; 0 for no cap
 
 [shed]
 max_rounds = 3
@@ -108,7 +109,8 @@ contested_timeout = "72h"
 
 [profiles.default]
 agent = "claude"        # claude, codex, opencode or pi
-# model, effort, fallback (another profile), max_turns, timeout
+# model, effort, fallback (another profile), max_turns, timeout,
+# template (sbx template), mounts ("path:ro" or "path:rw"), env
 
 [roles.mechanic]        # also frame-builder, painter, committee, wheelbuilder, sweeper
 profile = "default"
@@ -126,6 +128,13 @@ main = "main"            # the bookmark units land on
 remote = ""              # fetched before and pushed after each landing; empty keeps main local
 landing_name = "shed wheelbuilder"
 landing_email = "wheelbuilder@shed.localhost"
+
+[painter]
+interval = "1h"          # least time between two proposals
+max_proposed = 1         # proposals that may wait before the painter proposes again
+
+[serve]
+tick = "1m"              # wakes the controllers when nothing else has
 ```
 
 A profile's fallback must name another profile, and fallbacks may not loop.

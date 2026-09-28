@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -10,7 +11,7 @@ import (
 	"time"
 
 	"github.com/kpenfound/shed/internal/config"
-	"github.com/kpenfound/shed/internal/landing"
+	"github.com/kpenfound/shed/internal/factory"
 	"github.com/kpenfound/shed/internal/tracker"
 	"github.com/kpenfound/shed/internal/unit"
 	"github.com/kpenfound/shed/internal/vcs"
@@ -86,6 +87,9 @@ func (e env) status(args []string) int {
 		if err := w.Flush(); err != nil {
 			return e.fail(err)
 		}
+		if err := e.health(t); err != nil {
+			return e.fail(err)
+		}
 		notices, err := t.Notices(unit.Owner, true)
 		if err != nil {
 			return e.fail(err)
@@ -115,6 +119,8 @@ func (e env) unit(args []string) int {
 		return e.unitLog(args[1:])
 	case "path":
 		return e.unitPath(args[1:])
+	case "declare":
+		return e.unitDeclare(args[1:])
 	}
 	return e.misuse("unknown unit subcommand %q", args[0])
 }
@@ -161,20 +167,168 @@ func (e env) unitPath(args []string) int {
 	})
 }
 
+// health prints whether dispatch is paused by the daily budget, and how
+// many sessions in a row have failed for infrastructure reasons.
+func (e env) health(t *tracker.Tracker) error {
+	op, err := e.operator()
+	if err != nil {
+		return err
+	}
+	if budget := op.Budget.PerDayUSD; budget > 0 {
+		spent, err := t.Spend(time.Now().Add(-24 * time.Hour))
+		if err != nil {
+			return err
+		}
+		if spent >= budget {
+			fmt.Fprintf(e.stdout, "\nPaused: the daily budget is spent: $%.2f of $%.2f in the last 24 hours.\n", spent, budget)
+		}
+	}
+	streak, err := t.InfraStreak()
+	if err != nil {
+		return err
+	}
+	if streak > 0 {
+		fmt.Fprintf(e.stdout, "\nDegraded: the last %d sessions failed for infrastructure reasons.\n", streak)
+	}
+	return nil
+}
+
+func (e env) serve(args []string) int {
+	fs := e.flags("serve")
+	once := fs.Bool("once", false, "stop when there is nothing left to start")
+	if err := fs.Parse(args); err != nil {
+		return Misused
+	}
+	if fs.NArg() != 0 {
+		return e.misuse("serve takes no arguments")
+	}
+	return e.withFactory(func(f *factory.Factory) int {
+		err := f.Serve(e.ctx, factory.ServeOptions{Once: *once, Log: e.stdout})
+		if err != nil && !errors.Is(err, context.Canceled) {
+			return e.fail(err)
+		}
+		return OK
+	})
+}
+
+// withFactory opens the factory, runs fn and closes it.
+func (e env) withFactory(fn func(*factory.Factory) int) int {
+	f, err := factory.Open(e.ctx, e.root, e.state, e.runner)
+	if err != nil {
+		return e.fail(err)
+	}
+	defer f.Close()
+	return fn(f)
+}
+
+func splitIDs(s string) []string {
+	var out []string
+	for _, id := range strings.Split(s, ",") {
+		if id = strings.TrimSpace(id); id != "" {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+func (e env) unitDeclare(args []string) int {
+	fs := e.flags("unit declare")
+	title := fs.String("title", "", "a new title for the unit")
+	depends := fs.String("depends", "", "comma-separated spec clauses the proposal depends on")
+	advances := fs.String("advances", "", "comma-separated horizon clauses the proposal advances")
+	if err := fs.Parse(args); err != nil {
+		return Misused
+	}
+	if fs.NArg() != 1 {
+		return e.misuse("unit declare needs one unit")
+	}
+	return e.withFactory(func(f *factory.Factory) int {
+		u, err := f.Tracker.Unit(fs.Arg(0))
+		if err != nil {
+			return e.fail(err)
+		}
+		if err := f.Declare(e.ctx, u.Change, *title, splitIDs(*depends), splitIDs(*advances), unit.Owner); err != nil {
+			return e.fail(err)
+		}
+		after, err := f.Tracker.Unit(u.Change)
+		if err != nil {
+			return e.fail(err)
+		}
+		fp := after.Footprint
+		fmt.Fprintf(e.stdout, "%s modifies %s; depends on %s; advances %s\n", unit.Short(u.Change),
+			orNone(fp.Modifies), orNone(fp.Depends), orNone(fp.Advances))
+		return OK
+	})
+}
+
+func orNone(ids []string) string {
+	if len(ids) == 0 {
+		return "nothing"
+	}
+	return strings.Join(ids, ", ")
+}
+
+func (e env) debate(args []string) int {
+	if len(args) != 1 {
+		return e.misuse("debate needs one unit")
+	}
+	return e.withFactory(func(f *factory.Factory) int {
+		u, err := f.Tracker.Unit(args[0])
+		if err != nil {
+			return e.fail(err)
+		}
+		out, err := f.Debate(e.ctx, u.Change)
+		if err != nil {
+			return e.fail(err)
+		}
+		fmt.Fprintf(e.stdout, "%s %s\n", unit.Short(u.Change), out)
+		return OK
+	})
+}
+
 func (e env) land(args []string) int {
 	if len(args) != 1 {
 		return e.misuse("land needs one unit")
 	}
-	return e.withRepo(func(t *tracker.Tracker, repo *vcs.Repo) int {
-		u, err := t.Unit(args[0])
+	return e.withFactory(func(f *factory.Factory) int {
+		u, err := f.Tracker.Unit(args[0])
 		if err != nil {
 			return e.fail(err)
 		}
-		commit, err := landing.Land(e.ctx, t, repo, u.Change, unit.Wheelbuilder)
+		out, err := f.Land(e.ctx, u.Change)
 		if err != nil {
 			return e.fail(err)
 		}
-		fmt.Fprintf(e.stdout, "landed %s on main as %s\n", unit.Short(u.Change), commit)
+		if out != factory.Landed {
+			fmt.Fprintf(e.stdout, "%s %s\n", unit.Short(u.Change), out)
+			return Failed
+		}
+		after, err := f.Tracker.Unit(u.Change)
+		if err != nil {
+			return e.fail(err)
+		}
+		fmt.Fprintf(e.stdout, "landed %s on main as %s\n", unit.Short(u.Change), after.Landed)
+		return OK
+	})
+}
+
+func (e env) runUnit(args []string) int {
+	if len(args) != 1 {
+		return e.misuse("run needs one unit")
+	}
+	return e.withFactory(func(f *factory.Factory) int {
+		u, err := f.Tracker.Unit(args[0])
+		if err != nil {
+			return e.fail(err)
+		}
+		out, err := f.Run(e.ctx, u.Change)
+		if err != nil {
+			return e.fail(err)
+		}
+		fmt.Fprintf(e.stdout, "%s %s\n", unit.Short(u.Change), out)
+		if out != factory.Landed {
+			return Failed
+		}
 		return OK
 	})
 }

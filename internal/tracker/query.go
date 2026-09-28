@@ -33,6 +33,8 @@ type Unit struct {
 	State      unit.State
 	Bounces    int
 	Amendments int
+	// Round is the round of the unit's current debate.
+	Round int
 	// Reason is the reason given for the unit's latest move.
 	Reason string
 	Shelf  unit.Shelf
@@ -146,10 +148,10 @@ func (t *Tracker) Unit(ref string) (Unit, error) {
 func loadUnit(q querier, change string) (Unit, error) {
 	u := Unit{Change: change}
 	var opened, updated, shelf, state string
-	err := q.QueryRow(`SELECT title, state, bounces, amendments, reason, shelf, landed, opened_at, updated_at,
+	err := q.QueryRow(`SELECT title, state, bounces, amendments, round, reason, shelf, landed, opened_at, updated_at,
 		(SELECT COALESCE(SUM(cost_usd), 0) FROM sessions WHERE change = units.change)
 		FROM units WHERE change = ?`, change).
-		Scan(&u.Title, &state, &u.Bounces, &u.Amendments, &u.Reason, &shelf, &u.Landed, &opened, &updated, &u.CostUSD)
+		Scan(&u.Title, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Reason, &shelf, &u.Landed, &opened, &updated, &u.CostUSD)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Unit{}, fmt.Errorf("unit %s: %w", unit.Short(change), ErrNotFound)
 	}
@@ -322,6 +324,18 @@ func Describe(e Event) string {
 		fmt.Fprintf(&b, "notice %s for %s: %s", e.Notice.ID, e.Notice.Audience, e.Notice.Body)
 	case NoticeDelivered:
 		fmt.Fprintf(&b, "notice %s delivered", e.Notice.ID)
+	case UnitBounced:
+		b.WriteString("bounced back to the proposer")
+	case UnitRetitled:
+		fmt.Fprintf(&b, "retitled %q", e.Title)
+	case RoundStarted:
+		fmt.Fprintf(&b, "debate round %d", e.Round)
+	case ObjectionRaised:
+		fmt.Fprintf(&b, "member %d objected (%s, citing %s): %s", e.Objection.Member, e.Objection.Kind, strings.Join(e.Objection.Citations, ", "), e.Objection.Text)
+	case ObjectionClosed:
+		fmt.Fprintf(&b, "objection %s withdrawn", e.Objection.ID)
+	case ObjectionAnswer:
+		fmt.Fprintf(&b, "objection %s answered: %s", e.Objection.ID, e.Objection.Text)
 	default:
 		b.WriteString(e.Kind)
 	}

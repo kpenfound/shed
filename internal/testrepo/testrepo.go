@@ -99,7 +99,7 @@ func Colocated(t testing.TB) *Repo {
 	r.Init()
 	r.Commit("documents")
 	r.Remote = t.TempDir()
-	r.gitIn(r.Remote, "init", "-q", "--bare", "-b", "main")
+	r.GitRemoteInit()
 	r.Git("remote", "add", "origin", r.Remote)
 	r.Git("push", "-q", "origin", "main")
 	r.JJ("git", "init", "--colocate")
@@ -126,6 +126,12 @@ func (r *Repo) JJ(args ...string) string {
 func (r *Repo) Git(args ...string) string {
 	r.t.Helper()
 	return r.gitIn(r.Dir, args...)
+}
+
+// GitRemoteInit makes Remote a bare repository on branch main.
+func (r *Repo) GitRemoteInit() {
+	r.t.Helper()
+	r.gitIn(r.Remote, "init", "-q", "--bare", "-b", "main")
 }
 
 // GitRemote runs git in the bare remote.

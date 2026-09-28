@@ -26,7 +26,8 @@
 - **S.track.8** (H.track.5) Opening the tracker marks each running session
   whose process has exited as interrupted, without the owner. A unit keeps
   the steps its sessions finished, in order, so its work can resume after the
-  last one.
+  last one. Reopening a unit, or sending it back from verifying to
+  implementing, clears them, and its work starts over.
 - **S.track.9** (H.track.7) `shed status` lists every unit in the order they
   opened, with its short change ID, state, bounce count, amendment count, cost
   so far and title. After the units it lists the notices waiting for the

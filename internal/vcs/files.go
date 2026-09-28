@@ -181,3 +181,21 @@ func sameEntry(src, dst string, si, di fs.FileInfo) (bool, error) {
 	b, err := os.ReadFile(dst)
 	return bytes.Equal(a, b), err
 }
+
+// Snapshot records what a unit's workspace holds onto its change, such as
+// edits the owner made there by hand, and returns the change's commit.
+func (r *Repo) Snapshot(ctx context.Context, change string) (string, error) {
+	unlock, err := r.lock()
+	if err != nil {
+		return "", err
+	}
+	defer unlock()
+	w, err := r.workspaceOf(ctx, change)
+	if err != nil {
+		return "", err
+	}
+	if _, err := r.run(ctx, w.dir, shedIdentity, "util", "snapshot"); err != nil {
+		return "", err
+	}
+	return r.Commit(ctx, change)
+}

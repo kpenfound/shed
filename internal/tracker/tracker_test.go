@@ -130,7 +130,7 @@ func TestTrackerHoldsUnits(t *testing.T) {
 	want := Unit{
 		Change: unitA, Title: "Say goodbye", State: unit.Proposed, Bounces: 1, Amendments: 1,
 		Reason: "the spec is ambiguous", Seal: &Seal{Main: "abc123", Change: unitA},
-		Footprint: fp, CostUSD: 1.25, Steps: []string{"proofs"},
+		Footprint: fp, CostUSD: 1.25,
 	}
 	u.Opened, u.Updated = time.Time{}, time.Time{}
 	if !reflect.DeepEqual(u, want) {
@@ -357,6 +357,11 @@ func TestSessions(t *testing.T) {
 	}
 	if u := get(t, tr, unitA); !slices.Equal(u.Steps, []string{"proofs"}) || u.CostUSD != 1 {
 		t.Errorf("unit after recovery = %+v", u)
+	}
+	must(t, tr.FinishSession(docs.ID, Succeeded, "done", 0, true))
+	through(t, tr, unitA, unit.Verifying, unit.Implementing)
+	if u := get(t, tr, unitA); len(u.Steps) != 0 {
+		t.Errorf("steps after verification sent the unit back = %v", u.Steps)
 	}
 	if err := tr.FinishSession(impl.ID, Succeeded, "late", 0, true); err == nil {
 		t.Error("finished an interrupted session")

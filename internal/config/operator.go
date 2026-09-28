@@ -29,6 +29,23 @@ type Operator struct {
 	Roles       map[string]Role    `toml:"roles"`
 	Formulas    map[string]Formula `toml:"formulas"`
 	VCS         VCS                `toml:"vcs"`
+	Painter     Painter            `toml:"painter"`
+	Serve       Serve              `toml:"serve"`
+}
+
+// Painter throttles proposals.
+type Painter struct {
+	// Interval is the least time between two proposals.
+	Interval Duration `toml:"interval"`
+	// MaxProposed is how many units may wait in proposed before the painter
+	// proposes another.
+	MaxProposed int `toml:"max_proposed"`
+}
+
+// Serve tunes shed serve.
+type Serve struct {
+	// Tick wakes the controllers when nothing else has.
+	Tick Duration `toml:"tick"`
 }
 
 // VCS configures version control.
@@ -62,6 +79,9 @@ type Concurrency struct {
 	MechanicsPerUnit int `toml:"mechanics_per_unit"`
 	// Committee is the number of committee members per debate.
 	Committee int `toml:"committee"`
+	// InFlight caps units from sealed through queued; shed seals no unit
+	// while it is reached. Zero is no cap.
+	InFlight int `toml:"in_flight"`
 }
 
 // Debate bounds the shed.
@@ -74,7 +94,8 @@ type Debate struct {
 	ContestedTimeout Duration `toml:"contested_timeout"`
 }
 
-// Profile is how a role's sessions run.
+// Profile is how a role's sessions run. Every session runs in a Docker
+// Sandbox microVM that sees only the paths it is granted.
 type Profile struct {
 	Agent    string   `toml:"agent"`
 	Model    string   `toml:"model,omitempty"`
@@ -82,6 +103,15 @@ type Profile struct {
 	Fallback string   `toml:"fallback,omitempty"`
 	MaxTurns int      `toml:"max_turns,omitempty"`
 	Timeout  Duration `toml:"timeout,omitempty"`
+	// Template is the sandbox template sessions start from; empty uses
+	// sbx's own template for the agent.
+	Template string `toml:"template,omitempty"`
+	// Mounts are extra host paths the sessions may reach, each "path:ro" or
+	// "path:rw". A leading ~ is the home directory.
+	Mounts []string `toml:"mounts,omitempty"`
+	// Env are extra host environment variable names passed into the
+	// sessions. A name ending in * grants every name with that prefix.
+	Env []string `toml:"env,omitempty"`
 }
 
 // Role selects the profile a role's sessions use.
@@ -125,7 +155,7 @@ func Defaults() Operator {
 	}
 	return Operator{
 		Budget:      Budget{PerSessionUSD: 5, PerDayUSD: 50, OverrunMultiple: 3},
-		Concurrency: Concurrency{Units: 4, MechanicsPerUnit: 1, Committee: 3},
+		Concurrency: Concurrency{Units: 4, MechanicsPerUnit: 1, Committee: 3, InFlight: 1},
 		Shed: Debate{MaxRounds: 3, AmendmentRounds: 1, BounceThreshold: 3,
 			ContestedTimeout: Duration{72 * time.Hour}},
 		Profiles: map[string]Profile{"default": {Agent: "claude"}},
@@ -135,7 +165,9 @@ func Defaults() Operator {
 			{Name: "implement", Needs: []string{"proofs"}},
 			{Name: "docs", Needs: []string{"implement"}},
 		}}},
-		VCS: VCS{Main: "main", LandingName: "shed wheelbuilder", LandingEmail: "wheelbuilder@shed.localhost"},
+		VCS:     VCS{Main: "main", LandingName: "shed wheelbuilder", LandingEmail: "wheelbuilder@shed.localhost"},
+		Painter: Painter{Interval: Duration{time.Hour}, MaxProposed: 1},
+		Serve:   Serve{Tick: Duration{time.Minute}},
 	}
 }
 
@@ -186,6 +218,18 @@ func (c Operator) Validate() error {
 			fail("%s must be at least 1", name)
 		}
 	}
+	if c.Painter.Interval.Duration < 0 {
+		fail("painter.interval must not be negative")
+	}
+	if c.Painter.MaxProposed < 1 {
+		fail("painter.max_proposed must be at least 1")
+	}
+	if c.Serve.Tick.Duration <= 0 {
+		fail("serve.tick must be positive")
+	}
+	if c.Concurrency.InFlight < 0 {
+		fail("concurrency.in_flight must not be negative")
+	}
 	if c.Shed.BounceThreshold < 0 {
 		fail("shed.bounce_threshold must not be negative")
 	}
@@ -197,6 +241,11 @@ func (c Operator) Validate() error {
 		p := c.Profiles[name]
 		if !slices.Contains(Agents, p.Agent) {
 			fail("profiles.%s.agent %q is not one of %v", name, p.Agent, Agents)
+		}
+		for _, m := range p.Mounts {
+			if _, _, err := ParseMount(m); err != nil {
+				fail("profiles.%s.mounts: %v", name, err)
+			}
 		}
 		if p.Fallback != "" {
 			if _, ok := c.Profiles[p.Fallback]; !ok {
@@ -234,6 +283,22 @@ func (c Operator) Validate() error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// ParseMount splits a mount setting into its path and whether it is
+// writable.
+func ParseMount(m string) (path string, writable bool, err error) {
+	i := strings.LastIndex(m, ":")
+	if i <= 0 {
+		return "", false, fmt.Errorf("%q is not path:ro or path:rw", m)
+	}
+	switch m[i+1:] {
+	case "ro":
+		return m[:i], false, nil
+	case "rw":
+		return m[:i], true, nil
+	}
+	return "", false, fmt.Errorf("%q is not path:ro or path:rw", m)
 }
 
 func fallbackLoops(profiles map[string]Profile, start string) bool {

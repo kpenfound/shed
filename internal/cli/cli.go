@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"text/tabwriter"
@@ -18,7 +19,41 @@ import (
 	"github.com/kpenfound/shed/internal/docs"
 	"github.com/kpenfound/shed/internal/proof"
 	"github.com/kpenfound/shed/internal/revision"
+	"github.com/kpenfound/shed/internal/session"
 )
+
+// Version is the release the binary was built from; a release build sets
+// it. Without it, shed reports the commit it was built from, if known.
+var Version = ""
+
+// buildVersion names what this binary was built from: the release, else
+// the commit Go recorded, else "dev".
+func buildVersion() string {
+	if Version != "" {
+		return Version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		var revision, modified string
+		for _, s := range info.Settings {
+			switch s.Key {
+			case "vcs.revision":
+				revision = s.Value
+			case "vcs.modified":
+				modified = s.Value
+			}
+		}
+		if len(revision) > 12 {
+			revision = revision[:12]
+		}
+		if revision != "" && modified == "true" {
+			return "dev (" + revision + ", modified)"
+		}
+		if revision != "" {
+			return "dev (" + revision + ")"
+		}
+	}
+	return "dev"
+}
 
 // Exit codes.
 const (
@@ -44,11 +79,17 @@ Units:
   unit reopen [-amendment] <unit> <reason> send a unit back to the shed
   unit log <unit>                         print a unit's events
   unit path <unit>                        print the directory of a unit's workspace
+  unit declare [-title t] [-depends ids] [-advances ids] <unit>
+                                          record what a proposal depends on and advances
+  debate <unit>                           debate a proposed unit in the shed
   land <unit>                             land a queued unit on main
+  run <unit>                              take a unit through the shed to main
+  serve [-once]                           run the factory: propose, debate, implement, verify, land
 
 State:
   config             print the operator settings in effect
   tracker rebuild    rebuild the tracker database from the event log
+  version            print the release shed was built from
 
 The state directory defaults to .shed under the repository root, or
 $SHED_STATE when set.
@@ -58,12 +99,20 @@ type env struct {
 	ctx    context.Context
 	root   string
 	state  string
+	runner session.Runner
 	stdout io.Writer
 	stderr io.Writer
 }
 
-// Run runs the command line and returns its exit code.
+// Run runs the command line and returns its exit code. Sessions run in
+// Docker Sandboxes.
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	return RunWith(ctx, args, stdout, stderr, nil)
+}
+
+// RunWith runs the command line with a session runner; nil runs sessions in
+// Docker Sandboxes.
+func RunWith(ctx context.Context, args []string, stdout, stderr io.Writer, runner session.Runner) int {
 	fs := flag.NewFlagSet("shed", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() { fmt.Fprint(stderr, usage) }
@@ -76,7 +125,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fs.Usage()
 		return Misused
 	}
-	e := env{ctx: ctx, root: *root, state: *state, stdout: stdout, stderr: stderr}
+	e := env{ctx: ctx, root: *root, state: *state, runner: runner, stdout: stdout, stderr: stderr}
 	if e.state == "" {
 		e.state = filepath.Join(e.root, DefaultStateDir)
 	}
@@ -100,10 +149,19 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return e.unit(rest)
 	case "land":
 		return e.land(rest)
+	case "debate":
+		return e.debate(rest)
+	case "run":
+		return e.runUnit(rest)
+	case "serve":
+		return e.serve(rest)
 	case "config":
 		return e.config(rest)
 	case "tracker":
 		return e.tracker(rest)
+	case "version":
+		fmt.Fprintf(stdout, "shed %s\n", buildVersion())
+		return OK
 	case "help", "-h", "--help":
 		fmt.Fprint(stdout, usage)
 		return OK

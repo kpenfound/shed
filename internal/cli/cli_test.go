@@ -179,3 +179,16 @@ func TestRepositoryPassesCheck(t *testing.T) {
 		t.Errorf("stdout = %q", stdout)
 	}
 }
+
+//shed:proves S.release.1
+func TestVersion(t *testing.T) {
+	defer func(v string) { Version = v }(Version)
+	Version = "v1.2.3"
+	if out, _, code := run(t, t.TempDir(), "version"); code != OK || out != "shed v1.2.3\n" {
+		t.Errorf("version = %d, %q", code, out)
+	}
+	Version = ""
+	if out, _, code := run(t, t.TempDir(), "version"); code != OK || !strings.HasPrefix(out, "shed dev") {
+		t.Errorf("version without a release = %d, %q", code, out)
+	}
+}

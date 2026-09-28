@@ -1,0 +1,84 @@
+# Release workflow: cross-compiles shed for every supported platform and
+# publishes the binaries on a GitHub release.
+#
+# It runs only when a person pushes a `v*` tag. There is no `push` or
+# `pull_request` trigger: this repository's gate is `dagger check`, run by
+# hand (see AGENTS.md).
+#
+# How to cut a release, and what one contains, is documented in
+# docs/releasing.md.
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# The build jobs only need to read the repository; `gh release create` in the
+# publish job raises its own permission to write.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Build the binary and its tarball
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          mkdir -p dist/bin
+          go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/bin/shed ./cmd/shed
+          tar -czf "dist/shed_${GITHUB_REF_NAME}_${GOOS}_${GOARCH}.tar.gz" -C dist/bin shed
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: shed_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    name: publish the release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Write checksums.txt
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum shed_*.tar.gz > checksums.txt
+          cat checksums.txt
+      - name: Create the release and upload the assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            dist/shed_*.tar.gz dist/checksums.txt

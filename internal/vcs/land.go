@@ -108,6 +108,11 @@ func (r *Repo) Land(ctx context.Context, change string, message Message) (commit
 	return commit, os.RemoveAll(w.dir)
 }
 
+// OnMain reports whether a unit's change is main or one of its ancestors.
+func (r *Repo) OnMain(ctx context.Context, change string) (bool, error) {
+	return r.onMain(ctx, change)
+}
+
 // onMain reports whether a change is main or one of its ancestors.
 func (r *Repo) onMain(ctx context.Context, change string) (bool, error) {
 	out, err := r.log(ctx, fmt.Sprintf("%s & ::%s", changeRevset(change), r.mainRevset()), "change_id")
@@ -147,4 +152,30 @@ func (r *Repo) detachHead(ctx context.Context) error {
 	}
 	_, err = r.git(ctx, "update-ref", "--no-deref", "-m", "shed: detach before landing", "HEAD", head)
 	return err
+}
+
+// Rebase rebases a unit's change onto main, fetching main first when a
+// remote is set. Conflicts stay in the change, with git-style markers in its
+// workspace's files, so they can be resolved there. It reports whether the
+// change conflicts.
+func (r *Repo) Rebase(ctx context.Context, change string) (bool, error) {
+	unlock, err := r.lock()
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
+	w, err := r.workspaceOf(ctx, change)
+	if err != nil {
+		return false, err
+	}
+	if r.opts.Remote != "" {
+		if _, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "git", "fetch", "--remote", r.opts.Remote); err != nil {
+			return false, err
+		}
+	}
+	if _, err := r.run(ctx, w.dir, shedIdentity, "rebase", "-s", "@", "-d", r.mainRevset()); err != nil {
+		return false, err
+	}
+	conflicted, err := r.log(ctx, changeRevset(change)+" & conflicts()", "change_id")
+	return conflicted != "", err
 }

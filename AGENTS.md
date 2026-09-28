@@ -42,6 +42,8 @@
   The first `with-exec` installs the pinned jj the version control tests
   need. Without `SHED_REQUIRE_JJ=1` those tests skip when jj is missing.
 
+- Inside a shed session, run tests with the `run_tests` and `prove` tools;
+  shed runs them in Dagger for you.
 - Add integration tests as you build a feature, not afterwards. Use temporary
   directories and local repositories for filesystem and VCS tests, and fake
   agents for sessions.

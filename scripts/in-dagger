@@ -1,10 +1,11 @@
 #!/bin/sh
-# Runs a command in a Go container holding this repository and the pinned jj
-# release, and prints its standard output. The command's exit code is not
-# propagated: shed reads the go test -json stream instead. shed.toml runs
-# proofs through this script so that tests never run on the host.
+# Runs a command in a Go container holding the current directory and the
+# pinned jj release, and prints its standard output. The command's exit code is
+# not propagated: shed reads the go test -json stream instead. shed.toml runs
+# proofs and session tests through this script so that tests never run on the
+# host. Shed runs it from the repository or from a session's directory.
 set -eu
-root=$(cd "$(dirname "$0")/.." && pwd)
+root=$(pwd)
 args=""
 for a in "$@"; do
 	case "$a" in

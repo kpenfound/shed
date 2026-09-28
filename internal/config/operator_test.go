@@ -101,6 +101,7 @@ func TestOperatorRefusesBadSettings(t *testing.T) {
 		{"[formulas.x]\nsteps = [{ name = \"a\" }, { name = \"a\" }]\n", `formulas.x: step "a" appears twice`},
 		{"[formulas.x]\nsteps = []\n", "formulas.x: has no steps"},
 		{"[vcs]\nmain = \"\"\n", "vcs.main must not be empty"},
+		{"[profiles.x]\nagent = \"pi\"\nmounts = [\"/tmp\"]\n", `profiles.x.mounts: "/tmp" is not path:ro or path:rw`},
 		{"[vcs]\nlanding_name = \" \"\n", "vcs.landing_name must not be empty"},
 	} {
 		_, err := LoadOperator(writeOperator(t, tc.toml))

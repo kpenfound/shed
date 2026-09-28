@@ -1,0 +1,80 @@
+# Sessions
+
+Every role runs as an ephemeral agent session: one headless agent process,
+started through busybees/core, that works on one unit for one step and ends.
+
+## The sandbox
+
+Each session runs in a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/)
+microVM, created by the `sbx` CLI for the session and removed when it ends.
+The sandbox sees only what the session is granted:
+
+- its working directory: a plain copy of the unit's files, read-write for
+  the painter, mechanic and wheelbuilder, read-only for the committee;
+- its session directory, where shed writes `bundle.md` and core writes the
+  transcript and result;
+- any extra mounts the operator adds to the role's profile.
+
+Sessions are never granted version control. The working directory has no
+`.git` or `.jj`, git and jj are denied, and no VCS credentials or
+configuration reach the sandbox. The agent's own credential never enters the
+sandbox either: sbx's proxy injects the one stored with `sbx secret set`.
+Before running shed's sessions, store a credential with `sbx secret set` for
+each agent the operator settings use.
+
+## Tools
+
+A session reaches shed's tools over MCP. Shed serves them on a loopback
+port with a token of the session's own, and the sandbox reaches the port
+through `host.docker.internal`. The sbx network policy denies that by
+default: shed grants the port to the session's sandbox, and busybees/core
+adds a rule for that sandbox alone once it exists and removes it before the
+sandbox goes. No global `localhost` rule is needed, and no other sandbox can
+reach the port. Every role has `done`, which ends the session
+with an outcome valid for its role and step. Roles that implement or verify
+also get:
+
+| Tool | Does |
+| --- | --- |
+| `run_tests` | Runs Go tests in the session's directory, optionally limited to packages and a `-run` pattern, and reports each test with the output of those that failed. |
+| `prove` | Runs the proofs of spec clauses in the session's directory and reports pass or fail per clause. |
+
+Shed runs these itself, through the runner `shed.toml` configures in the
+repository, so tests run in Dagger as they do everywhere else and the
+sandbox needs no container engine. A runner in the session's own directory is
+never used.
+
+## Bundles and prompts
+
+Before each session shed writes its bundle: the unit, the charter, the
+footprint, the spec changes, the sealed spec, the horizon clauses advanced,
+the proofs of the footprint's clauses, the debate record and the notices
+pending for the role. Notices count as delivered once a session starts.
+Bundles come from a context provider; the default one uses only the
+documents, the tracker and the debate record.
+
+Each role has a system prompt: a part every role shares, then its own. Write
+a file of the same name under `prompts/` in the state directory to replace
+one: `common.md`, `painter.md`, `painter-reply.md`, `committee.md`,
+`committee-review.md`, `mechanic.md` or `wheelbuilder.md`.
+
+## Failures and cost
+
+Every session runs under `budget.per_session_usd`. A session that reaches
+the cap, cannot start, hits a rate limit or times out is an infrastructure
+failure: shed retries it as a new session on the next profile along the
+role's fallback chain. A session that ends without calling `done` is a
+behavioural failure and is not retried. Every attempt is a session in the
+tracker, with its outcome and cost.
+
+## Profiles
+
+```toml
+[profiles.default]
+agent = "claude"          # claude, codex, opencode or pi
+model = "claude-opus-5-5"
+fallback = "backup"       # another profile, tried after an infrastructure failure
+template = ""             # sbx template; empty uses sbx's own for the agent
+mounts = ["~/go/pkg/mod:ro"]
+env = ["GOFLAGS"]
+```

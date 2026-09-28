@@ -23,6 +23,12 @@ const (
 	SessionFinished = "session.finished"
 	NoticeAdded     = "notice.added"
 	NoticeDelivered = "notice.delivered"
+	UnitBounced     = "unit.bounced"
+	UnitRetitled    = "unit.retitled"
+	RoundStarted    = "debate.round"
+	ObjectionRaised = "debate.objection"
+	ObjectionClosed = "debate.withdrawn"
+	ObjectionAnswer = "debate.answer"
 )
 
 // Event is one line of the event log. The log is the tracker's source of
@@ -47,11 +53,13 @@ type Event struct {
 	// Seal is set when a unit is sealed.
 	Seal *Seal `json:"seal,omitempty"`
 	// Commit is the commit on main a unit landed as.
-	Commit    string     `json:"commit,omitempty"`
-	Footprint *Footprint `json:"footprint,omitempty"`
-	Session   *SessionEv `json:"session,omitempty"`
-	Notice    *NoticeEv  `json:"notice,omitempty"`
-	CostUSD   float64    `json:"cost_usd,omitempty"`
+	Commit    string       `json:"commit,omitempty"`
+	Footprint *Footprint   `json:"footprint,omitempty"`
+	Session   *SessionEv   `json:"session,omitempty"`
+	Notice    *NoticeEv    `json:"notice,omitempty"`
+	Objection *ObjectionEv `json:"objection,omitempty"`
+	Round     int          `json:"round,omitempty"`
+	CostUSD   float64      `json:"cost_usd,omitempty"`
 }
 
 // Seal pins a sealed unit to the main commit it was sealed against.
@@ -85,6 +93,16 @@ type NoticeEv struct {
 	Audience string `json:"audience,omitempty"`
 	Kind     string `json:"kind,omitempty"`
 	Body     string `json:"body,omitempty"`
+}
+
+// ObjectionEv describes an objection, its withdrawal or its answer in the
+// event log.
+type ObjectionEv struct {
+	ID        string   `json:"id"`
+	Member    int      `json:"member,omitempty"`
+	Kind      string   `json:"kind,omitempty"`
+	Citations []string `json:"citations,omitempty"`
+	Text      string   `json:"text,omitempty"`
 }
 
 // appendEvents writes events to the log and syncs it.

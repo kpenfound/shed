@@ -1,3 +1,7 @@
 [proofs]
 # Run proofs in a container; tests never run on the host.
 runner = ["scripts/in-dagger"]
+
+[verify]
+# Run every proof when verifying a unit, not only those of its footprint.
+all_proofs = true

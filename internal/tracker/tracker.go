@@ -11,10 +11,13 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	_ "modernc.org/sqlite"
+
+	"github.com/kpenfound/shed/internal/unit"
 )
 
 // Files in the state directory.
@@ -96,6 +99,7 @@ CREATE TABLE IF NOT EXISTS units (
 	shelf TEXT NOT NULL DEFAULT '',
 	reason TEXT NOT NULL DEFAULT '',
 	landed TEXT NOT NULL DEFAULT '',
+	round INTEGER NOT NULL DEFAULT 0,
 	opened_seq INTEGER NOT NULL,
 	opened_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
@@ -129,6 +133,19 @@ CREATE TABLE IF NOT EXISTS steps (
 	seq INTEGER NOT NULL,
 	PRIMARY KEY (change, step)
 );
+CREATE TABLE IF NOT EXISTS objections (
+	id TEXT PRIMARY KEY,
+	change TEXT NOT NULL,
+	cycle INTEGER NOT NULL,
+	round INTEGER NOT NULL,
+	member INTEGER NOT NULL,
+	kind TEXT NOT NULL,
+	citations TEXT NOT NULL,
+	text TEXT NOT NULL,
+	answer TEXT NOT NULL DEFAULT '',
+	withdrawn TEXT NOT NULL DEFAULT '',
+	seq INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS notices (
 	id TEXT PRIMARY KEY,
 	change TEXT NOT NULL,
@@ -140,12 +157,12 @@ CREATE TABLE IF NOT EXISTS notices (
 );
 `
 
-var tables = []string{"units", "seals", "footprints", "sessions", "steps", "notices", "meta"}
+var tables = []string{"units", "seals", "footprints", "sessions", "steps", "notices", "objections", "meta"}
 
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 2
+const schemaVersion = 3
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -197,11 +214,14 @@ func (t *Tracker) write(build func(tx *sql.Tx) ([]Event, error)) ([]Event, error
 		seq++
 		events[i].Seq = seq
 		events[i].Time = now
-		// Sessions and notices take their IDs from the event that adds them.
+		// Sessions, notices and objections take their IDs from the event
+		// that adds them.
 		if e := &events[i]; e.Kind == SessionStarted && e.Session.ID == "" {
 			e.Session.ID = "s" + strconv.FormatInt(seq, 10)
 		} else if e.Kind == NoticeAdded && e.Notice.ID == "" {
 			e.Notice.ID = "n" + strconv.FormatInt(seq, 10)
+		} else if e.Kind == ObjectionRaised && e.Objection.ID == "" {
+			e.Objection.ID = "o" + strconv.FormatInt(seq, 10)
 		}
 	}
 
@@ -308,10 +328,18 @@ func apply(tx *sql.Tx, e Event) error {
 		return exec(`INSERT INTO units (change, title, state, opened_seq, opened_at, updated_at, reason)
 			VALUES (?, ?, ?, ?, ?, ?, ?)`, e.Unit, e.Title, e.To, e.Seq, at, at, e.Reason)
 	case UnitMoved:
+		// A bounce starts a new debate, from round zero.
 		if err := exec(`UPDATE units SET state = ?, bounces = bounces + ?, amendments = amendments + ?,
-			shelf = ?, reason = ?, landed = ?, updated_at = ? WHERE change = ?`,
-			e.To, boolInt(e.Bounce), boolInt(e.Amendment), e.Shelf, e.Reason, e.Commit, at, e.Unit); err != nil {
+			shelf = ?, reason = ?, landed = ?, updated_at = ?, round = CASE WHEN ? THEN 0 ELSE round END WHERE change = ?`,
+			e.To, boolInt(e.Bounce), boolInt(e.Amendment), e.Shelf, e.Reason, e.Commit, at, e.Bounce, e.Unit); err != nil {
 			return err
+		}
+		// Work starts over when a unit reopens or verification sends it
+		// back.
+		if e.Bounce || (e.From == unit.Verifying && e.To == unit.Implementing) {
+			if err := exec(`DELETE FROM steps WHERE change = ?`, e.Unit); err != nil {
+				return err
+			}
 		}
 		if e.Seal != nil {
 			if err := exec(`INSERT OR REPLACE INTO seals (change, main, sealed_at) VALUES (?, ?, ?)`,
@@ -348,6 +376,21 @@ func apply(tx *sql.Tx, e Event) error {
 			n.ID, e.Unit, n.Audience, n.Kind, n.Body, at)
 	case NoticeDelivered:
 		return exec(`UPDATE notices SET delivered_at = ? WHERE id = ?`, at, e.Notice.ID)
+	case UnitBounced:
+		return exec(`UPDATE units SET bounces = bounces + 1, round = 0, reason = ?, updated_at = ? WHERE change = ?`, e.Reason, at, e.Unit)
+	case UnitRetitled:
+		return exec(`UPDATE units SET title = ?, updated_at = ? WHERE change = ?`, e.Title, at, e.Unit)
+	case RoundStarted:
+		return exec(`UPDATE units SET round = ?, updated_at = ? WHERE change = ?`, e.Round, at, e.Unit)
+	case ObjectionRaised:
+		o := e.Objection
+		return exec(`INSERT INTO objections (id, change, cycle, round, member, kind, citations, text, seq)
+			VALUES (?, ?, (SELECT bounces FROM units WHERE change = ?), ?, ?, ?, ?, ?, ?)`,
+			o.ID, e.Unit, e.Unit, e.Round, o.Member, o.Kind, strings.Join(o.Citations, ","), o.Text, e.Seq)
+	case ObjectionClosed:
+		return exec(`UPDATE objections SET withdrawn = ? WHERE id = ?`, e.Reason, e.Objection.ID)
+	case ObjectionAnswer:
+		return exec(`UPDATE objections SET answer = ? WHERE id = ?`, e.Objection.Text, e.Objection.ID)
 	}
 	return fmt.Errorf("unknown event kind %q", e.Kind)
 }

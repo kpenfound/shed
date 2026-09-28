@@ -18,6 +18,14 @@ const File = "shed.toml"
 // Project is the content of shed.toml.
 type Project struct {
 	Proofs Proofs `toml:"proofs"`
+	Verify Verify `toml:"verify"`
+}
+
+// Verify configures verification.
+type Verify struct {
+	// AllProofs runs every proof in the repository when a unit is
+	// verified, not only the proofs of the unit's footprint.
+	AllProofs bool `toml:"all_proofs"`
 }
 
 // Proofs configures how proofs run.
