@@ -84,6 +84,80 @@ func (t *Tracker) seal(change, main, commit string, fp Footprint, actor unit.Act
 		Seal: &Seal{Main: main, Change: change, Commit: commit}, Footprint: &fp}, onMain)
 }
 
+// Entangle records an entanglement advisory on a sealed unit for every
+// other sealed, implementing, verifying or queued unit whose spec footprint,
+// as recorded at its last seal, shares a clause with the unit's own. The
+// advisories come in the order those units opened, and order puts each
+// advisory's shared clauses in document order. Horizon clauses never count.
+// The advisories change no unit's state.
+func (t *Tracker) Entangle(change string, order func([]string) []string) error {
+	_, err := t.write(func(tx *sql.Tx) ([]Event, error) {
+		state, err := stateOf(tx, change)
+		if err != nil {
+			return nil, err
+		}
+		if state != unit.Sealed {
+			return nil, fmt.Errorf("unit %s is %s; entanglement is reported when a unit seals", unit.Short(change), state)
+		}
+		own, err := loadFootprint(tx, "footprints", change)
+		if err != nil {
+			return nil, err
+		}
+		rows, err := tx.Query(`SELECT change FROM units WHERE change != ? AND state IN (?, ?, ?, ?) ORDER BY opened_seq`,
+			change, unit.Sealed, unit.Implementing, unit.Verifying, unit.Queued)
+		if err != nil {
+			return nil, err
+		}
+		var others []string
+		for rows.Next() {
+			var c string
+			if err := rows.Scan(&c); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			others = append(others, c)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		mine := own.specClauses()
+		var events []Event
+		for _, other := range others {
+			fp, err := loadFootprint(tx, "footprints", other)
+			if err != nil {
+				return nil, err
+			}
+			theirs := fp.specClauses()
+			var shared []string
+			for _, id := range mine {
+				if slices.Contains(theirs, id) {
+					shared = append(shared, id)
+				}
+			}
+			if len(shared) == 0 {
+				continue
+			}
+			events = append(events, Event{Kind: UnitEntangled, Unit: change, Actor: unit.Shed,
+				Entangled: &EntangledEv{Unit: other, Clauses: order(shared)}})
+		}
+		return events, nil
+	})
+	return err
+}
+
+// specClauses returns the spec clauses a footprint modifies or depends on,
+// each once.
+func (fp Footprint) specClauses() []string {
+	var out []string
+	for _, id := range slices.Concat(fp.Modifies, fp.Depends) {
+		if parsed, err := clause.ParseID(id); err == nil && parsed.Kind == clause.Spec && !slices.Contains(out, id) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
 // Land records that a queued unit landed on main as a commit, with its
 // actual footprint: the clauses the commit modifies, with the dependencies
 // and horizon clauses recorded at its seal. The landing records how the

@@ -111,8 +111,17 @@ const goodbyeSpec = testrepo.Spec + "- **S.core.2** (H.greet.2) Running the tool
 // spec's one clause.
 func project(t *testing.T) *testrepo.Repo {
 	t.Helper()
+	return projectWith(t, nil)
+}
+
+// projectWith is a project whose main also holds the given files.
+func projectWith(t *testing.T, files map[string]string) *testrepo.Repo {
+	t.Helper()
 	testrepo.RequireJJ(t)
 	r := testrepo.Minimal(t)
+	for name, content := range files {
+		r.Write(name, content)
+	}
 	r.Write(".gitignore", ".shed/\n")
 	r.Write("go.mod", "module example.com/greet\n\ngo 1.21\n")
 	r.Write("greet.go", "package greet\n\n// Hello greets.\nfunc Hello() string { return \"hello\" }\n")

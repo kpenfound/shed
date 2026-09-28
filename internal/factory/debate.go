@@ -417,7 +417,46 @@ func (f *Factory) seal(ctx context.Context, u tracker.Unit, round int) (Outcome,
 		fmt.Sprintf("no objection stands after round %d", round), onMain(main)); err != nil {
 		return f.bounce(u, err.Error())
 	}
+	if err := f.entangle(ctx, u.Change, main); err != nil {
+		return "", err
+	}
 	return Sealed, nil
+}
+
+// entangle reports the in-flight units a newly sealed unit is entangled
+// with (S.fp.5). Shared clauses follow the spec on main, files in name
+// order, then the clauses absent from main in the order of the unit's own
+// spec.
+func (f *Factory) entangle(ctx context.Context, change string, main *docs.Set) error {
+	head, err := f.headSet(ctx, change)
+	if err != nil {
+		return err
+	}
+	rank := map[string]int{}
+	for _, set := range []*docs.Set{main, head} {
+		for _, c := range set.Clauses(clause.Spec) {
+			if _, ok := rank[c.ID.String()]; !ok {
+				rank[c.ID.String()] = len(rank)
+			}
+		}
+	}
+	return f.Tracker.Entangle(change, func(ids []string) []string {
+		out := slices.Clone(ids)
+		slices.SortStableFunc(out, func(a, b string) int {
+			ra, oka := rank[a]
+			rb, okb := rank[b]
+			switch {
+			case oka && okb:
+				return ra - rb
+			case oka:
+				return -1
+			case okb:
+				return 1
+			}
+			return strings.Compare(a, b)
+		})
+		return out
+	})
 }
 
 // rejectAmendment rejects an amendment whose debate reached its cap with
@@ -456,6 +495,9 @@ func (f *Factory) rejectAmendment(ctx context.Context, u tracker.Unit, lane amen
 		reasons = append(reasons, fmt.Sprintf("- %s (member %d, %s, citing %s): %s", o.ID, o.Member, o.Kind, strings.Join(o.Citations, ", "), o.Text))
 	}
 	if err := f.Tracker.SealRejected(u.Change, commit, head, fp, unit.Committee, strings.Join(reasons, "\n"), onMain(main)); err != nil {
+		return "", err
+	}
+	if err := f.entangle(ctx, u.Change, main); err != nil {
 		return "", err
 	}
 	return Sealed, nil

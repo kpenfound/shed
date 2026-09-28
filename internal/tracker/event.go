@@ -27,6 +27,7 @@ const (
 	NoticeDelivered = "notice.delivered"
 	UnitBounced     = "unit.bounced"
 	UnitRetitled    = "unit.retitled"
+	UnitEntangled   = "unit.entangled"
 	RoundStarted    = "debate.round"
 	ObjectionRaised = "debate.objection"
 	ObjectionClosed = "debate.withdrawn"
@@ -66,6 +67,8 @@ type Event struct {
 	Session   *SessionEv   `json:"session,omitempty"`
 	Notice    *NoticeEv    `json:"notice,omitempty"`
 	Objection *ObjectionEv `json:"objection,omitempty"`
+	// Entangled is set on an entanglement advisory.
+	Entangled *EntangledEv `json:"entangled,omitempty"`
 	Round     int          `json:"round,omitempty"`
 	CostUSD   float64      `json:"cost_usd,omitempty"`
 }
@@ -148,6 +151,13 @@ type NoticeEv struct {
 	Audience string `json:"audience,omitempty"`
 	Kind     string `json:"kind,omitempty"`
 	Body     string `json:"body,omitempty"`
+}
+
+// EntangledEv names the in-flight unit a newly sealed unit is entangled
+// with and the spec clauses their footprints share, in document order.
+type EntangledEv struct {
+	Unit    string   `json:"unit"`
+	Clauses []string `json:"clauses"`
 }
 
 // ObjectionEv describes an objection, its withdrawal or its answer in the

@@ -186,7 +186,7 @@ distant and get promoted as the soon tier drains.
   checks them.
 - **H.fp.3** (soon, realised) Shed records the footprint predicted at sealing and the
   actual footprint at landing, and reports the difference.
-- **H.fp.4** (soon) Two in-flight units whose spec footprints intersect are
+- **H.fp.4** (soon, realised) Two in-flight units whose spec footprints intersect are
   entangled. Shed reports entanglement as an advisory as soon as the second
   unit seals.
 

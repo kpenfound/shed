@@ -75,6 +75,30 @@ footprint drifted: not sealed S.greet.3; not modified none
 When both lists are empty the report reads `footprint held`.
 `shed tracker rebuild` gives back both footprints.
 
+### Entanglement
+
+Two in-flight units are entangled when their spec footprints, the clauses
+they modify and depend on, share a clause. Horizon clauses do not count.
+When a unit seals, shed compares its spec footprint with the footprint
+recorded at the last seal of every other unit that is sealed,
+implementing, verifying or queued. For each unit it shares a clause with,
+shed records an advisory in the newly sealed unit's `shed unit log`:
+
+```
+entangled with unit qpvuntsm on S.greet.2, S.greet.3
+```
+
+The advisory names the other unit by its short change ID. The shared
+clauses follow the order they appear in main's `spec/` at the seal, with
+files taken in name order. Shared clauses main does not have yet come
+last, in the order they appear in the newly sealed unit's `spec/`. When a
+unit is entangled with several others, their advisories follow the order
+the units opened, as `shed status` lists them.
+
+An advisory blocks nothing. The seal and both units' states are as they
+would be without it. It is a prompt to consider merging the two units while
+both are still cheap to change.
+
 A unit may depend only on spec clauses that are on main or that it modifies
 itself. Depending on a clause another in-flight unit is adding is refused.
 Wait for that unit to land, or merge the two units.
