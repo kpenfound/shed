@@ -308,3 +308,105 @@ func TestServeActsOnStateWhateverChangedIt(t *testing.T) {
 		t.Errorf("serve = %v", err)
 	}
 }
+
+//shed:proves S.paint.1 S.serve.1
+func TestServeSaysWhyNothingStarted(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "")
+	painter(t, fake)
+
+	// A painter session that failed before doing anything is not a
+	// proposal, and does not hold the painter back.
+	draft, err := f.Repo.NewUnit(ctx, "proposal")
+	must(t, err)
+	must(t, f.Tracker.OpenUnit(draft, painterDraft, unit.Painter))
+	s, err := f.Tracker.StartSession(draft, unit.Painter, proposeStep, 1)
+	must(t, err)
+	must(t, f.Tracker.FinishSession(s.ID, tracker.Failed, "the session's grants: refused", 0, false))
+	must(t, f.Tracker.Archive(draft, unit.Deferred, unit.Shed, "the painter stopped"))
+	if why, err := f.PainterWait(ctx, time.Now()); err != nil || why != "" {
+		t.Errorf("after a failed start the painter waits: %q, %v", why, err)
+	}
+
+	// One that worked and went nowhere holds it back for painter.interval,
+	// and serve says so.
+	draft, err = f.Repo.NewUnit(ctx, "proposal")
+	must(t, err)
+	must(t, f.Tracker.OpenUnit(draft, painterDraft, unit.Painter))
+	s, err = f.Tracker.StartSession(draft, unit.Painter, proposeStep, 1)
+	must(t, err)
+	must(t, f.Tracker.FinishSession(s.ID, tracker.Succeeded, "proposed", 0.3, true))
+	must(t, f.Tracker.Archive(draft, unit.Deferred, unit.Shed, "done with it"))
+	var log bytes.Buffer
+	must(t, f.Serve(ctx, ServeOptions{Once: true, Log: &log}))
+	if len(fake.ran(unit.Painter)) != 0 {
+		t.Error("the painter ran within its interval")
+	}
+	if !strings.HasPrefix(log.String(), "nothing to start\n  painter: the last proposal went nowhere, so the next is due at ") ||
+		!strings.Contains(log.String(), "(a 15m0s wait, doubling from painter.interval up to painter.max_interval)") {
+		t.Errorf("serve said:\n%s", log.String())
+	}
+
+	// A draft is named, with what to do about it.
+	owner, err := f.Repo.NewUnit(ctx, "draft")
+	must(t, err)
+	must(t, f.Tracker.OpenUnit(owner, "Owner's draft", unit.Owner))
+	log.Reset()
+	must(t, f.Serve(ctx, ServeOptions{Once: true, Log: &log}))
+	if !strings.Contains(log.String(), unit.Short(owner)+" is a draft: declare the horizon clauses it advances") {
+		t.Errorf("serve said:\n%s", log.String())
+	}
+}
+
+//shed:proves S.serve.5 S.paint.1
+func TestPainterBacksOffOnlyAfterProposalsThatGoNowhere(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[painter]\ninterval = \"10m\"\nmax_interval = \"25m\"\n")
+	nothing := func() {
+		t.Helper()
+		fake.on(unit.Painter, "propose", func(session.Turn) session.Result { return done("nothing") })
+		if _, out, err := f.Propose(ctx); err != nil || out != Discarded {
+			t.Fatalf("propose = %s, %v", out, err)
+		}
+	}
+	waits := func(after time.Duration) bool {
+		t.Helper()
+		why, err := f.PainterWait(ctx, time.Now().Add(after))
+		must(t, err)
+		return why != ""
+	}
+	if waits(0) {
+		t.Fatal("the painter waits before it has proposed anything")
+	}
+
+	// Each proposal that goes nowhere doubles the wait, up to the cap.
+	for i, wait := range []time.Duration{10 * time.Minute, 20 * time.Minute, 25 * time.Minute, 25 * time.Minute} {
+		nothing()
+		if !waits(wait - time.Minute) {
+			t.Errorf("after %d proposals that went nowhere the painter is due before %s", i+1, wait)
+		}
+		if waits(wait + time.Minute) {
+			t.Errorf("after %d proposals that went nowhere the painter still waits after %s", i+1, wait)
+		}
+	}
+
+	// A proposal that is sealed ends the streak: no wait at all.
+	painter(t, fake)
+	change, out, err := f.Propose(ctx)
+	must(t, err)
+	if out != Outcome("proposed") {
+		t.Fatalf("propose = %s", out)
+	}
+	if why, _ := f.PainterWait(ctx, time.Now()); !strings.Contains(why, "1 proposals are waiting") {
+		t.Errorf("with a proposal in the shed the painter waits because %q", why)
+	}
+	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
+	if out, err := f.Debate(ctx, change); err != nil || out != Sealed {
+		t.Fatalf("debate = %s, %v", out, err)
+	}
+	if why, _ := f.PainterWait(ctx, time.Now()); strings.Contains(why, "went nowhere") {
+		t.Errorf("after a sealed proposal the painter still backs off: %q", why)
+	}
+}

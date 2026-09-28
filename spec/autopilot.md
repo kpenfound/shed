@@ -1,8 +1,8 @@
 # Autopilot
 
 - **S.paint.1** (H.shed.12) The painter proposes when the gap it may work on
-  is not empty, fewer than `painter.max_proposed` units are proposed, and
-  `painter.interval` has passed since its last proposal. Shed opens a unit on
+  is not empty, fewer than `painter.max_proposed` units are proposed, and it
+  is not backing off. Shed opens a unit on
   main for it. The painter writes a spec diff in a writable copy, declares
   the proposal's title, dependencies and horizon clauses with the `declare`
   tool and reports `proposed`. A painter that reports `nothing`, or ends
@@ -17,7 +17,9 @@
 - **S.serve.1** (H.sched.2) `shed serve` runs a controller for each role
   that has work: the painter, the shed, the mechanic, the verifier and the
   wheelbuilder, all sharing the tracker. With `-once` it stops when no stage
-  is running and no controller has anything to start.
+  is running and no controller has anything to start; if it started nothing
+  at all, it says why: drafts waiting to be declared, contested units, a
+  full in-flight cap, or what holds the painter back.
 - **S.serve.2** (H.sched.3) Every pass reads the tracker's current state, so
   a controller acts on units however they got there. A stage that ends wakes
   every controller, and `serve.tick` wakes them when nothing else does.
@@ -30,9 +32,15 @@
   lands at a time, one debate runs at a time, and no unit ever has two stages
   running. A proposal that declares no horizon clause is a draft and is not
   debated.
-- **S.serve.5** (H.sched.6) The painter's proposal rate, `painter.interval`
-  and `painter.max_proposed`, throttles the only controller that creates
-  work. Every other controller is woken by stages ending and by the tick.
+- **S.serve.5** (H.sched.6) The painter, the only controller that creates
+  work, is throttled by its results. After a proposal that is sealed it
+  proposes again as soon as `painter.max_proposed` allows. After a proposal
+  that goes nowhere, archived or contested without being sealed, it waits
+  `painter.interval`, doubling for each further one in a row up to
+  `painter.max_interval`; the next sealed proposal ends the streak. A
+  proposal whose painter session failed before doing anything, without an
+  outcome or a cost, does not count. Every other controller is woken by
+  stages ending and by the tick.
 - **S.serve.6** (H.sched.7) No stage starts while the sessions of the last 24
   hours cost `budget.per_day_usd` or more. `shed status` shows the pause, and
   shows how many of the latest sessions failed for infrastructure reasons in a

@@ -33,10 +33,15 @@ type Operator struct {
 	Serve       Serve              `toml:"serve"`
 }
 
-// Painter throttles proposals.
+// Painter throttles proposals. A painter whose proposals are being sealed
+// proposes again as soon as the other limits allow; one whose proposals go
+// nowhere backs off.
 type Painter struct {
-	// Interval is the least time between two proposals.
+	// Interval is how long the painter waits after a proposal that went
+	// nowhere. Each further one in a row doubles the wait.
 	Interval Duration `toml:"interval"`
+	// MaxInterval caps the wait.
+	MaxInterval Duration `toml:"max_interval"`
 	// MaxProposed is how many units may wait in proposed before the painter
 	// proposes another.
 	MaxProposed int `toml:"max_proposed"`
@@ -166,7 +171,7 @@ func Defaults() Operator {
 			{Name: "docs", Needs: []string{"implement"}},
 		}}},
 		VCS:     VCS{Main: "main", LandingName: "shed wheelbuilder", LandingEmail: "wheelbuilder@shed.localhost"},
-		Painter: Painter{Interval: Duration{time.Hour}, MaxProposed: 1},
+		Painter: Painter{Interval: Duration{15 * time.Minute}, MaxInterval: Duration{24 * time.Hour}, MaxProposed: 1},
 		Serve:   Serve{Tick: Duration{time.Minute}},
 	}
 }
@@ -220,6 +225,9 @@ func (c Operator) Validate() error {
 	}
 	if c.Painter.Interval.Duration < 0 {
 		fail("painter.interval must not be negative")
+	}
+	if c.Painter.MaxInterval.Duration < c.Painter.Interval.Duration {
+		fail("painter.max_interval must not be less than painter.interval")
 	}
 	if c.Painter.MaxProposed < 1 {
 		fail("painter.max_proposed must be at least 1")

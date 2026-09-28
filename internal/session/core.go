@@ -77,19 +77,17 @@ func (c *Core) profile(name string, seen map[string]bool) (agent.Profile, error)
 }
 
 // Grants returns what a session of a turn may use: its working directory,
-// read-write for roles that change files and read-only for the rest, its
-// session directory and the profile's extra mounts. It never includes
-// version control.
+// its session directory and the profile's extra mounts. It never includes
+// version control. The working directory is read-write for every role: sbx
+// cannot start a sandbox whose primary workspace is read-only, and the
+// directory is a copy of the unit's files made for this session alone, so
+// what a reviewing role writes there is thrown away uncaptured.
 func (c *Core) Grants(t Turn, p agent.Profile) (agent.Grants, error) {
-	dirAccess := agent.ReadOnly
-	if t.Writable {
-		dirAccess = agent.ReadWrite
-	}
 	g := agent.Grants{
 		Env:   slices.Clone(baseEnv),
 		Tools: []string{agent.ToolsAll, "mcp__" + serverName},
 		Mounts: []agent.Mount{
-			{Path: t.Dir, Access: dirAccess},
+			{Path: t.Dir, Access: agent.ReadWrite},
 			{Path: t.SessionDir, Access: agent.ReadWrite},
 		},
 	}

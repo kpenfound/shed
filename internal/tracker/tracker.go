@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS units (
 	change TEXT PRIMARY KEY,
 	title TEXT NOT NULL,
+	opened_by TEXT NOT NULL DEFAULT '',
 	state TEXT NOT NULL,
 	bounces INTEGER NOT NULL DEFAULT 0,
 	amendments INTEGER NOT NULL DEFAULT 0,
@@ -162,7 +163,7 @@ var tables = []string{"units", "seals", "footprints", "sessions", "steps", "noti
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 3
+const schemaVersion = 4
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -325,8 +326,8 @@ func apply(tx *sql.Tx, e Event) error {
 	}
 	switch e.Kind {
 	case UnitOpened:
-		return exec(`INSERT INTO units (change, title, state, opened_seq, opened_at, updated_at, reason)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`, e.Unit, e.Title, e.To, e.Seq, at, at, e.Reason)
+		return exec(`INSERT INTO units (change, title, opened_by, state, opened_seq, opened_at, updated_at, reason)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, e.Unit, e.Title, e.Actor, e.To, e.Seq, at, at, e.Reason)
 	case UnitMoved:
 		// A bounce starts a new debate, from round zero.
 		if err := exec(`UPDATE units SET state = ?, bounces = bounces + ?, amendments = amendments + ?,

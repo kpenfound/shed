@@ -130,7 +130,8 @@ landing_name = "shed wheelbuilder"
 landing_email = "wheelbuilder@shed.localhost"
 
 [painter]
-interval = "1h"          # least time between two proposals
+interval = "15m"         # the wait after a proposal that went nowhere
+max_interval = "24h"     # the wait doubles for each further one, up to this
 max_proposed = 1         # proposals that may wait before the painter proposes again
 
 [serve]

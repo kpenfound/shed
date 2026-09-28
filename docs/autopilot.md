@@ -23,7 +23,8 @@ diff; the clauses it depends on and the horizon clauses it advances are
 declared, and dependencies must be on main.
 
 In each round, `concurrency.committee` committee members review the same
-revision at once, read-only. They object with `object`, citing clause IDs
+revision at once; what they write in their copies is thrown away. They
+object with `object`, citing clause IDs
 that must resolve, in one of four kinds:
 
 | Kind | Means | At the end |
@@ -66,7 +67,8 @@ Verification first checks the unit mechanically: its documents pass
 `shed check`, its horizon changes only mark clauses it advances, and the
 proofs of its footprint pass. With `verify.all_proofs = true` in `shed.toml`
 every proof must pass. Then a committee member who did not work on the unit
-reviews it read-only against the sealed spec and the charter, recording
+reviews it against the sealed spec and the charter, without keeping any
+change, recording
 findings with `finding`. A unit that fails goes back to implementing with a
 notice for the mechanic; one whose spec the reviewer finds wrong reopens; one
 that passes is queued.
@@ -88,13 +90,22 @@ conflicts cannot be resolved, or that changes nothing, reopens.
 | verifier | verification | a unit is verifying |
 | mechanic | implementation | a unit is implementing, or sealed while fewer than `concurrency.units` units implement or verify |
 | shed | debate | a proposal declares a horizon clause and fewer than `concurrency.in_flight` units are sealed through queued; one debate at a time |
-| painter | a proposal | the gap is not empty, fewer than `painter.max_proposed` units are proposed, and `painter.interval` has passed |
+| painter | a proposal | the gap is not empty, fewer than `painter.max_proposed` units are proposed, and the painter is not backing off |
 
 Each pass starts work downstream first, so work in flight finishes before new
 work starts. Controllers start stages in the background and never wait on
 a session; a stage that ends wakes them all, and `serve.tick` wakes them
 anyway. `shed serve -once` stops when nothing is running and nothing can
 start.
+
+The painter is the only controller that creates work, so it is the one
+throttled, by how its proposals fare. While they are being sealed it
+proposes again as soon as `painter.max_proposed` allows; with the default
+of one, that is when its last proposal leaves the shed. After a proposal
+that goes nowhere, archived or contested without being sealed, it waits
+`painter.interval`, doubling for each further one in a row up to
+`painter.max_interval`, and the next sealed proposal ends the streak. A
+painter session that failed before doing anything does not count.
 
 The painter works on the gap: near and soon horizon clauses that are not
 realised and that no unit in flight advances. It sees the deferred and

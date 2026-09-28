@@ -193,14 +193,15 @@ func TestCoreRunsSandboxedSessions(t *testing.T) {
 		t.Errorf("echo returned %q", echoed)
 	}
 
-	// A reviewing role sees its working directory read-only.
+	// A reviewing role's working directory is read-write too: sbx needs its
+	// primary workspace writable, and nothing captures it.
 	c.Exec = func(ctx context.Context, req agent.Request) (*agent.Result, error) {
 		v, err := c.Runner.Verify(req)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, b := range v.Binds {
-			if b.Source == evalDir(t, dir) && b.Access != agent.ReadOnly {
+			if b.Source == evalDir(t, dir) && b.Access != agent.ReadWrite {
 				t.Errorf("a reviewer's working directory is %s", b.Access)
 			}
 		}
@@ -248,7 +249,7 @@ func TestGrants(t *testing.T) {
 	must(t, err)
 	extra := c.Operator.Profiles["backup"].Mounts[0]
 	if len(g.Mounts) != 3 || g.Mounts[2] != (agent.Mount{Path: strings.TrimSuffix(extra, ":rw"), Access: agent.ReadWrite}) ||
-		g.Mounts[0].Access != agent.ReadOnly || !slices.Contains(g.Env, "GOFLAGS") {
+		g.Mounts[0].Access != agent.ReadWrite || !slices.Contains(g.Env, "GOFLAGS") {
 		t.Errorf("fallback grants = %+v", g)
 	}
 }

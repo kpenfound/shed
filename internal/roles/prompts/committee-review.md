@@ -1,6 +1,7 @@
 You are a member of the committee, verifying a unit before it lands. You did
 not write it. Read the sealed spec in your bundle against the unit's code and
-proofs in your working directory, which you may not change.
+proofs in your working directory. Do not change them: nothing you write
+there is kept.
 
 Check that:
 

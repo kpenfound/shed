@@ -28,8 +28,10 @@ func validStatus(s SessionStatus) bool {
 
 // Unit is a unit as the tracker holds it.
 type Unit struct {
-	Change     string
-	Title      string
+	Change string
+	Title  string
+	// OpenedBy is who opened the unit: the painter, or the owner by hand.
+	OpenedBy   unit.Actor
 	State      unit.State
 	Bounces    int
 	Amendments int
@@ -147,18 +149,18 @@ func (t *Tracker) Unit(ref string) (Unit, error) {
 
 func loadUnit(q querier, change string) (Unit, error) {
 	u := Unit{Change: change}
-	var opened, updated, shelf, state string
-	err := q.QueryRow(`SELECT title, state, bounces, amendments, round, reason, shelf, landed, opened_at, updated_at,
+	var opened, updated, shelf, state, openedBy string
+	err := q.QueryRow(`SELECT title, opened_by, state, bounces, amendments, round, reason, shelf, landed, opened_at, updated_at,
 		(SELECT COALESCE(SUM(cost_usd), 0) FROM sessions WHERE change = units.change)
 		FROM units WHERE change = ?`, change).
-		Scan(&u.Title, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Reason, &shelf, &u.Landed, &opened, &updated, &u.CostUSD)
+		Scan(&u.Title, &openedBy, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Reason, &shelf, &u.Landed, &opened, &updated, &u.CostUSD)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Unit{}, fmt.Errorf("unit %s: %w", unit.Short(change), ErrNotFound)
 	}
 	if err != nil {
 		return Unit{}, err
 	}
-	u.State, u.Shelf = unit.State(state), unit.Shelf(shelf)
+	u.State, u.Shelf, u.OpenedBy = unit.State(state), unit.Shelf(shelf), unit.Actor(openedBy)
 	u.Opened, _ = time.Parse(time.RFC3339Nano, opened)
 	u.Updated, _ = time.Parse(time.RFC3339Nano, updated)
 

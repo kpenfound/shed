@@ -8,9 +8,11 @@
   role shares, then the role's own. Shed ships them, and a file of the same
   name in the state directory's `prompts` replaces one.
 - **S.sess.3** (H.sess.2, H.vcs.2) Every session runs in a Docker Sandbox
-  microVM that sees only what it is granted: its working directory,
-  read-write for roles that change files and read-only for reviewers, its
-  session directory, and the profile's extra mounts. It inherits only the
+  microVM that sees only what it is granted: its working directory, a copy
+  of the unit's files made for that session, its session directory, and the
+  profile's extra mounts. The working directory is read-write, since sbx
+  needs its primary workspace writable, but shed keeps only the work of roles
+  that change files; what a reviewer writes there is thrown away. It inherits only the
   listed environment variables and is never granted version control: git and
   jj are denied and no VCS credentials or metadata reach it.
 - **S.sess.4** (H.sess.3) A session reaches shed's tools over MCP, on a

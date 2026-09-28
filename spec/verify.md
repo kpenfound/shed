@@ -7,8 +7,8 @@
   `shed.toml` sets `verify.all_proofs`. Each of those clauses must have a
   proof, and every proof must pass.
 - **S.verify.2** (H.verify.2) A committee member who did not work on the unit
-  then reviews it, with a read-only copy of its files, the sealed spec in its
-  bundle and the `run_tests` and `prove` tools. Each problem it finds is
+  then reviews it, with a copy of its files whose changes are thrown away,
+  the sealed spec in its bundle and the `run_tests` and `prove` tools. Each problem it finds is
   recorded with the `finding` tool, citing clause IDs that resolve.
 - **S.verify.3** (H.verify.3) The reviewer is asked to check the unit's code
   against every charter clause as well as against its spec, and its bundle

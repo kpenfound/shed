@@ -73,8 +73,9 @@ type Turn struct {
 	Step string
 	// Dir is the session's working directory: a plain directory of files.
 	Dir string
-	// Writable lets the session change files in Dir. Reviewing roles read
-	// only.
+	// Writable marks a session whose files shed keeps: the caller captures
+	// Dir onto the unit's change when it ends. What a reviewing role writes
+	// is thrown away with Dir.
 	Writable bool
 	// SystemPrompt describes the role; Prompt is the task.
 	SystemPrompt string

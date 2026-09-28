@@ -256,17 +256,3 @@ func (t *Tracker) InfraStreak() (int, error) {
 	}
 	return n, rows.Err()
 }
-
-// LastSession returns when a role last started a session of a step.
-func (t *Tracker) LastSession(role unit.Actor, step string) (time.Time, bool, error) {
-	var at string
-	err := t.db.QueryRow(`SELECT started_at FROM sessions WHERE role = ? AND step = ? ORDER BY started_at DESC LIMIT 1`, role, step).Scan(&at)
-	if errors.Is(err, sql.ErrNoRows) {
-		return time.Time{}, false, nil
-	}
-	if err != nil {
-		return time.Time{}, false, err
-	}
-	when, err := time.Parse(time.RFC3339Nano, at)
-	return when, err == nil, err
-}

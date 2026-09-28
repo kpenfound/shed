@@ -241,6 +241,7 @@ func (f *Factory) Paused(now time.Time) (string, error) {
 func (f *Factory) Serve(ctx context.Context, opts ServeOptions) error {
 	s := &scheduler{f: f, opts: opts, wake: make(chan struct{}, 1), busy: map[string]bool{}}
 	defer s.wg.Wait()
+	startedAny := false
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	tick := f.Operator.Serve.Tick.Duration
@@ -269,8 +270,12 @@ func (f *Factory) Serve(ctx context.Context, opts ServeOptions) error {
 		}
 		s.mu.Lock()
 		quiet := len(s.busy) == 0 && (s.started == 0 || paused != "")
+		startedAny = startedAny || s.started > 0
 		s.mu.Unlock()
 		if opts.Once && quiet {
+			if !startedAny && paused == "" && opts.Log != nil {
+				f.explainIdle(ctx, s.now(), opts.Log)
+			}
 			return nil
 		}
 		select {
@@ -279,6 +284,30 @@ func (f *Factory) Serve(ctx context.Context, opts ServeOptions) error {
 		case <-s.wake:
 		case <-time.After(tick):
 		}
+	}
+}
+
+// explainIdle says why a serve that started nothing had nothing to start.
+func (f *Factory) explainIdle(ctx context.Context, now time.Time, w io.Writer) {
+	fmt.Fprintln(w, "nothing to start")
+	units, err := f.Tracker.Units()
+	if err == nil {
+		for _, u := range units {
+			if u.State == unit.Proposed && len(u.Footprint.Advances) == 0 {
+				fmt.Fprintf(w, "  %s is a draft: declare the horizon clauses it advances with shed unit declare\n", unit.Short(u.Change))
+			}
+			if u.State == unit.Contested {
+				fmt.Fprintf(w, "  %s is contested and waits for the owner\n", unit.Short(u.Change))
+			}
+		}
+	}
+	if full, err := f.inFlightFull(""); err == nil && full {
+		fmt.Fprintf(w, "  shed: %d units are in flight (concurrency.in_flight)\n", f.Operator.Concurrency.InFlight)
+	}
+	if why, err := f.PainterWait(ctx, now); err != nil {
+		fmt.Fprintf(w, "  painter: %v\n", err)
+	} else if why != "" {
+		fmt.Fprintf(w, "  painter: %s\n", why)
 	}
 }
 

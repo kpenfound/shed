@@ -3,7 +3,7 @@
 - **S.shed.1** (H.shed.1) `shed debate <unit>` debates a proposed unit in
   rounds. In each round every committee member, `concurrency.committee` of
   them, runs a session at the same time against the same revision of the
-  proposal, with a read-only copy of its files.
+  proposal, with a copy of its files whose changes are thrown away.
 - **S.shed.2** (H.shed.2) A member objects with the `object` tool, giving a
   kind (`charter`, `horizon`, `size` or `spec`), the clause IDs it cites and
   its text. Shed refuses an objection of an unknown kind, one with no

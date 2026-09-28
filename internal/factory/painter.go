@@ -15,6 +15,7 @@ import (
 	"github.com/kpenfound/shed/internal/docs"
 	"github.com/kpenfound/shed/internal/roles"
 	"github.com/kpenfound/shed/internal/session"
+	"github.com/kpenfound/shed/internal/tracker"
 	"github.com/kpenfound/shed/internal/unit"
 )
 
@@ -53,13 +54,19 @@ func (f *Factory) Gap(ctx context.Context) ([]docs.TraceEntry, error) {
 	return out, nil
 }
 
-// PainterDue reports whether the painter may propose now: the gap it may
-// work on is not empty, fewer than painter.max_proposed units are proposed,
-// and painter.interval has passed since its last proposal.
+// PainterDue reports whether the painter may propose now.
 func (f *Factory) PainterDue(ctx context.Context, now time.Time) (bool, error) {
+	why, err := f.PainterWait(ctx, now)
+	return why == "" && err == nil, err
+}
+
+// PainterWait says why the painter may not propose now, or returns "" when
+// it may: fewer than painter.max_proposed units are proposed, it is not
+// backing off, and the gap it may work on is not empty.
+func (f *Factory) PainterWait(ctx context.Context, now time.Time) (string, error) {
 	units, err := f.Tracker.Units()
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	proposed := 0
 	for _, u := range units {
@@ -67,18 +74,93 @@ func (f *Factory) PainterDue(ctx context.Context, now time.Time) (bool, error) {
 			proposed++
 		}
 	}
-	if proposed >= f.Operator.Painter.MaxProposed {
-		return false, nil
+	if max := f.Operator.Painter.MaxProposed; proposed >= max {
+		return fmt.Sprintf("%d proposals are waiting in the shed (painter.max_proposed = %d)", proposed, max), nil
 	}
-	last, ok, err := f.Tracker.LastSession(unit.Painter, proposeStep)
+	streak, since, err := f.unproductive(units)
+	if err != nil {
+		return "", err
+	}
+	if streak > 0 {
+		wait := f.backoff(streak)
+		if next := since.Add(wait); now.Before(next) {
+			what := "the last proposal"
+			if streak > 1 {
+				what = fmt.Sprintf("the last %d proposals", streak)
+			}
+			return fmt.Sprintf("%s went nowhere, so the next is due at %s (a %s wait, doubling from painter.interval up to painter.max_interval)",
+				what, next.Local().Format("15:04"), wait), nil
+		}
+	}
+	gap, err := f.Gap(ctx)
+	if err != nil {
+		return "", err
+	}
+	if len(gap) == 0 {
+		return "the gap holds no near or soon horizon clause that no unit in flight advances", nil
+	}
+	return "", nil
+}
+
+// unproductive counts the painter's latest proposals that went nowhere, in
+// a row, and returns when the most recent of them did. A proposal went
+// nowhere when it was archived or contested without ever being sealed; the
+// streak ends at the last one that was sealed. A proposal still in the shed
+// has no answer yet and is passed over, and so is one whose painter session
+// failed before doing anything.
+func (f *Factory) unproductive(units []tracker.Unit) (int, time.Time, error) {
+	streak := 0
+	var since time.Time
+	for i := len(units) - 1; i >= 0; i-- {
+		u := units[i]
+		if u.OpenedBy != unit.Painter {
+			continue
+		}
+		if u.Seal != nil {
+			break
+		}
+		if u.State != unit.Archived && u.State != unit.Contested {
+			continue
+		}
+		worked, err := f.painterWorked(u.Change)
+		if err != nil {
+			return 0, time.Time{}, err
+		}
+		if !worked {
+			continue
+		}
+		streak++
+		if u.Updated.After(since) {
+			since = u.Updated
+		}
+	}
+	return streak, since, nil
+}
+
+// painterWorked reports whether a painter session on a unit did some work:
+// reported an outcome, or cost money.
+func (f *Factory) painterWorked(change string) (bool, error) {
+	sessions, err := f.Tracker.Sessions(change)
 	if err != nil {
 		return false, err
 	}
-	if ok && now.Sub(last) < f.Operator.Painter.Interval.Duration {
-		return false, nil
+	for _, s := range sessions {
+		if s.Role == unit.Painter && s.Step == proposeStep && (s.Status == tracker.Succeeded || s.CostUSD > 0) {
+			return true, nil
+		}
 	}
-	gap, err := f.Gap(ctx)
-	return len(gap) > 0, err
+	return false, nil
+}
+
+// backoff is the painter's wait after a streak of proposals that went
+// nowhere: painter.interval, doubled for each further one, up to
+// painter.max_interval.
+func (f *Factory) backoff(streak int) time.Duration {
+	wait, max := f.Operator.Painter.Interval.Duration, f.Operator.Painter.MaxInterval.Duration
+	for i := 1; i < streak && wait < max; i++ {
+		wait *= 2
+	}
+	return min(wait, max)
 }
 
 // Propose runs the painter: shed opens a unit on main and the painter writes

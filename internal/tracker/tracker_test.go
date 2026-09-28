@@ -128,7 +128,7 @@ func TestTrackerHoldsUnits(t *testing.T) {
 
 	u := get(t, tr, unitA)
 	want := Unit{
-		Change: unitA, Title: "Say goodbye", State: unit.Proposed, Bounces: 1, Amendments: 1,
+		Change: unitA, Title: "Say goodbye", OpenedBy: unit.Painter, State: unit.Proposed, Bounces: 1, Amendments: 1,
 		Reason: "the spec is ambiguous", Seal: &Seal{Main: "abc123", Change: unitA},
 		Footprint: fp, CostUSD: 1.25,
 	}

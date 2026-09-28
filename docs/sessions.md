@@ -9,8 +9,10 @@ Each session runs in a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/)
 microVM, created by the `sbx` CLI for the session and removed when it ends.
 The sandbox sees only what the session is granted:
 
-- its working directory: a plain copy of the unit's files, read-write for
-  the painter, mechanic and wheelbuilder, read-only for the committee;
+- its working directory: a plain copy of the unit's files made for the
+  session. It is read-write, since sbx needs a writable primary workspace,
+  but shed captures it onto the unit only for the painter, mechanic and
+  wheelbuilder; what a committee member writes there is thrown away;
 - its session directory, where shed writes `bundle.md` and core writes the
   transcript and result;
 - any extra mounts the operator adds to the role's profile.
