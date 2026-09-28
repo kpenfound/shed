@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 )
@@ -40,8 +41,13 @@ type Options struct {
 type Repo struct {
 	root  string
 	state string
-	jj    string
+	bin   string
 	opts  Options
+	// base is shed's own workspace once it exists. Every jj command that
+	// can write runs there: jj keeps git's index in step with the
+	// colocated workspace's view of HEAD, and a command run in the owner's
+	// workspace would reset their index to it.
+	base string
 }
 
 // Directories under the state directory.
@@ -80,6 +86,9 @@ func Open(ctx context.Context, root, state string, opts Options) (*Repo, error) 
 		return nil, err
 	}
 	defer unlock()
+	if r.base, err = r.ensureBase(ctx); err != nil {
+		return nil, err
+	}
 	if _, err := r.recover(ctx); err != nil {
 		return nil, fmt.Errorf("restoring an interrupted operation: %w", err)
 	}
@@ -113,11 +122,11 @@ func check(ctx context.Context, root, state string, opts Options) (*Repo, error)
 	if _, err := CheckJJ(ctx, opts.JJ); err != nil {
 		return nil, err
 	}
-	jj := opts.JJ
-	if jj == "" {
-		jj = "jj"
+	bin := opts.JJ
+	if bin == "" {
+		bin = "jj"
 	}
-	r := &Repo{root: root, state: state, jj: jj, opts: opts}
+	r := &Repo{root: root, state: state, bin: bin, opts: opts}
 	if err := r.checkColocated(ctx); err != nil {
 		return nil, err
 	}
@@ -137,11 +146,11 @@ func canonical(path string) (string, error) {
 
 func (r *Repo) checkColocated(ctx context.Context) error {
 	const fix = "run `jj git init --colocate` at the repository root"
-	jjRoot, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "root")
+	jjRoot, err := r.jj(ctx, "root")
 	if err != nil {
 		return fmt.Errorf("%w: %s; %s", ErrNotColocated, r.root, fix)
 	}
-	gitDir, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "git", "root")
+	gitDir, err := r.jj(ctx, "git", "root")
 	if err != nil {
 		return fmt.Errorf("%w: %s; %s", ErrNotColocated, r.root, fix)
 	}
@@ -164,8 +173,11 @@ func (r *Repo) Root() string { return r.root }
 // mainRevset names the main bookmark exactly.
 func (r *Repo) mainRevset() string { return fmt.Sprintf("bookmarks(exact:%q)", r.opts.Main) }
 
-// MainCommit returns the commit main is at.
+// MainCommit returns the commit main is at, as git's refs say it is now.
 func (r *Repo) MainCommit(ctx context.Context) (string, error) {
+	if err := r.importGit(ctx); err != nil {
+		return "", err
+	}
 	out, err := r.log(ctx, r.mainRevset(), "commit_id")
 	if err != nil {
 		return "", err
@@ -192,7 +204,7 @@ func changeRevset(change string) string { return fmt.Sprintf("change_id(%s)", ch
 
 // log evaluates a template over a revset without touching any working copy.
 func (r *Repo) log(ctx context.Context, revset, template string) (string, error) {
-	return r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "log", "--no-graph", "-r", revset, "-T", template+` ++ "\n"`)
+	return r.jj(ctx, "log", "--no-graph", "-r", revset, "-T", template+` ++ "\n"`)
 }
 
 // workspace is a unit workspace: its jj name and its directory.
@@ -204,7 +216,7 @@ type workspace struct {
 // workspaces returns every workspace shed keeps, by the change its working
 // copy is on.
 func (r *Repo) workspaces(ctx context.Context) (map[string]workspace, error) {
-	out, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "workspace", "list",
+	out, err := r.jj(ctx, "workspace", "list",
 		"-T", `name ++ "\t" ++ self.target().change_id() ++ "\n"`)
 	if err != nil {
 		return nil, err
@@ -238,25 +250,75 @@ func (r *Repo) Workspace(ctx context.Context, change string) (string, error) {
 	return w.dir, err
 }
 
-// base returns the directory of shed's base workspace, adding it the first
-// time. Adding it snapshots the owner's working copy once; after that, unit
-// workspaces are added from the base workspace instead.
-func (r *Repo) base(ctx context.Context) (string, error) {
+// jj runs a jj command that leaves the working copy alone, in shed's base
+// workspace once it exists and in the repository root until then.
+func (r *Repo) jj(ctx context.Context, args ...string) (string, error) {
+	dir := r.base
+	if dir == "" {
+		dir = r.root
+	}
+	return r.run(ctx, dir, shedIdentity, append([]string{"--ignore-working-copy"}, args...)...)
+}
+
+// importGit brings in what git's refs say now, such as a commit the owner
+// made with git on main, which jj does not see by itself from shed's
+// workspace.
+func (r *Repo) importGit(ctx context.Context) error {
+	if r.base == "" {
+		return nil
+	}
+	_, err := r.jj(ctx, "git", "import")
+	return err
+}
+
+// exportGit writes jj's bookmarks to git's refs, so git's main follows a
+// landing made from shed's workspace.
+func (r *Repo) exportGit(ctx context.Context) error {
+	_, err := r.jj(ctx, "git", "export")
+	return err
+}
+
+// ensureBase returns the directory of shed's base workspace, adding it the
+// first time. Adding it has to run in the owner's workspace, which
+// snapshots their working copy and rewrites git's index, so the index is
+// saved first and put back afterwards.
+func (r *Repo) ensureBase(ctx context.Context) (string, error) {
 	dir := filepath.Join(r.state, WorkspacesDir, baseDir)
-	out, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "workspace", "list", "-T", `name ++ "\n"`)
+	out, err := r.jj(ctx, "workspace", "list", "-T", `name ++ "\n"`)
 	if err != nil {
 		return "", err
 	}
-	for _, name := range strings.Split(out, "\n") {
-		if name == baseName {
-			return dir, nil
+	listed := slices.Contains(strings.Split(out, "\n"), baseName)
+	if _, err := os.Stat(filepath.Join(dir, ".jj")); listed && err == nil {
+		return dir, nil
+	}
+	return dir, r.keepingIndex(ctx, func() error {
+		if listed {
+			if _, err := r.run(ctx, r.root, shedIdentity, "workspace", "forget", baseName); err != nil {
+				return err
+			}
 		}
+		if err := os.RemoveAll(dir); err != nil {
+			return err
+		}
+		_, err := r.run(ctx, r.root, shedIdentity, "workspace", "add", dir, "--name", baseName, "-r", r.mainRevset())
+		return err
+	})
+}
+
+// keepingIndex runs fn and then puts git's index back as it was, staged
+// changes and all. An index git cannot write as a tree, such as one in the
+// middle of a merge, is left to fn.
+func (r *Repo) keepingIndex(ctx context.Context, fn func() error) error {
+	saved, err := r.git(ctx, "write-tree")
+	if err := fn(); err != nil {
+		return err
 	}
-	if err := os.RemoveAll(dir); err != nil {
-		return "", err
+	if err != nil {
+		return nil
 	}
-	_, err = r.run(ctx, r.root, shedIdentity, "workspace", "add", dir, "--name", baseName, "-r", r.mainRevset())
-	return dir, err
+	_, err = r.git(ctx, "read-tree", saved)
+	return err
 }
 
 // NewUnit makes a change for a unit on top of main, with a workspace of its
@@ -273,13 +335,12 @@ func (r *Repo) NewUnit(ctx context.Context, title string) (change string, err er
 	}
 	defer func() { err = done(err) }()
 
-	base, err := r.base(ctx)
-	if err != nil {
+	if err := r.importGit(ctx); err != nil {
 		return "", err
 	}
 	name := "unit-" + nonce()
 	dir := filepath.Join(r.state, WorkspacesDir, name)
-	if _, err := r.run(ctx, base, shedIdentity, "workspace", "add", dir, "--name", name,
+	if _, err := r.run(ctx, r.base, shedIdentity, "workspace", "add", dir, "--name", name,
 		"-r", r.mainRevset(), "-m", "unit: "+title); err != nil {
 		return "", err
 	}
@@ -293,6 +354,9 @@ func (r *Repo) Discard(ctx context.Context, change string) (err error) {
 		return err
 	}
 	defer unlock()
+	if err := r.importGit(ctx); err != nil {
+		return err
+	}
 	done, err := r.checkpoint(ctx, "discard "+change)
 	if err != nil {
 		return err
@@ -302,10 +366,10 @@ func (r *Repo) Discard(ctx context.Context, change string) (err error) {
 	if err != nil {
 		return err
 	}
-	if _, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "workspace", "forget", w.name); err != nil {
+	if _, err := r.jj(ctx, "workspace", "forget", w.name); err != nil {
 		return err
 	}
-	if _, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "abandon", changeRevset(change)); err != nil {
+	if _, err := r.jj(ctx, "abandon", changeRevset(change)); err != nil {
 		return err
 	}
 	return os.RemoveAll(w.dir)

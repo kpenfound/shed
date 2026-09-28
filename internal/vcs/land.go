@@ -24,6 +24,9 @@ func (r *Repo) Land(ctx context.Context, change string, message Message) (commit
 		return "", err
 	}
 	defer unlock()
+	if err := r.importGit(ctx); err != nil {
+		return "", err
+	}
 	if landed, err := r.onMain(ctx, change); err != nil || landed {
 		if err != nil {
 			return "", err
@@ -42,7 +45,7 @@ func (r *Repo) Land(ctx context.Context, change string, message Message) (commit
 		return "", err
 	}
 	if r.opts.Remote != "" {
-		if _, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "git", "fetch", "--remote", r.opts.Remote); err != nil {
+		if _, err := r.jj(ctx, "git", "fetch", "--remote", r.opts.Remote); err != nil {
 			return "", err
 		}
 	}
@@ -89,7 +92,7 @@ func (r *Repo) Land(ctx context.Context, change string, message Message) (commit
 		return "", err
 	}
 	// Without --allow-backwards, jj refuses any move that is not forward.
-	if _, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "bookmark", "set", r.opts.Main,
+	if _, err := r.jj(ctx, "bookmark", "set", r.opts.Main,
 		"-r", changeRevset(change)); err != nil {
 		return "", err
 	}
@@ -98,11 +101,14 @@ func (r *Repo) Land(ctx context.Context, change string, message Message) (commit
 			return "", err
 		}
 	}
+	if err := r.exportGit(ctx); err != nil {
+		return "", err
+	}
 	commit, err = r.Commit(ctx, change)
 	if err != nil {
 		return "", err
 	}
-	if _, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "workspace", "forget", w.name); err != nil {
+	if _, err := r.jj(ctx, "workspace", "forget", w.name); err != nil {
 		return "", err
 	}
 	return commit, os.RemoveAll(w.dir)
@@ -123,18 +129,18 @@ func (r *Repo) onMain(ctx context.Context, change string) (bool, error) {
 // refuses the push if the remote's main moved since the fetch.
 func (r *Repo) push(ctx context.Context) error {
 	remoteBookmark := r.opts.Main + "@" + r.opts.Remote
-	tracked, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "bookmark", "list", "--tracked",
+	tracked, err := r.jj(ctx, "bookmark", "list", "--tracked",
 		"-T", `name ++ "@" ++ remote ++ "\n"`, r.opts.Main)
 	if err != nil {
 		return err
 	}
 	if !strings.Contains("\n"+tracked+"\n", "\n"+remoteBookmark+"\n") {
-		if _, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "bookmark", "track", remoteBookmark); err != nil &&
+		if _, err := r.jj(ctx, "bookmark", "track", remoteBookmark); err != nil &&
 			!strings.Contains(err.Error(), "No such remote bookmark") && !strings.Contains(err.Error(), "No matching") {
 			return err
 		}
 	}
-	_, err = r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "git", "push", "--remote", r.opts.Remote, "--bookmark", r.opts.Main)
+	_, err = r.jj(ctx, "git", "push", "--remote", r.opts.Remote, "--bookmark", r.opts.Main)
 	return err
 }
 
@@ -168,8 +174,11 @@ func (r *Repo) Rebase(ctx context.Context, change string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	if err := r.importGit(ctx); err != nil {
+		return false, err
+	}
 	if r.opts.Remote != "" {
-		if _, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "git", "fetch", "--remote", r.opts.Remote); err != nil {
+		if _, err := r.jj(ctx, "git", "fetch", "--remote", r.opts.Remote); err != nil {
 			return false, err
 		}
 	}

@@ -360,7 +360,9 @@ func TestFailedOperationsAreRestored(t *testing.T) {
 	}
 	crashed, err := repo.NewUnit(ctx, "Half made")
 	must(t, err)
-	r.JJ("--ignore-working-copy", "bookmark", "set", "main", "-r", "change_id("+change+")")
+	// Midway through, as shed would, main moved in jj and not yet in git.
+	r.JJ("-R", filepath.Join(repo.state, WorkspacesDir, baseDir), "--ignore-working-copy",
+		"bookmark", "set", "main", "-r", "change_id("+change+")")
 
 	reopened := openRepo(t, r, "")
 	if now, _ := reopened.MainCommit(ctx); now != main {
@@ -420,5 +422,75 @@ func TestOnlyLandingMovesMain(t *testing.T) {
 	must(t, err)
 	if parent := r.Git("rev-parse", commit+"^"); parent != main {
 		t.Errorf("landing did not move main forward by one commit: parent %s", parent)
+	}
+}
+
+//shed:proves S.vcs.9
+func TestTheOwnersGitStateIsLeftAlone(t *testing.T) {
+	r := testrepo.Colocated(t)
+	// The owner has something staged when shed first opens the repository.
+	r.Write("staged.txt", "staged\n")
+	r.Git("add", "staged.txt")
+	index := r.Git("write-tree")
+	repo := openRepo(t, r, "origin")
+	if got := r.Git("write-tree"); got != index {
+		t.Fatalf("opening the repository changed the owner's index")
+	}
+	r.Git("rm", "-q", "--cached", "staged.txt")
+	must(t, os.Remove(filepath.Join(r.Dir, "staged.txt")))
+
+	// The owner commits with git, behind jj's back, and stages more.
+	r.Write("owner.txt", "owner\n")
+	r.Git("add", "owner.txt")
+	r.Git("commit", "-q", "-m", "owner's commit")
+	ownerCommit := r.Git("rev-parse", "HEAD")
+	r.Write("later.txt", "later\n")
+	r.Git("add", "later.txt")
+	index = r.Git("write-tree")
+	status := r.Git("status", "--porcelain")
+	intact := func(step string) {
+		t.Helper()
+		if got := r.Git("write-tree"); got != index {
+			t.Errorf("%s changed the owner's index", step)
+		}
+		if got := r.Git("status", "--porcelain"); got != status {
+			t.Errorf("%s changed git status:\n%s\nwant\n%s", step, got, status)
+		}
+	}
+
+	if main, _ := repo.MainCommit(ctx); main != ownerCommit {
+		t.Errorf("shed sees main at %s, not the owner's commit %s", main, ownerCommit)
+	}
+	intact("reading main")
+	change := newUnit(t, repo, "Say goodbye", map[string]string{"bye.txt": "bye\n"})
+	intact("opening a unit")
+	if parent := r.JJ("--ignore-working-copy", "log", "--no-graph", "-r", "change_id("+change+")-", "-T", "commit_id"); parent != ownerCommit {
+		t.Errorf("the unit is on %s, not the owner's commit", parent)
+	}
+	view := filepath.Join(t.TempDir(), "work")
+	must(t, repo.Export(ctx, change, view))
+	_, err := repo.Capture(ctx, change, view)
+	must(t, err)
+	intact("capturing a session")
+	must(t, repo.Discard(ctx, newUnit(t, repo, "Discard", map[string]string{"x.txt": "x\n"})))
+	intact("discarding a unit")
+	if _, err := repo.Land(ctx, change, func(context.Context, string, string) (string, error) {
+		return "", errors.New("stop")
+	}); err == nil {
+		t.Fatal("a landing without a message succeeded")
+	}
+	intact("a failed landing")
+
+	commit, err := repo.Land(ctx, change, message("Say goodbye"))
+	must(t, err)
+	if got := r.Git("rev-parse", "refs/heads/main"); got != commit {
+		t.Errorf("git's main is at %s after landing %s", got, commit)
+	}
+	if got := r.Git("rev-parse", commit+"^"); got != ownerCommit {
+		t.Errorf("the unit landed on %s, not the owner's commit", got)
+	}
+	// Landing detached HEAD where it was; the index and files are the owner's.
+	if got := r.Git("write-tree"); got != index {
+		t.Error("landing changed the owner's index")
 	}
 }

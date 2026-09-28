@@ -132,7 +132,7 @@ func (r *Repo) run(ctx context.Context, dir string, id Identity, args ...string)
 		full = append(full, "--config", s)
 	}
 	full = append(full, args...)
-	cmd := exec.CommandContext(ctx, r.jj, full...)
+	cmd := exec.CommandContext(ctx, r.bin, full...)
 	cmd.Dir = dir
 	cmd.Env = jjEnv()
 	var stdout, stderr bytes.Buffer

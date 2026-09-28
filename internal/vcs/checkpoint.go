@@ -26,7 +26,7 @@ type checkpointRecord struct {
 // half-done operation leaves nothing behind. A crash leaves the record for
 // the next Open to restore.
 func (r *Repo) checkpoint(ctx context.Context, operation string) (func(error) error, error) {
-	entry, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "operation", "log",
+	entry, err := r.jj(ctx, "operation", "log",
 		"--no-graph", "--limit", "1", "-T", `self.id() ++ "\n"`)
 	if err != nil {
 		return nil, err
@@ -112,7 +112,12 @@ func (r *Repo) recover(ctx context.Context) ([]string, error) {
 // directories of workspaces the restore removed are deleted. The owner's
 // working copy is not touched.
 func (r *Repo) restore(ctx context.Context, entry string) error {
-	if _, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "operation", "restore", entry); err != nil {
+	if _, err := r.jj(ctx, "operation", "restore", entry); err != nil {
+		return err
+	}
+	// The restore also takes back jj's record of git's refs; bring in what
+	// they say now, so a commit the owner made since is not lost to jj.
+	if err := r.importGit(ctx); err != nil {
 		return err
 	}
 	all, err := r.workspaces(ctx)
@@ -124,7 +129,7 @@ func (r *Repo) restore(ctx context.Context, entry string) error {
 	for _, w := range all {
 		if _, err := os.Stat(w.dir); errors.Is(err, os.ErrNotExist) {
 			// The restore brought back a workspace whose directory is gone.
-			if _, err := r.run(ctx, r.root, shedIdentity, "--ignore-working-copy", "workspace", "forget", w.name); err != nil {
+			if _, err := r.jj(ctx, "workspace", "forget", w.name); err != nil {
 				return err
 			}
 			continue

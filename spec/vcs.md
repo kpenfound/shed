@@ -31,3 +31,9 @@
 - **S.vcs.8** (H.vcs.6) Only landing moves main, and only forward. Before a
   landing moves main, shed detaches a git checkout that is on main, where it
   is, without touching its files.
+- **S.vcs.9** (H.vcs.2, H.vcs.6) Shed leaves the owner's git state alone. It
+  runs jj from a workspace of its own, never the owner's, so the owner's git
+  index and staged changes survive every shed operation. Adding that
+  workspace, once, puts the owner's index back as it was. Before it reads or
+  moves main, shed brings in commits the owner made with git, and after a
+  landing git's main points at the landed commit.

@@ -28,10 +28,19 @@ change's ID is the unit's ID, and it survives rebases. `shed unit path
 <unit>` prints the workspace's directory, so the owner can work on a unit by
 hand while shed is not yet running sessions.
 
-Shed adds unit workspaces from a workspace of its own, `.shed/workspaces/base`.
-Adding that base workspace, once, snapshots the owner's working copy as any
-jj command does. After that, shed runs every command on the owner's side
-with `--ignore-working-copy` and leaves the owner's files alone.
+Shed runs jj from a workspace of its own, `.shed/workspaces/base`, never
+from the owner's. In a colocated repository jj keeps git's index in step
+with what it believes HEAD is, so a jj command run in the owner's workspace
+after they committed with git would reset their index to an older tree.
+From shed's workspace, the owner's index, staged changes and files are never
+touched. Adding the base workspace, the first time shed opens the
+repository, has to run in the owner's workspace; shed saves git's index
+first and puts it back afterwards.
+
+Because shed's workspace does not see git's refs move by itself, shed runs
+`jj git import` before it reads or moves main, so a commit the owner made
+with git is the main that units start from and land on. After a landing it
+runs `jj git export`, so git's `main` points at the landed commit.
 
 A session gets a copy of the unit's files in a directory of its own, with no
 `.git` and no `.jj`. When the session ends, shed copies the directory back
