@@ -91,6 +91,7 @@ func TestOperatorRefusesBadSettings(t *testing.T) {
 		{"[concurrency]\nunits = 0\n", "concurrency.units must be at least 1"},
 		{"[shed]\nmax_rounds = 0\n", "shed.max_rounds must be at least 1"},
 		{"[shed]\nbounce_threshold = -1\n", "shed.bounce_threshold must not be negative"},
+		{"[shed]\nmax_rounds = 2\namendment_rounds = 3\n", "shed.amendment_rounds must not be greater than shed.max_rounds"},
 		{"[profiles.x]\nagent = \"gpt\"\n", `profiles.x.agent "gpt" is not one of`},
 		{"[profiles.x]\nagent = \"pi\"\nfallback = \"y\"\n", `profiles.x.fallback names unknown profile "y"`},
 		{"[profiles.a]\nagent = \"pi\"\nfallback = \"b\"\n[profiles.b]\nagent = \"pi\"\nfallback = \"a\"\n", "profiles.a.fallback loops back to itself"},
@@ -108,6 +109,12 @@ func TestOperatorRefusesBadSettings(t *testing.T) {
 		_, err := LoadOperator(writeOperator(t, tc.toml))
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%q: error %v, want %q", tc.toml, err, tc.want)
+		}
+	}
+
+	for _, toml := range []string{"[shed]\nmax_rounds = 2\namendment_rounds = 2\n", "[shed]\nmax_rounds = 1\n"} {
+		if _, err := LoadOperator(writeOperator(t, toml)); err != nil {
+			t.Errorf("%q: %v", toml, err)
 		}
 	}
 

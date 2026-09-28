@@ -123,7 +123,10 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 	if _, _, err := f.refreshFootprint(ctx, u); err != nil {
 		return f.bounce(u, err.Error())
 	}
-	max := f.Operator.Shed.MaxRounds
+	max, err := f.roundCap(u.Change)
+	if err != nil {
+		return "", err
+	}
 	for round := u.Round; ; {
 		if round < max {
 			round++
@@ -133,7 +136,7 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 			if u, err = f.Tracker.Unit(u.Change); err != nil {
 				return "", err
 			}
-			if err := f.committeeRound(ctx, u, round); err != nil {
+			if err := f.committeeRound(ctx, u, round, max); err != nil {
 				return "", err
 			}
 		}
@@ -168,8 +171,35 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 	}
 }
 
+// roundCap is the round cap of a unit's debate. A unit whose latest reopen
+// requested an amendment is in the amendment lane until it is next sealed,
+// and its cap is shed.amendment_rounds (S.shed.11). Any other unit's cap is
+// shed.max_rounds.
+func (f *Factory) roundCap(change string) (int, error) {
+	events, err := f.Tracker.Events(change)
+	if err != nil {
+		return 0, err
+	}
+	for i := len(events) - 1; i >= 0; i-- {
+		e := events[i]
+		if e.Kind != tracker.UnitMoved {
+			continue
+		}
+		if e.To == unit.Sealed {
+			break
+		}
+		if e.To == unit.Proposed && e.Bounce {
+			if e.Amendment {
+				return f.Operator.Shed.AmendmentRounds, nil
+			}
+			break
+		}
+	}
+	return f.Operator.Shed.MaxRounds, nil
+}
+
 // committeeRound runs every committee member's session of a round at once.
-func (f *Factory) committeeRound(ctx context.Context, u tracker.Unit, round int) error {
+func (f *Factory) committeeRound(ctx context.Context, u tracker.Unit, round, max int) error {
 	members := f.Operator.Concurrency.Committee
 	errs := make([]error, members)
 	var wg sync.WaitGroup
@@ -185,7 +215,7 @@ func (f *Factory) committeeRound(ctx context.Context, u tracker.Unit, round int)
 			res, err := f.session(ctx, work{
 				Unit: u, Role: unit.Committee, Prompt: roles.Committee,
 				Step:     fmt.Sprintf("debate round %d, member %d", round, member),
-				Task:     fmt.Sprintf("Debate the proposal %q. This is round %d of at most %d, and you are member %d.", u.Title, round, f.Operator.Shed.MaxRounds, member),
+				Task:     fmt.Sprintf("Debate the proposal %q. This is round %d of at most %d, and you are member %d.", u.Title, round, max, member),
 				Tools:    func(_ string, head *docs.Set) []session.Tool { return f.committeeTools(u.Change, member, head) },
 				Outcomes: []string{outcomeClean, outcomeObjecting},
 				Extra:    []bundle.Section{{Title: "Your standing objections", Body: mine}},

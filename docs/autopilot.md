@@ -42,6 +42,12 @@ the proposal bounces back to its painter: it stays proposed, counts a bounce
 and debates afresh next time. Past `shed.bounce_threshold` bounces it is
 contested and waits for the owner.
 
+A unit whose latest reopen requested an amendment is debated in the
+amendment lane. Every rule above holds, but the round cap is
+`shed.amendment_rounds` instead of `shed.max_rounds`, and each member's
+session is told that cap. The unit stays in the lane, even after a bounce at
+the cap, until it is next sealed.
+
 Rejected and deferred proposals go to the archive: a Markdown entry under
 `archive/rejected/` or `archive/deferred/` on the `shed/archive` branch,
 which shares no history with main, so archiving never moves main. The entry

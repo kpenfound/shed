@@ -103,7 +103,7 @@ in_flight = 1           # units from sealed through queued; 0 for no cap
 
 [shed]
 max_rounds = 3
-amendment_rounds = 1
+amendment_rounds = 1    # the cap in the amendment lane; at most max_rounds
 bounce_threshold = 3
 contested_timeout = "72h"
 

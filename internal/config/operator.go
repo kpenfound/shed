@@ -223,6 +223,9 @@ func (c Operator) Validate() error {
 			fail("%s must be at least 1", name)
 		}
 	}
+	if c.Shed.AmendmentRounds > c.Shed.MaxRounds {
+		fail("shed.amendment_rounds must not be greater than shed.max_rounds")
+	}
 	if c.Painter.Interval.Duration < 0 {
 		fail("painter.interval must not be negative")
 	}

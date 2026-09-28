@@ -1,6 +1,7 @@
 package factory
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -291,4 +292,85 @@ func TestFootprintComesFromTheSpecDiff(t *testing.T) {
 	if u, _ := f.Tracker.Unit(empty); out != Bounced || !strings.Contains(u.Reason, "changes no spec clause") {
 		t.Errorf("a proposal without a spec change = %s, %+v", out, u)
 	}
+}
+
+//shed:proves S.shed.11
+func TestAmendmentLaneHasItsOwnCap(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[shed]\nmax_rounds = 3\namendment_rounds = 1\nbounce_threshold = 10\n")
+	change := propose(t, f)
+
+	object := false
+	fake.on(unit.Committee, "debate", func(turn session.Turn) session.Result {
+		if object && member(turn) == 1 {
+			_, err := call(t, turn, "object", map[string]any{"kind": "spec", "citations": []string{"S.core.2"}, "text": "Say what goodbye prints."})
+			must(t, err)
+			return done("objecting")
+		}
+		return done("clean")
+	})
+	fake.on(unit.Painter, "reply", func(session.Turn) session.Result { return done("replied") })
+
+	// debate runs a debate and returns its outcome and the committee's turns.
+	debate := func(objecting bool) (Outcome, []session.Turn) {
+		t.Helper()
+		object = objecting
+		before := len(fake.ran(unit.Committee))
+		out, err := f.Debate(ctx, change)
+		must(t, err)
+		return out, fake.ran(unit.Committee)[before:]
+	}
+	told := func(turns []session.Turn, cap int) {
+		t.Helper()
+		for _, turn := range turns {
+			if want := fmt.Sprintf("of at most %d", cap); !strings.Contains(turn.Prompt, want) {
+				t.Errorf("%s was not told the cap %d: %q", turn.Step, cap, turn.Prompt)
+			}
+		}
+	}
+
+	out, turns := debate(false)
+	if out != Sealed {
+		t.Fatalf("first debate = %s", out)
+	}
+	told(turns, 3)
+
+	// A reopen that requests an amendment puts the unit in the amendment lane.
+	must(t, f.Tracker.Reopen(change, unit.Mechanic, "the mechanic requested an amendment:\nS.core.2 should say more.", true))
+	replies := len(fake.ran(unit.Painter))
+	out, turns = debate(true)
+	if out != Bounced {
+		t.Fatalf("amendment debate = %s", out)
+	}
+	if len(turns) != 3 {
+		t.Errorf("%d committee sessions in the amendment lane, want 3 members for 1 round", len(turns))
+	}
+	if n := len(fake.ran(unit.Painter)) - replies; n != 0 {
+		t.Errorf("the painter replied %d times in a one-round debate", n)
+	}
+	told(turns, 1)
+	u, err := f.Tracker.Unit(change)
+	must(t, err)
+	if u.State != unit.Proposed || !strings.Contains(u.Reason, "after 1 rounds") {
+		t.Errorf("after the amendment debate = %+v", u)
+	}
+
+	// A bounce at the cap keeps the unit in the amendment lane.
+	out, turns = debate(false)
+	if out != Sealed {
+		t.Fatalf("amendment debate after a bounce = %s", out)
+	}
+	told(turns, 1)
+
+	// Sealing ends the lane: an ordinary reopen is debated under max_rounds.
+	must(t, f.Tracker.Reopen(change, unit.Mechanic, "the implement step failed", false))
+	out, turns = debate(true)
+	if out != Bounced {
+		t.Fatalf("debate after an ordinary reopen = %s", out)
+	}
+	if len(turns) != 9 {
+		t.Errorf("%d committee sessions after an ordinary reopen, want 3 members for 3 rounds", len(turns))
+	}
+	told(turns, 3)
 }

@@ -39,3 +39,9 @@
   discards its change. A rejected entry cites the charter clauses violated
   and a deferred one says what would change the decision; both hold the
   proposal's spec changes and its debate.
+- **S.shed.11** (H.shed.11) A proposed unit whose latest reopen requested an
+  amendment (S.impl.5) is debated in the amendment lane: every rule of the
+  debate holds as for any proposal, but the round cap is
+  `shed.amendment_rounds` in place of `shed.max_rounds`, and each member's
+  session is told that cap. The unit stays in the amendment lane,
+  including after a bounce at the cap, until it is next sealed.
