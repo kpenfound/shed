@@ -86,8 +86,10 @@ func TestDebateSealsOnConsensus(t *testing.T) {
 	u, err := f.Tracker.Unit(change)
 	must(t, err)
 	want := tracker.Footprint{Modifies: []string{"S.core.2"}, Depends: []string{"S.core.1"}, Advances: []string{"H.greet.2"}}
-	if u.State != unit.Sealed || u.Seal == nil || u.Seal.Main != main || u.Seal.Change != change {
-		t.Errorf("unit = %+v", u)
+	commit, err := f.Repo.Commit(ctx, change)
+	must(t, err)
+	if u.State != unit.Sealed || u.Seal == nil || u.Seal.Main != main || u.Seal.Change != change || u.Seal.Commit != commit {
+		t.Errorf("unit = %+v, want a seal at main %s and unit commit %s", u, main, commit)
 	}
 	if !slices.Equal(u.Footprint.Modifies, want.Modifies) || !slices.Equal(u.Footprint.Depends, want.Depends) || !slices.Equal(u.Footprint.Advances, want.Advances) {
 		t.Errorf("footprint = %+v, want %+v", u.Footprint, want)

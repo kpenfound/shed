@@ -41,7 +41,7 @@ func seal(t *testing.T, state, change string) {
 		t.Fatal(err)
 	}
 	defer tr.Close()
-	if err := tr.Seal(change, "main1", tracker.Footprint{}, unit.Committee, "consensus", nil); err != nil {
+	if err := tr.Seal(change, "main1", "unitcommit", tracker.Footprint{}, unit.Committee, "consensus", nil); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -60,14 +60,18 @@ func (t *Tracker) Reopen(change string, actor unit.Actor, reason string, amendme
 	return t.move(change, Event{To: unit.Proposed, Actor: actor, Reason: reason, Amendment: amendment, Bounce: true})
 }
 
-// Seal records a proposed unit's seal and footprint and moves it to sealed.
-// onMain reports whether a spec clause is on main.
-func (t *Tracker) Seal(change, main string, fp Footprint, actor unit.Actor, reason string, onMain func(clause.ID) bool) error {
+// Seal records a proposed unit's seal, the main commit and the commit its
+// change points to, and its footprint, and moves it to sealed. onMain
+// reports whether a spec clause is on main.
+func (t *Tracker) Seal(change, main, commit string, fp Footprint, actor unit.Actor, reason string, onMain func(clause.ID) bool) error {
 	if strings.TrimSpace(main) == "" {
 		return errors.New("a seal needs the main commit")
 	}
+	if strings.TrimSpace(commit) == "" {
+		return errors.New("a seal needs the unit's commit")
+	}
 	return t.move(change, Event{To: unit.Sealed, Actor: actor, Reason: reason,
-		Seal: &Seal{Main: main, Change: change}, Footprint: &fp}, onMain)
+		Seal: &Seal{Main: main, Change: change, Commit: commit}, Footprint: &fp}, onMain)
 }
 
 // Land records that a queued unit landed on main as a commit.

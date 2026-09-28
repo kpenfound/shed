@@ -191,6 +191,11 @@ func (f *Factory) lane(change string) (*tracker.Event, error) {
 	if err != nil {
 		return nil, err
 	}
+	return laneOf(events), nil
+}
+
+// laneOf is lane over a unit's events, oldest first.
+func laneOf(events []tracker.Event) *tracker.Event {
 	amended := false
 	for i := len(events) - 1; i >= 0; i-- {
 		e := events[i]
@@ -199,18 +204,18 @@ func (f *Factory) lane(change string) (*tracker.Event, error) {
 		}
 		if e.To == unit.Sealed {
 			if amended && e.Seal != nil {
-				return &e, nil
+				return &e
 			}
-			return nil, nil
+			return nil
 		}
 		if e.To == unit.Proposed && e.Bounce && !amended {
 			if !e.Amendment {
-				return nil, nil
+				return nil
 			}
 			amended = true
 		}
 	}
-	return nil, nil
+	return nil
 }
 
 // amendment is what the amendment lane holds a debate to: its round cap and
@@ -402,7 +407,11 @@ func (f *Factory) seal(ctx context.Context, u tracker.Unit, round int) (Outcome,
 	if err != nil {
 		return "", err
 	}
-	if err := f.Tracker.Seal(u.Change, commit, fp, unit.Committee,
+	head, err := f.Repo.Snapshot(ctx, u.Change)
+	if err != nil {
+		return "", err
+	}
+	if err := f.Tracker.Seal(u.Change, commit, head, fp, unit.Committee,
 		fmt.Sprintf("no objection stands after round %d", round), onMain(main)); err != nil {
 		return f.bounce(u, err.Error())
 	}

@@ -10,9 +10,9 @@
   implementing. Implementing to verifying. Verifying to queued or back to
   implementing. Queued to landed. Sealed, implementing, verifying or queued
   back to proposed. Contested to proposed or archived.
-- **S.unit.4** (H.unit.3) Sealing records the seal, the main commit and the
-  unit's change ID, together with the unit's footprint. Archiving records the
-  shelf, rejected or deferred.
+- **S.unit.4** (H.unit.3) Sealing records the seal, the main commit, the
+  unit's change ID and the commit that change points to, together with the
+  unit's footprint. Archiving records the shelf, rejected or deferred.
 - **S.unit.5** (H.unit.4) A move from sealed, implementing, verifying or
   queued back to proposed is a reopen and counts a bounce. A reopen that
   requests an amendment also counts an amendment.

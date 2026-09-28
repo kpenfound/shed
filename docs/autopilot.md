@@ -37,7 +37,7 @@ that must resolve, in one of four kinds:
 Between rounds the painter answers each standing objection once with
 `answer`, and may revise the files. Only the member who raised an objection
 can withdraw it. With no objection standing, the unit is sealed against
-main's current commit. At `shed.max_rounds` with objections still standing,
+main's current commit and the commit its change points to. At `shed.max_rounds` with objections still standing,
 the proposal bounces back to its painter: it stays proposed, counts a bounce
 and debates afresh next time. Past `shed.bounce_threshold` bounces it is
 contested and waits for the owner.
@@ -56,6 +56,17 @@ that main changed after the seal never count against the amendment. When a
 round ends with no objection standing but the proposal changes a clause
 outside its scope, the unit is not sealed. It bounces to its painter, with a
 reason naming each clause outside the scope.
+
+When the amendment lane seals the unit, every mechanic session of its next
+implementation is told in its bundle that the unit was resealed after an
+amendment, with the amendment's diff. The diff compares the clauses of
+`spec/` on the unit's commit recorded at its previous seal with those on the
+unit's commit recorded at this seal, and lists each clause whose text
+differs with both texts, marking a clause that was added or removed. A clause
+whose text on each of the two unit commits matches the main commit sealed
+with it is left out, since main changed it and the amendment did not. When
+no clause is listed, the bundle says the amendment changed no clause.
+Bundles after any other seal say nothing of an amendment.
 
 Rejected and deferred proposals go to the archive: a Markdown entry under
 `archive/rejected/` or `archive/deferred/` on the `shed/archive` branch,

@@ -198,6 +198,61 @@ func Changes(main, head *docs.Set) string {
 	return s.String()
 }
 
+// Amendment describes what an amendment changed (S.shed.13): the spec
+// clauses whose text differs between the unit's commit at its earlier seal,
+// was, and at its new seal, now. A clause is left out when, on each unit
+// commit, it reads as on the main commit sealed with it, wasMain and
+// nowMain, since main changed it and the amendment did not. It is empty when
+// the amendment changed no clause.
+func Amendment(was, now, wasMain, nowMain *docs.Set) string {
+	var s strings.Builder
+	for _, id := range specIDs(was, now) {
+		a, inWas := was.Lookup(id)
+		b, inNow := now.Lookup(id)
+		if same(a, inWas, b, inNow) || (sameAs(was, wasMain, id) && sameAs(now, nowMain, id)) {
+			continue
+		}
+		switch {
+		case !inWas:
+			fmt.Fprintf(&s, "- %s was added: %s\n", id, body(b))
+		case !inNow:
+			fmt.Fprintf(&s, "- %s was removed. It said: %s\n", id, body(a))
+		default:
+			fmt.Fprintf(&s, "- %s changed.\n  Was: %s\n  Now: %s\n", id, body(a), body(b))
+		}
+	}
+	return s.String()
+}
+
+// specIDs lists the spec clauses of either set, in order.
+func specIDs(a, b *docs.Set) []clause.ID {
+	var ids []clause.ID
+	for _, set := range []*docs.Set{a, b} {
+		for _, c := range set.Clauses(clause.Spec) {
+			if !slices.Contains(ids, c.ID) {
+				ids = append(ids, c.ID)
+			}
+		}
+	}
+	slices.SortFunc(ids, clause.Compare)
+	return ids
+}
+
+// sameAs reports whether a spec clause reads the same in two sets, a clause
+// absent from both counting as the same.
+func sameAs(a, b *docs.Set, id clause.ID) bool {
+	x, inA := a.Lookup(id)
+	y, inB := b.Lookup(id)
+	return same(x, inA, y, inB)
+}
+
+func same(a clause.Clause, inA bool, b clause.Clause, inB bool) bool {
+	if !inA || !inB {
+		return inA == inB
+	}
+	return a.Text == b.Text && slices.Equal(a.Tags, b.Tags)
+}
+
 func list(clauses []clause.Clause) string {
 	var s strings.Builder
 	for _, c := range clauses {

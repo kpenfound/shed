@@ -1,6 +1,7 @@
 package factory
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/kpenfound/shed/internal/session"
+	"github.com/kpenfound/shed/internal/testrepo"
 	"github.com/kpenfound/shed/internal/unit"
 )
 
@@ -236,6 +238,152 @@ func TestMechanicRequestsAnAmendment(t *testing.T) {
 	}
 	if u, _ := f.Tracker.Unit(change); u.Bounces != 1 || u.Amendments != 0 || strings.Contains(u.Reason, "requested an amendment") {
 		t.Errorf("reopen = %+v", u)
+	}
+}
+
+// amendmentSection returns the part of a bundle that states the unit was
+// resealed after an amendment, up to the next section, or "" if it has none.
+func amendmentSection(bundle string) string {
+	i := strings.Index(bundle, "resealed after an amendment")
+	if i < 0 {
+		return ""
+	}
+	rest := bundle[i:]
+	if j := strings.Index(rest, "\n## "); j >= 0 {
+		rest = rest[:j]
+	}
+	return rest
+}
+
+//shed:proves S.shed.13
+func TestResealTellsTheMechanicTheAmendment(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[concurrency]\nin_flight = 0\n[shed]\nbounce_threshold = 10\n")
+	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
+
+	// The unit adds the goodbye clause and a wave clause.
+	const bye = "- **S.core.2** (H.greet.2) Running the tool with --bye prints goodbye.\n"
+	const wave = "- **S.core.4** (H.greet.2) Running the tool with --wave waves.\n"
+	change, err := f.Repo.NewUnit(ctx, "Say goodbye")
+	must(t, err)
+	must(t, f.Tracker.OpenUnit(change, "Say goodbye", unit.Painter))
+	dir, err := f.Repo.Workspace(ctx, change)
+	must(t, err)
+	write(t, dir, "spec/core.md", testrepo.Spec+bye+wave)
+	must(t, f.Declare(ctx, change, "", []string{"S.core.1"}, []string{"H.greet.2"}, unit.Painter))
+	if out, err := f.Debate(ctx, change); err != nil || out != Sealed {
+		t.Fatalf("first debate = %s, %v", out, err)
+	}
+
+	// implement runs the unit's implementation, requesting an amendment at
+	// the proofs step when amend is set, and returns every mechanic bundle.
+	implement := func(amend bool) []string {
+		t.Helper()
+		var bundles []string
+		step := func(turn session.Turn) session.Result {
+			bundles = append(bundles, turn.Bundle)
+			if amend {
+				res := done("amend")
+				res.Note = "S.core.2 should say where goodbye is printed.\nWhy: no proof can check it."
+				return res
+			}
+			return done("done")
+		}
+		for _, s := range []string{"proofs", "implement", "docs"} {
+			fake.on(unit.Mechanic, s, step)
+		}
+		want := Implemented
+		if amend {
+			want = Reopened
+		}
+		if out, err := f.Implement(ctx, change); err != nil || out != want {
+			t.Fatalf("implement = %s, %v, want %s", out, err, want)
+		}
+		if len(bundles) == 0 {
+			t.Fatal("no mechanic session ran")
+		}
+		return bundles
+	}
+	reseal := func() {
+		t.Helper()
+		if out, err := f.Debate(ctx, change); err != nil || out != Sealed {
+			u, _ := f.Tracker.Unit(change)
+			t.Fatalf("amendment debate = %s, %v: %s", out, err, u.Reason)
+		}
+	}
+
+	// After an ordinary seal the bundle says nothing of an amendment.
+	for _, b := range implement(true) {
+		if amendmentSection(b) != "" {
+			t.Errorf("a bundle after an ordinary seal speaks of an amendment:\n%s", b)
+		}
+	}
+
+	// Main changes the hello clause, which the unit only depends on, and the
+	// amendment carries main's text, changes the goodbye clause and drops
+	// the wave clause.
+	other, err := f.Repo.NewUnit(ctx, "Hello")
+	must(t, err)
+	odir, err := f.Repo.Workspace(ctx, other)
+	must(t, err)
+	hello := strings.Replace(testrepo.Spec, "prints hello.", "prints hello and a newline.", 1)
+	write(t, odir, "spec/core.md", hello)
+	_, err = f.Repo.Land(ctx, other, func(context.Context, string, string) (string, error) { return "Hello", nil })
+	must(t, err)
+	const byeAmended = "- **S.core.2** (H.greet.2) Running the tool with --bye prints goodbye on standard output.\n"
+	write(t, dir, "spec/core.md", hello+byeAmended)
+	reseal()
+
+	bundles := implement(true)
+	if len(bundles) != 1 {
+		t.Errorf("%d mechanic sessions before the amendment request, want 1", len(bundles))
+	}
+	for _, b := range bundles {
+		sec := amendmentSection(b)
+		if sec == "" {
+			t.Fatalf("the bundle after a reseal does not say the unit was resealed after an amendment:\n%s", b)
+		}
+		for _, want := range []string{
+			"S.core.2", "Running the tool with --bye prints goodbye.", "prints goodbye on standard output.",
+			"S.core.4", "removed", "Running the tool with --wave waves.",
+		} {
+			if !strings.Contains(sec, want) {
+				t.Errorf("the amendment diff lacks %q:\n%s", want, sec)
+			}
+		}
+		for _, unwanted := range []string{"S.core.1", "prints hello", "changed no clause"} {
+			if strings.Contains(sec, unwanted) {
+				t.Errorf("the amendment diff has %q, which the amendment did not change:\n%s", unwanted, sec)
+			}
+		}
+	}
+
+	// An amendment that changes no clause says so, in every mechanic session.
+	reseal()
+	bundles = implement(false)
+	if len(bundles) != 3 {
+		t.Errorf("%d mechanic sessions, want 3", len(bundles))
+	}
+	for _, b := range bundles {
+		sec := amendmentSection(b)
+		if sec == "" || !strings.Contains(sec, "changed no clause") {
+			t.Errorf("the bundle after an empty amendment does not say it changed no clause:\n%s", b)
+		}
+		for _, id := range []string{"S.core.1", "S.core.2", "S.core.4"} {
+			if strings.Contains(sec, id) {
+				t.Errorf("the empty amendment diff lists %s:\n%s", id, sec)
+			}
+		}
+	}
+
+	// A seal outside the amendment lane carries no such statement.
+	must(t, f.Tracker.Reopen(change, unit.Wheelbuilder, "the proof is weak", false))
+	reseal()
+	for _, b := range implement(false) {
+		if amendmentSection(b) != "" {
+			t.Errorf("a bundle after an ordinary reseal speaks of an amendment:\n%s", b)
+		}
 	}
 }
 

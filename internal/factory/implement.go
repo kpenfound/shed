@@ -89,6 +89,10 @@ func (f *Factory) Implement(ctx context.Context, change string) (Outcome, error)
 		return "", fmt.Errorf("unit %s is %s; only sealed and implementing units are implemented", unit.Short(u.Change), u.State)
 	}
 	formula := f.Operator.Formulas[config.DefaultFormula]
+	amended, err := f.amended(change)
+	if err != nil {
+		return "", err
+	}
 	for {
 		if u, err = f.Tracker.Unit(u.Change); err != nil {
 			return "", err
@@ -114,7 +118,7 @@ func (f *Factory) Implement(ctx context.Context, change string) (Outcome, error)
 			Outcomes: []string{outcomeDone, outcomeReopen, outcomeAmend},
 			Check:    amendCheck(u.Footprint),
 			StepDone: outcomeDone,
-			Extra:    []bundle.Section{{Title: "Step", Body: formulaText(formula, step.Name, u.Steps)}},
+			Extra:    append(slices.Clone(amended), bundle.Section{Title: "Step", Body: formulaText(formula, step.Name, u.Steps)}),
 		})
 		if err != nil {
 			return "", err
@@ -129,6 +133,47 @@ func (f *Factory) Implement(ctx context.Context, change string) (Outcome, error)
 			return Failed, nil
 		}
 	}
+}
+
+// amended tells a unit's mechanics of the amendment it was last sealed
+// after, if it was sealed out of the amendment lane (S.shed.13): the spec
+// clauses the amendment changed between the unit's commits at its earlier
+// seal and at this one.
+func (f *Factory) amended(change string) ([]bundle.Section, error) {
+	events, err := f.Tracker.Events(change)
+	if err != nil {
+		return nil, err
+	}
+	last := -1
+	for i, e := range events {
+		if e.Kind == tracker.UnitMoved && e.To == unit.Sealed && e.Seal != nil {
+			last = i
+		}
+	}
+	if last < 0 {
+		return nil, nil
+	}
+	earlier := laneOf(events[:last])
+	if earlier == nil {
+		return nil, nil
+	}
+	was, now := earlier.Seal, events[last].Seal
+	body := "This unit was resealed after an amendment. "
+	if was.Commit == "" || now.Commit == "" {
+		body += "Its seals do not record the unit's commits, so the amendment's diff cannot be given.\n"
+	} else {
+		load := func(rev string) *docs.Set {
+			set, _ := docs.Load(revision.Git{Root: f.Root, Rev: rev})
+			return set
+		}
+		diff := bundle.Amendment(load(was.Commit), load(now.Commit), load(was.Main), load(now.Main))
+		if diff == "" {
+			body += "The amendment changed no clause.\n"
+		} else {
+			body += "The amendment changed these spec clauses, from the unit's spec at its earlier seal to its spec at this one:\n\n" + diff
+		}
+	}
+	return []bundle.Section{{Title: "Amendment", Body: body}}, nil
 }
 
 // amendCheck refuses an amend whose note cites no clause of the unit's

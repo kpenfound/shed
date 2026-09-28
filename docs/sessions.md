@@ -51,7 +51,8 @@ never used.
 Before each session shed writes its bundle: the unit, the charter, the
 footprint, the spec changes, the sealed spec, the horizon clauses advanced,
 the proofs of the footprint's clauses, the debate record and the notices
-pending for the role. Notices count as delivered once a session starts.
+pending for the role. A mechanic's bundle after a reseal out of the
+amendment lane also gives the amendment's diff. Notices count as delivered once a session starts.
 Bundles come from a context provider; the default one uses only the
 documents, the tracker and the debate record.
 

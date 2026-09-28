@@ -62,10 +62,12 @@ type Event struct {
 	CostUSD   float64      `json:"cost_usd,omitempty"`
 }
 
-// Seal pins a sealed unit to the main commit it was sealed against.
+// Seal pins a sealed unit to the main commit it was sealed against and to
+// the commit its change pointed to when it was sealed.
 type Seal struct {
 	Main   string `json:"main"`
 	Change string `json:"change"`
+	Commit string `json:"commit,omitempty"`
 }
 
 // Footprint is the clauses a unit modifies and depends on in the spec, and

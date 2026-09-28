@@ -75,7 +75,7 @@ func through(t *testing.T, tr *Tracker, change string, states ...unit.State) {
 	for _, s := range states {
 		switch s {
 		case unit.Sealed:
-			must(t, tr.Seal(change, "main1", Footprint{}, unit.Committee, "consensus", nil))
+			must(t, tr.Seal(change, "main1", "unitcommit", Footprint{}, unit.Committee, "consensus", nil))
 			continue
 		case unit.Landed:
 			must(t, tr.Land(change, "landed1", unit.Wheelbuilder, "landed"))
@@ -117,7 +117,7 @@ func TestTrackerHoldsUnits(t *testing.T) {
 	tr := open(t, t.TempDir(), Options{BounceThreshold: 5})
 	must(t, tr.OpenUnit(unitA, "Say goodbye", unit.Painter))
 	fp := Footprint{Modifies: []string{"S.greet.2"}, Depends: []string{"S.greet.1"}, Advances: []string{"H.greet.2"}}
-	must(t, tr.Seal(unitA, "abc123", fp, unit.Committee, "consensus after two rounds", onMain("S.greet.1")))
+	must(t, tr.Seal(unitA, "abc123", "def456", fp, unit.Committee, "consensus after two rounds", onMain("S.greet.1")))
 	must(t, tr.Move(unitA, unit.Implementing, unit.Mechanic, "dispatched"))
 	s, err := tr.StartSession(unitA, unit.Mechanic, "proofs", 42)
 	must(t, err)
@@ -129,7 +129,7 @@ func TestTrackerHoldsUnits(t *testing.T) {
 	u := get(t, tr, unitA)
 	want := Unit{
 		Change: unitA, Title: "Say goodbye", OpenedBy: unit.Painter, State: unit.Proposed, Bounces: 1, Amendments: 1,
-		Reason: "the spec is ambiguous", Seal: &Seal{Main: "abc123", Change: unitA},
+		Reason: "the spec is ambiguous", Seal: &Seal{Main: "abc123", Change: unitA, Commit: "def456"},
 		Footprint: fp, CostUSD: 1.25,
 	}
 	u.Opened, u.Updated = time.Time{}, time.Time{}
@@ -161,7 +161,7 @@ func TestEventLog(t *testing.T) {
 	dir := t.TempDir()
 	tr := open(t, dir, Options{})
 	must(t, tr.OpenUnit(unitA, "Say goodbye", unit.Painter))
-	must(t, tr.Seal(unitA, "abc123", Footprint{}, unit.Committee, "consensus", nil))
+	must(t, tr.Seal(unitA, "abc123", "unitcommit", Footprint{}, unit.Committee, "consensus", nil))
 	s, err := tr.StartSession(unitA, unit.Mechanic, "proofs", 7)
 	must(t, err)
 	must(t, tr.FinishSession(s.ID, Failed, "gave up", 0.5, false))
@@ -472,7 +472,7 @@ func TestDependenciesMustBeOnMain(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "depends on S.greet.2, which unit qpvuntsmwlqt changes and has not landed") {
 		t.Errorf("dependency on an unlanded clause: %v", err)
 	}
-	err = tr.Seal(unitB, "main1", Footprint{Depends: []string{"S.greet.9"}}, unit.Committee, "consensus", main)
+	err = tr.Seal(unitB, "main1", "unitcommit", Footprint{Depends: []string{"S.greet.9"}}, unit.Committee, "consensus", main)
 	if err == nil || !strings.Contains(err.Error(), "depends on S.greet.9, which is not in the spec on main") {
 		t.Errorf("dependency on a missing clause: %v", err)
 	}
@@ -487,7 +487,7 @@ func TestDependenciesMustBeOnMain(t *testing.T) {
 
 	// Once the other unit lands, the dependency is on main.
 	through(t, tr, unitA, unit.Sealed, unit.Implementing, unit.Verifying, unit.Queued, unit.Landed)
-	must(t, tr.Seal(unitB, "main2", Footprint{Depends: []string{"S.greet.2"}}, unit.Committee, "consensus", onMain("S.greet.1", "S.greet.2")))
+	must(t, tr.Seal(unitB, "main2", "unitcommit", Footprint{Depends: []string{"S.greet.2"}}, unit.Committee, "consensus", onMain("S.greet.1", "S.greet.2")))
 }
 
 //shed:proves S.unit.1

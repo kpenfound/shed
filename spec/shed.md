@@ -27,8 +27,9 @@
 - **S.shed.7** (H.shed.7) A size objection says the footprint is too large and
   how to split it by clause. It stands like any other objection until its
   member withdraws it.
-- **S.shed.8** (H.shed.8) Sealing records main's current commit and the unit's
-  change ID as the unit's seal, records its footprint and moves it to sealed.
+- **S.shed.8** (H.shed.8) Sealing records main's current commit, the unit's
+  change ID and the commit that change points to as the unit's seal, records
+  its footprint and moves it to sealed.
 - **S.shed.9** (H.shed.9) Shed records every objection, answer and withdrawal
   in the tracker. The debate record, grouped by debate, is in every later
   bundle of the unit and in its archive entry.
@@ -55,3 +56,16 @@
   with no objection standing but a clause is outside the scope, the unit is
   not sealed: it bounces to its painter as under S.shed.6, with a reason
   naming each clause outside the scope.
+- **S.shed.13** (H.shed.11) When a unit is sealed out of the amendment lane
+  (S.shed.11), every mechanic session of its next implementation has a bundle
+  that states the unit was resealed after an amendment and gives the
+  amendment's diff. The diff compares the clauses of `spec/` on the unit's
+  commit recorded in its most recent earlier seal with those on the unit's
+  commit recorded in this seal (S.shed.8). It lists each clause whose text
+  differs, giving both texts, with a clause that was added or removed shown as
+  such. It leaves out a clause whose text on each of those two unit commits is
+  the same as on the main commit recorded in the same seal, a clause absent
+  from both counting as the same, because main changed that clause and the
+  amendment did not. When the diff lists no clause, the bundle says the
+  amendment changed no clause. Mechanic bundles after a seal outside the
+  amendment lane carry no such statement.

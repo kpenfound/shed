@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS units (
 CREATE TABLE IF NOT EXISTS seals (
 	change TEXT PRIMARY KEY,
 	main TEXT NOT NULL,
+	commit_id TEXT NOT NULL DEFAULT '',
 	sealed_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS footprints (
@@ -163,7 +164,7 @@ var tables = []string{"units", "seals", "footprints", "sessions", "steps", "noti
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 4
+const schemaVersion = 5
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -343,8 +344,8 @@ func apply(tx *sql.Tx, e Event) error {
 			}
 		}
 		if e.Seal != nil {
-			if err := exec(`INSERT OR REPLACE INTO seals (change, main, sealed_at) VALUES (?, ?, ?)`,
-				e.Unit, e.Seal.Main, at); err != nil {
+			if err := exec(`INSERT OR REPLACE INTO seals (change, main, commit_id, sealed_at) VALUES (?, ?, ?, ?)`,
+				e.Unit, e.Seal.Main, e.Seal.Commit, at); err != nil {
 				return err
 			}
 		}

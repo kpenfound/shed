@@ -52,7 +52,7 @@ Concepts get neutral names, with one exception. Debate is called the shed, becau
 |horizon|The desired future state, tiered by how close it is to the spec. The measure every proposal is judged against.|
 |change unit (unit)|One spec diff with its proofs, implementation, footprint, seal, and bundle, on its own branch. The thing that lands.|
 |footprint|The spec clauses a unit modifies or depends on (spec footprint), and the horizon clauses it advances (horizon footprint).|
-|seal|The pair `(main commit, unit change ID)` recorded when a unit's spec is accepted. Moves on reconcile.|
+|seal|The triple `(main commit, unit change ID, unit commit)` recorded when a unit's spec is accepted. Moves on reconcile.|
 |bundle|The context handed to every session on a unit. Sealed spec, proofs, footprint, debate record, notes, pending notices.|
 |formula|The DAG of implementation steps for a unit type, such as tdd, then api, then docs. Data, not code.|
 |archive|What the factory decided not to do, on two shelves. Rejected means it violated the charter. Deferred means it was clean but off the horizon.|
@@ -194,7 +194,7 @@ Size is measured in footprint, not tokens. A unit that costs $400 and touches th
 
 ### 5.3 Seal
 
-Recorded at acceptance as `(main commit hash, unit change ID)`. A merge base, not a single hash. When main moves, every in-flight seal is stale by definition and reconcile (§9) updates it. jj change IDs survive rebases, so tracker references never dangle.
+Recorded at acceptance as `(main commit hash, unit change ID, unit commit hash)`. A merge base, not a single hash. The unit commit pins the unit's spec as it was accepted, so a reseal after an amendment can tell the mechanic exactly what the amendment changed. When main moves, every in-flight seal is stale by definition and reconcile (§9) updates it. jj change IDs survive rebases, so tracker references never dangle.
 
 ### 5.4 Bundle
 

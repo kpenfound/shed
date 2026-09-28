@@ -54,8 +54,8 @@ Every move records an actor and a reason.
 
 ### Footprints and seals
 
-Sealing records the seal, the main commit and the unit's change ID, together
-with the unit's footprint. The footprint lists the spec clauses the unit
+Sealing records the seal, the main commit, the unit's change ID and the
+commit that change points to, together with the unit's footprint. The footprint lists the spec clauses the unit
 modifies, the spec clauses it depends on and the horizon clauses it
 advances.
 

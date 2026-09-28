@@ -164,11 +164,11 @@ func loadUnit(q querier, change string) (Unit, error) {
 	u.Opened, _ = time.Parse(time.RFC3339Nano, opened)
 	u.Updated, _ = time.Parse(time.RFC3339Nano, updated)
 
-	var main string
-	err = q.QueryRow(`SELECT main FROM seals WHERE change = ?`, change).Scan(&main)
+	var main, commit string
+	err = q.QueryRow(`SELECT main, commit_id FROM seals WHERE change = ?`, change).Scan(&main, &commit)
 	switch {
 	case err == nil:
-		u.Seal = &Seal{Main: main, Change: change}
+		u.Seal = &Seal{Main: main, Change: change, Commit: commit}
 	case !errors.Is(err, sql.ErrNoRows):
 		return Unit{}, err
 	}

@@ -80,7 +80,7 @@ func TestLandRecordsTheLanding(t *testing.T) {
 	if _, err := Land(ctx, tr, repo, change, unit.Wheelbuilder); err == nil || !strings.Contains(err.Error(), "only queued units land") {
 		t.Errorf("landing a proposed unit: %v", err)
 	}
-	must(t, tr.Seal(change, main, tracker.Footprint{Modifies: []string{"S.core.2"}, Advances: []string{"H.greet.2"}},
+	must(t, tr.Seal(change, main, "unitcommit", tracker.Footprint{Modifies: []string{"S.core.2"}, Advances: []string{"H.greet.2"}},
 		unit.Committee, "consensus", nil))
 	for _, s := range []unit.State{unit.Implementing, unit.Verifying, unit.Queued} {
 		must(t, tr.Move(change, s, unit.Mechanic, "next"))
@@ -119,7 +119,7 @@ func TestInterruptedLandingCompletes(t *testing.T) {
 	dir, err := repo.Workspace(ctx, change)
 	must(t, err)
 	must(t, os.WriteFile(filepath.Join(dir, "wave.txt"), []byte("wave\n"), 0o644))
-	must(t, tr.Seal(change, "main", tracker.Footprint{}, unit.Committee, "consensus", nil))
+	must(t, tr.Seal(change, "main", "unitcommit", tracker.Footprint{}, unit.Committee, "consensus", nil))
 	for _, s := range []unit.State{unit.Implementing, unit.Verifying, unit.Queued} {
 		must(t, tr.Move(change, s, unit.Mechanic, "next"))
 	}
