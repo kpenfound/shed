@@ -106,11 +106,11 @@ distant and get promoted as the soon tier drains.
   main fast-forward only, under the landing identity. The commit message comes
   from the unit's seal and spec diff and includes its change ID.
 - **H.vcs.6** (soon, realised) Nothing but landing moves main.
-- **H.vcs.7** (distant) After every landing shed rebases every in-flight unit
+- **H.vcs.7** (soon) After every landing shed rebases every in-flight unit
   onto the new main. Conflicts are stored in the change and block nothing.
-- **H.vcs.8** (distant) Shed lists the in-flight units that carry stored
+- **H.vcs.8** (soon) Shed lists the in-flight units that carry stored
   conflicts, and their files, from jj alone.
-- **H.vcs.9** (distant) The bundle of a unit with stored conflicts names the
+- **H.vcs.9** (soon) The bundle of a unit with stored conflicts names the
   conflicted files and says to resolve them against the sealed spec first.
 
 ## Sessions
@@ -184,9 +184,9 @@ distant and get promoted as the soon tier drains.
 - **H.fp.2** (soon, realised) Shed computes modified clauses from the spec diff. The
   painter declares dependencies and the horizon footprint, and the committee
   checks them.
-- **H.fp.3** (distant) Shed records the footprint predicted at sealing and the
+- **H.fp.3** (soon) Shed records the footprint predicted at sealing and the
   actual footprint at landing, and reports the difference.
-- **H.fp.4** (distant) Two in-flight units whose spec footprints intersect are
+- **H.fp.4** (soon) Two in-flight units whose spec footprints intersect are
   entangled. Shed reports entanglement as an advisory as soon as the second
   unit seals.
 
@@ -233,7 +233,7 @@ distant and get promoted as the soon tier drains.
   diff and which proofs are suspect. A unit whose dependency changed text goes
   to the wheelbuilder, which reopens it with a written conflict if the meaning
   changed and otherwise re-seals it with a notice.
-- **H.queue.5** (distant) The same three outcomes apply when the horizon
+- **H.queue.5** (soon) The same three outcomes apply when the horizon
   changes, using horizon footprints.
 
 ## Scheduling
@@ -261,12 +261,12 @@ distant and get promoted as the soon tier drains.
 
 ## Horizon governance
 
-- **H.hz.1** (distant) Horizon amendments go through the shed. Near-tier
+- **H.hz.1** (soon) Horizon amendments go through the shed. Near-tier
   amendments accept on consensus. Soon-tier amendments accept on zero dissent
   and wait for the owner on a split. Distant and eventual amendments always
   wait for the owner.
-- **H.hz.2** (distant) The operator can require owner approval at every tier.
-- **H.hz.3** (distant) A near or soon clause names the distant or eventual
+- **H.hz.2** (soon) The operator can require owner approval at every tier.
+- **H.hz.3** (soon) A near or soon clause names the distant or eventual
   clause it refines. An amendment that would change that parent is judged at
   the parent's tier.
 - **H.hz.4** (distant) Shed samples a configured fraction of auto-accepted
@@ -275,7 +275,7 @@ distant and get promoted as the soon tier drains.
   A veto reverts it and reconciles units that cited it.
 - **H.hz.6** (distant) An optional settling period stops a horizon change from
   justifying a proposal until it is a configured number of days old.
-- **H.hz.7** (distant) The frame builder breaks horizon clauses into
+- **H.hz.7** (soon) The frame builder breaks horizon clauses into
   footprint-sized increments and moves clauses between tiers by amendment.
 - **H.hz.8** (distant) A painter may propose moving a deferred archive entry
   onto the eventual tier. Painters reread the deferred shelf whenever the
@@ -289,7 +289,7 @@ distant and get promoted as the soon tier drains.
 
 ## The owner
 
-- **H.owner.1** (distant) One inbox holds contested units, charter questions,
+- **H.owner.1** (soon) One inbox holds contested units, charter questions,
   sampled amendments and horizon diffs since the owner last looked. The owner
   answers from the CLI. Nothing in the inbox blocks the factory.
 - **H.owner.2** (distant) A painter or the owner drafts a charter amendment.
@@ -299,7 +299,7 @@ distant and get promoted as the soon tier drains.
 - **H.owner.3** (distant) When painters keep hitting the same charter clause,
   shed raises a charter question. Until the owner answers, painters propose
   nothing in that direction.
-- **H.owner.4** (distant) Declined horizon amendments go to the archive with
+- **H.owner.4** (soon) Declined horizon amendments go to the archive with
   their debate record.
 
 ## Init
