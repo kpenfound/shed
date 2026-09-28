@@ -48,6 +48,8 @@ type Event struct {
 	// Bounce and Amendment are set on a reopen.
 	Bounce    bool `json:"bounce,omitempty"`
 	Amendment bool `json:"amendment,omitempty"`
+	// Rejected is set on a seal that rejected a requested amendment.
+	Rejected bool `json:"rejected,omitempty"`
 	// Shelf is set when a unit is archived.
 	Shelf unit.Shelf `json:"shelf,omitempty"`
 	// Seal is set when a unit is sealed.

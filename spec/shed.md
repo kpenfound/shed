@@ -69,3 +69,22 @@
   amendment did not. When the diff lists no clause, the bundle says the
   amendment changed no clause. Mechanic bundles after a seal outside the
   amendment lane carry no such statement.
+- **S.shed.14** (H.shed.11) In the amendment lane (S.shed.11), a debate that
+  reaches its round cap with objections standing, none of them a charter
+  objection, rejects the amendment, in place of the bounce of S.shed.6 and the
+  deferral of S.shed.4; a charter objection standing still rejects the
+  proposal under S.shed.3. Rejecting the amendment archives nothing and keeps
+  the unit's change. Shed makes the files under `spec/` on the unit's change
+  exactly those on the unit's commit recorded at the last seal (S.shed.8),
+  each with its content there, removing any file under `spec/` absent from
+  that commit and leaving every other file on the change as it is. It records
+  the standing objections as the reason and seals the unit as under S.shed.8.
+  The restore and the seal happen together: while S.serve.7 holds sealing
+  back, nothing is restored and the unit waits in proposed in the amendment
+  lane like a proposal that reached consensus, its debate not started afresh,
+  so its next debate runs no further round and rejects the amendment as here.
+  Once sealed the unit leaves the amendment lane and counts no further
+  bounce. In place of the statement of S.shed.13, every mechanic session of
+  its next implementation has a bundle that states the requested amendment
+  was rejected, that the sealed spec stands as written, and gives the
+  objections that stood at the cap.

@@ -64,13 +64,23 @@ func (t *Tracker) Reopen(change string, actor unit.Actor, reason string, amendme
 // change points to, and its footprint, and moves it to sealed. onMain
 // reports whether a spec clause is on main.
 func (t *Tracker) Seal(change, main, commit string, fp Footprint, actor unit.Actor, reason string, onMain func(clause.ID) bool) error {
+	return t.seal(change, main, commit, fp, actor, reason, false, onMain)
+}
+
+// SealRejected seals a unit whose requested amendment was rejected, as
+// Seal does, and marks the seal as that rejection.
+func (t *Tracker) SealRejected(change, main, commit string, fp Footprint, actor unit.Actor, reason string, onMain func(clause.ID) bool) error {
+	return t.seal(change, main, commit, fp, actor, reason, true, onMain)
+}
+
+func (t *Tracker) seal(change, main, commit string, fp Footprint, actor unit.Actor, reason string, rejected bool, onMain func(clause.ID) bool) error {
 	if strings.TrimSpace(main) == "" {
 		return errors.New("a seal needs the main commit")
 	}
 	if strings.TrimSpace(commit) == "" {
 		return errors.New("a seal needs the unit's commit")
 	}
-	return t.move(change, Event{To: unit.Sealed, Actor: actor, Reason: reason,
+	return t.move(change, Event{To: unit.Sealed, Actor: actor, Reason: reason, Rejected: rejected,
 		Seal: &Seal{Main: main, Change: change, Commit: commit}, Footprint: &fp}, onMain)
 }
 

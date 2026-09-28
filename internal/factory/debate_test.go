@@ -341,9 +341,15 @@ func TestAmendmentLaneHasItsOwnCap(t *testing.T) {
 	told(turns, 3)
 
 	// A reopen that requests an amendment puts the unit in the amendment lane.
+	// An amendment that adds a clause outside its scope bounces at the cap.
 	must(t, f.Tracker.Reopen(change, unit.Mechanic, "the mechanic requested an amendment:\nS.core.2 should say more.", true))
+	dir, err := f.Repo.Workspace(ctx, change)
+	must(t, err)
+	sealedSpec, err := os.ReadFile(filepath.Join(dir, "spec/core.md"))
+	must(t, err)
+	write(t, dir, "spec/core.md", string(sealedSpec)+"- **S.core.4** (H.greet.3) Running the tool with --hola prints hola.\n")
 	replies := len(fake.ran(unit.Painter))
-	out, turns = debate(true)
+	out, turns = debate(false)
 	if out != Bounced {
 		t.Fatalf("amendment debate = %s", out)
 	}
@@ -356,16 +362,25 @@ func TestAmendmentLaneHasItsOwnCap(t *testing.T) {
 	told(turns, 1)
 	u, err := f.Tracker.Unit(change)
 	must(t, err)
-	if u.State != unit.Proposed || !strings.Contains(u.Reason, "after 1 rounds") {
+	if u.State != unit.Proposed || !strings.Contains(u.Reason, "S.core.4") {
 		t.Errorf("after the amendment debate = %+v", u)
 	}
 
-	// A bounce at the cap keeps the unit in the amendment lane.
-	out, turns = debate(false)
+	// A bounce at the cap keeps the unit in the amendment lane: its next
+	// debate is held to the same cap, and objections standing there reject
+	// the amendment.
+	write(t, dir, "spec/core.md", string(sealedSpec))
+	out, turns = debate(true)
 	if out != Sealed {
 		t.Fatalf("amendment debate after a bounce = %s", out)
 	}
+	if len(turns) != 3 {
+		t.Errorf("%d committee sessions after a bounce in the amendment lane, want 3 members for 1 round", len(turns))
+	}
 	told(turns, 1)
+	if u, _ := f.Tracker.Unit(change); !strings.Contains(u.Reason, "after 1 rounds") {
+		t.Errorf("after the amendment debate following a bounce = %+v", u)
+	}
 
 	// Sealing ends the lane: an ordinary reopen is debated under max_rounds.
 	must(t, f.Tracker.Reopen(change, unit.Mechanic, "the implement step failed", false))

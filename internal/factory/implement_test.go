@@ -6,8 +6,10 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/kpenfound/shed/internal/archive"
 	"github.com/kpenfound/shed/internal/session"
 	"github.com/kpenfound/shed/internal/testrepo"
 	"github.com/kpenfound/shed/internal/unit"
@@ -384,6 +386,184 @@ func TestResealTellsTheMechanicTheAmendment(t *testing.T) {
 		if amendmentSection(b) != "" {
 			t.Errorf("a bundle after an ordinary reseal speaks of an amendment:\n%s", b)
 		}
+	}
+}
+
+//shed:proves S.shed.14
+func TestRejectedAmendmentKeepsTheSealedSpec(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[concurrency]\nin_flight = 1\n[shed]\nmax_rounds = 3\namendment_rounds = 1\nbounce_threshold = 10\n")
+	change := sealed(t, f, fake)
+	u, err := f.Tracker.Unit(change)
+	must(t, err)
+	seal := u.Seal.Commit
+
+	// The mechanic writes the proof, then requests an amendment.
+	mechanic(t, fake)
+	fake.on(unit.Mechanic, "implement", func(session.Turn) session.Result {
+		res := done("amend")
+		res.Note = "S.core.2 should say where goodbye is printed.\nWhy: no proof can check it."
+		return res
+	})
+	if out, err := f.Implement(ctx, change); err != nil || out != Reopened {
+		t.Fatalf("amend = %s, %v", out, err)
+	}
+
+	// Another unit seals meanwhile and fills the cap on units in flight.
+	other := propose(t, f)
+	if out, err := f.Debate(ctx, other); err != nil || out != Sealed {
+		t.Fatalf("the other unit's debate = %s, %v", out, err)
+	}
+
+	// The amendment changes the goodbye clause, adds a spec file and
+	// changes a file outside spec/.
+	dir, err := f.Repo.Workspace(ctx, change)
+	must(t, err)
+	amended := strings.Replace(goodbyeSpec, "prints goodbye.", "prints goodbye on standard output.", 1)
+	write(t, dir, "spec/core.md", amended)
+	write(t, dir, "spec/wave.md", "# Wave\n\n- **S.wave.1** (H.greet.3) Running the tool with --wave waves.\n")
+	write(t, dir, "NOTES.md", "Goodbye goes to standard output.\n")
+
+	const text = "Standard output is not the tool's concern."
+	var mu sync.Mutex
+	objection := ""
+	fake.on(unit.Committee, "debate", func(turn session.Turn) session.Result {
+		if member(turn) != 1 {
+			return done("clean")
+		}
+		out, err := call(t, turn, "object", map[string]any{"kind": "spec", "citations": []string{"S.core.2"}, "text": text})
+		must(t, err)
+		mu.Lock()
+		objection = strings.Fields(out)[1]
+		mu.Unlock()
+		return done("objecting")
+	})
+	fake.on(unit.Painter, "reply", func(session.Turn) session.Result { return done("replied") })
+
+	// While the cap holds sealing back, nothing is restored and the unit
+	// waits in proposed, in the amendment lane.
+	committee := len(fake.ran(unit.Committee))
+	out, err := f.Debate(ctx, change)
+	must(t, err)
+	if out != Waiting {
+		t.Fatalf("a rejected amendment under a full cap = %s", out)
+	}
+	if n := len(fake.ran(unit.Committee)) - committee; n != 3 {
+		t.Errorf("%d committee sessions, want 3 members for 1 round", n)
+	}
+	if u, _ := f.Tracker.Unit(change); u.State != unit.Proposed || u.Bounces != 1 {
+		t.Errorf("while waiting = %+v", u)
+	}
+	if lane, _ := f.lane(change); lane == nil {
+		t.Error("the waiting unit left the amendment lane")
+	}
+	commit, err := f.Repo.Commit(ctx, change)
+	must(t, err)
+	if got := r.Git("show", commit+":spec/core.md"); !strings.Contains(got, "standard output") {
+		t.Errorf("the amended spec was restored while sealing was held back: %q", got)
+	}
+	if !strings.Contains(r.Git("ls-tree", "-r", "--name-only", commit, "spec/"), "spec/wave.md") {
+		t.Error("the added spec file was removed while sealing was held back")
+	}
+
+	// Once the cap frees, the next debate runs no further round and rejects
+	// the amendment: the spec is restored and the unit sealed.
+	must(t, f.Tracker.Reopen(other, unit.Wheelbuilder, "the proof is weak", false))
+	committee = len(fake.ran(unit.Committee))
+	painter := len(fake.ran(unit.Painter))
+	out, err = f.Debate(ctx, change)
+	must(t, err)
+	if out != Sealed {
+		u, _ := f.Tracker.Unit(change)
+		t.Fatalf("a rejected amendment = %s: %+v", out, u)
+	}
+	if n := len(fake.ran(unit.Committee)) - committee; n != 0 {
+		t.Errorf("the debate ran %d committee sessions after the cap was reached", n)
+	}
+	if n := len(fake.ran(unit.Painter)) - painter; n != 0 {
+		t.Errorf("the painter was asked to reply %d times", n)
+	}
+	main, err := f.Repo.MainCommit(ctx)
+	must(t, err)
+	commit, err = f.Repo.Commit(ctx, change)
+	must(t, err)
+	u, err = f.Tracker.Unit(change)
+	must(t, err)
+	if u.State != unit.Sealed || u.Seal == nil || u.Seal.Main != main || u.Seal.Change != change || u.Seal.Commit != commit {
+		t.Errorf("unit = %+v, want a seal at main %s and unit commit %s", u, main, commit)
+	}
+	if u.Bounces != 1 || u.Amendments != 1 {
+		t.Errorf("the rejection counted a bounce or amendment: %+v", u)
+	}
+	if !strings.Contains(u.Reason, objection) {
+		t.Errorf("the reason does not give the standing objection %s: %q", objection, u.Reason)
+	}
+	if lane, _ := f.lane(change); lane != nil {
+		t.Error("the sealed unit is still in the amendment lane")
+	}
+	if entries, _ := archive.Read(r.Dir); len(entries) != 0 {
+		t.Errorf("rejecting the amendment archived %+v", entries)
+	}
+	if got, want := r.Git("ls-tree", "-r", commit, "spec/"), r.Git("ls-tree", "-r", seal, "spec/"); got != want {
+		t.Errorf("spec/ on the change:\n%s\nwant it as sealed:\n%s", got, want)
+	}
+	if got := r.Git("show", commit+":bye_test.go"); !strings.Contains(got, "func TestBye") {
+		t.Errorf("the captured proof left the change: %q", got)
+	}
+	if got := r.Git("show", commit+":NOTES.md"); got != "Goodbye goes to standard output." {
+		t.Errorf("a file outside spec/ changed: %q", got)
+	}
+
+	// Every mechanic session of the next implementation is told the
+	// amendment was rejected and the objections that stood.
+	var bundles []string
+	for _, s := range []string{"proofs", "implement", "docs"} {
+		fake.on(unit.Mechanic, s, func(turn session.Turn) session.Result {
+			bundles = append(bundles, turn.Bundle)
+			return done("done")
+		})
+	}
+	if out, err := f.Implement(ctx, change); err != nil || out != Implemented {
+		t.Fatalf("implement = %s, %v", out, err)
+	}
+	if len(bundles) != 3 {
+		t.Errorf("%d mechanic sessions, want 3", len(bundles))
+	}
+	for _, b := range bundles {
+		for _, want := range []string{"amendment was rejected", "stands as written", text} {
+			if !strings.Contains(b, want) {
+				t.Errorf("the bundle lacks %q:\n%s", want, b)
+			}
+		}
+		if amendmentSection(b) != "" {
+			t.Errorf("the bundle after a rejected amendment says the unit was resealed after one:\n%s", b)
+		}
+	}
+
+	// A charter objection standing at the amendment cap still rejects the
+	// proposal.
+	r2 := project(t)
+	fake2 := newFake(t)
+	f2 := open(t, r2, fake2, "[shed]\namendment_rounds = 1\nbounce_threshold = 10\n")
+	vetoed := sealed(t, f2, fake2)
+	must(t, f2.Tracker.Reopen(vetoed, unit.Mechanic, "the mechanic requested an amendment:\nS.core.2 should say more.", true))
+	fake2.on(unit.Committee, "debate", func(turn session.Turn) session.Result {
+		if member(turn) == 1 {
+			_, err := call(t, turn, "object", map[string]any{"kind": "spec", "citations": []string{"S.core.2"}, "text": text})
+			must(t, err)
+		}
+		if member(turn) == 2 {
+			_, err := call(t, turn, "object", map[string]any{"kind": "charter", "citations": []string{"C2"}, "text": "Goodbye is shouted."})
+			must(t, err)
+		}
+		return done("objecting")
+	})
+	if out, err := f2.Debate(ctx, vetoed); err != nil || out != Rejected {
+		t.Fatalf("a charter objection at the amendment cap = %s, %v", out, err)
+	}
+	if u, _ := f2.Tracker.Unit(vetoed); u.State != unit.Archived || u.Shelf != unit.Rejected {
+		t.Errorf("unit = %+v", u)
 	}
 }
 

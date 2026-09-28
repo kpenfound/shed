@@ -57,7 +57,23 @@ round ends with no objection standing but the proposal changes a clause
 outside its scope, the unit is not sealed. It bounces to its painter, with a
 reason naming each clause outside the scope.
 
-When the amendment lane seals the unit, every mechanic session of its next
+At the amendment lane's cap, standing objections reject the amendment rather
+than bounce or defer the unit, as long as none of them is a charter
+objection. A charter objection still rejects the whole proposal, which is
+archived. A rejected amendment archives nothing and keeps the unit's change.
+Shed makes the files under `spec/` exactly those on the unit's commit
+recorded at its last seal, removing any spec file absent there and leaving
+every other file alone. It then seals the unit again, with the standing
+objections as the reason. The restore and the seal happen together. While the
+in-flight cap holds sealing back, nothing is restored and the unit waits in
+proposed in the amendment lane. Its debate does not start afresh, so the
+next one runs no further round and rejects the amendment again. Once sealed,
+the unit leaves the lane and counts no further bounce. Every mechanic
+session of its next implementation is told in its bundle that the requested
+amendment was rejected and the sealed spec stands as written, with the
+objections that stood at the cap.
+
+When the amendment lane seals the unit after accepting an amendment the unit, every mechanic session of its next
 implementation is told in its bundle that the unit was resealed after an
 amendment, with the amendment's diff. The diff compares the clauses of
 `spec/` on the unit's commit recorded at its previous seal with those on the

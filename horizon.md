@@ -164,7 +164,7 @@ distant and get promoted as the soon tier drains.
 - **H.shed.10** (soon, realised) The archive has two shelves. A rejected entry records
   the charter clauses it violated. A deferred entry records what would change
   the decision. Each entry is a file painters can read.
-- **H.shed.11** (soon) A mechanic's amendment request reopens the unit into a
+- **H.shed.11** (soon, realised) A mechanic's amendment request reopens the unit into a
   fast lane with the same rules, a shorter round cap and scope limited to the
   sealed spec. If the amendment is accepted, shed revises the spec, records a
   new seal and returns the unit to implementing with the mechanic told the

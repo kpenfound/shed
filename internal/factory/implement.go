@@ -138,7 +138,9 @@ func (f *Factory) Implement(ctx context.Context, change string) (Outcome, error)
 // amended tells a unit's mechanics of the amendment it was last sealed
 // after, if it was sealed out of the amendment lane (S.shed.13): the spec
 // clauses the amendment changed between the unit's commits at its earlier
-// seal and at this one.
+// seal and at this one. When the seal rejected the amendment, it tells them
+// instead that the sealed spec stands and which objections stood
+// (S.shed.14).
 func (f *Factory) amended(change string) ([]bundle.Section, error) {
 	events, err := f.Tracker.Events(change)
 	if err != nil {
@@ -152,6 +154,11 @@ func (f *Factory) amended(change string) ([]bundle.Section, error) {
 	}
 	if last < 0 {
 		return nil, nil
+	}
+	if events[last].Rejected {
+		body := "The mechanic requested an amendment, and the amendment was rejected: the sealed spec stands as written. " +
+			"Implement it as it is. These objections stood at the debate's round cap:\n\n" + events[last].Reason + "\n"
+		return []bundle.Section{{Title: "Rejected amendment", Body: body}}, nil
 	}
 	earlier := laneOf(events[:last])
 	if earlier == nil {

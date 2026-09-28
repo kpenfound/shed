@@ -199,3 +199,23 @@ func (r *Repo) Snapshot(ctx context.Context, change string) (string, error) {
 	}
 	return r.Commit(ctx, change)
 }
+
+// Restore makes the files under dir on a unit's change exactly those on
+// commit, each with its content there: files under dir absent from commit
+// are removed and every other file is left as it is. It returns the
+// change's new commit.
+func (r *Repo) Restore(ctx context.Context, change, commit, dir string) (string, error) {
+	unlock, err := r.lock()
+	if err != nil {
+		return "", err
+	}
+	defer unlock()
+	w, err := r.workspaceOf(ctx, change)
+	if err != nil {
+		return "", err
+	}
+	if _, err := r.run(ctx, w.dir, shedIdentity, "restore", "--from", commit, fmt.Sprintf("root:%q", dir)); err != nil {
+		return "", err
+	}
+	return r.Commit(ctx, change)
+}

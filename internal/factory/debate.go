@@ -112,7 +112,8 @@ var errNoSpecChange = errors.New("the proposal changes no spec clause")
 // charter objection rejects the proposal at once. With no standing
 // objection the unit is sealed. At the round cap, a proposal whose only
 // standing objections say it is off the horizon is deferred, and any other
-// goes back to its painter with a bounce.
+// goes back to its painter with a bounce. In the amendment lane, objections
+// standing at the cap reject the amendment instead.
 func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 	u, err := f.Tracker.Unit(change)
 	if err != nil {
@@ -162,6 +163,9 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 			return f.seal(ctx, u, round)
 		}
 		if round >= max {
+			if lane.in() {
+				return f.rejectAmendment(ctx, u, lane, standing, round)
+			}
 			if len(byKind(standing, tracker.HorizonObjection)) == len(standing) {
 				return f.archive(ctx, u, unit.Deferred, standing)
 			}
@@ -219,12 +223,15 @@ func laneOf(events []tracker.Event) *tracker.Event {
 }
 
 // amendment is what the amendment lane holds a debate to: its round cap and
-// the scope and main commit of the unit's last seal. A unit outside the lane
-// has no scope, and its cap is shed.max_rounds.
+// the scope, footprint, main commit and unit commit of the unit's last
+// seal. A unit outside the lane has no scope, and its cap is
+// shed.max_rounds.
 type amendment struct {
-	cap   int
-	scope []string
-	main  string
+	cap       int
+	scope     []string
+	footprint tracker.Footprint
+	main      string
+	commit    string
 }
 
 func (a amendment) in() bool { return a.main != "" }
@@ -237,8 +244,9 @@ func (f *Factory) amendmentOf(change string) (amendment, error) {
 	if err != nil || sealed == nil {
 		return amendment{cap: f.Operator.Shed.MaxRounds}, err
 	}
-	a := amendment{cap: f.Operator.Shed.AmendmentRounds, main: sealed.Seal.Main}
+	a := amendment{cap: f.Operator.Shed.AmendmentRounds, main: sealed.Seal.Main, commit: sealed.Seal.Commit}
 	if fp := sealed.Footprint; fp != nil {
+		a.footprint = *fp
 		for _, id := range slices.Concat(fp.Modifies, fp.Depends) {
 			if !slices.Contains(a.scope, id) {
 				a.scope = append(a.scope, id)
@@ -414,6 +422,47 @@ func (f *Factory) seal(ctx context.Context, u tracker.Unit, round int) (Outcome,
 	if err := f.Tracker.Seal(u.Change, commit, head, fp, unit.Committee,
 		fmt.Sprintf("no objection stands after round %d", round), onMain(main)); err != nil {
 		return f.bounce(u, err.Error())
+	}
+	return Sealed, nil
+}
+
+// rejectAmendment rejects an amendment whose debate reached its cap with
+// objections standing, none of them a charter objection (S.shed.14): the
+// files under spec/ on the unit's change become those on its commit at the
+// last seal, and the unit is sealed again with the standing objections as
+// the reason. While the cap on units in flight holds sealing back, nothing
+// is restored and the unit waits in the amendment lane.
+func (f *Factory) rejectAmendment(ctx context.Context, u tracker.Unit, lane amendment, standing []tracker.Objection, round int) (Outcome, error) {
+	if full, err := f.inFlightFull(u.Change); err != nil || full {
+		return Waiting, err
+	}
+	if lane.commit == "" {
+		return "", fmt.Errorf("unit %s's last seal does not record its commit, so its sealed spec cannot be restored", unit.Short(u.Change))
+	}
+	head, err := f.Repo.Restore(ctx, u.Change, lane.commit, "spec")
+	if err != nil {
+		return "", err
+	}
+	main, err := f.mainSet(ctx)
+	if err != nil {
+		return "", err
+	}
+	spec, err := f.headSet(ctx, u.Change)
+	if err != nil {
+		return "", err
+	}
+	fp := lane.footprint
+	fp.Modifies = modified(main, spec)
+	commit, err := f.Repo.MainCommit(ctx)
+	if err != nil {
+		return "", err
+	}
+	reasons := []string{fmt.Sprintf("the amendment was rejected: %d objections still stand after %d rounds:", len(standing), round)}
+	for _, o := range standing {
+		reasons = append(reasons, fmt.Sprintf("- %s (member %d, %s, citing %s): %s", o.ID, o.Member, o.Kind, strings.Join(o.Citations, ", "), o.Text))
+	}
+	if err := f.Tracker.SealRejected(u.Change, commit, head, fp, unit.Committee, strings.Join(reasons, "\n"), onMain(main)); err != nil {
+		return "", err
 	}
 	return Sealed, nil
 }
