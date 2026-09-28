@@ -29,13 +29,18 @@
 - Run one package or one test inside a Dagger container:
 
   ```sh
-  dagger core container from --address golang:1.26-bookworm \
-    with-directory --path /src --source . --exclude .git,.jj \
+  dagger core container from --address golang:1.26-trixie \
+    with-exec --args=sh,-c,'curl -fsSL https://github.com/jj-vcs/jj/releases/download/v0.45.1/jj-v0.45.1-$(uname -m)-unknown-linux-musl.tar.gz | tar -xz -C /usr/local/bin ./jj' \
+    with-env-variable --name=SHED_REQUIRE_JJ --value=1 \
+    with-directory --path /src --source . --exclude .git,.jj,.shed \
     with-workdir --path /src \
     with-mounted-temp --path /tmp \
     with-exec --args=go,test,-count=1,-run,'TestA|TestB',-v,./internal/example \
     combined-output
   ```
+
+  The first `with-exec` installs the pinned jj the version control tests
+  need. Without `SHED_REQUIRE_JJ=1` those tests skip when jj is missing.
 
 - Add integration tests as you build a feature, not afterwards. Use temporary
   directories and local repositories for filesystem and VCS tests, and fake

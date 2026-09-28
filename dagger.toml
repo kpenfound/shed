@@ -1,11 +1,16 @@
-# Dagger workspace configuration. `dagger check` builds, lints and tests the
-# Go module.
+# Dagger workspace configuration. `dagger check` builds and tests the Go
+# module. The Go module is a copy of github.com/dagger/go that installs the
+# pinned jj release and sets SHED_REQUIRE_JJ, so jj tests run instead of
+# skipping.
 
 [modules.go]
-source = "github.com/dagger/go"
+source = ".dagger/modules/shed-go"
 
 [modules.go.settings]
-base = "golang:1.26-bookworm"
+base = "golang:1.26-trixie"
+# Keep the module's own helper out of the modules under test.
+test = ["**", "!.dagger"]
+generate = ["**", "!.dagger"]
 
 # The Go patterns mount only Go sources. The repository's own documents are
 # checked by a test, so they are mounted too.

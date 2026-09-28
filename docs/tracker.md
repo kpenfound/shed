@@ -16,6 +16,7 @@ stays out of version control; the repository's `.gitignore` lists `.shed/`.
 | `tracker.db` | A SQLite database built from the event log, for fast reads. |
 | `sessions/<id>/` | One directory per agent session: `bundle.md`, `transcript.jsonl`, `outcome.json` and `result.json`. |
 | `config.toml` | Operator settings. |
+| `workspaces/` | A jj workspace per unit in flight. See [version control](vcs.md). |
 | `lock` | Taken while a shed process changes the tracker. |
 
 Every change is appended to the event log and synced before it reaches the
@@ -67,17 +68,20 @@ Wait for that unit to land, or merge the two units.
 | Command | Does |
 | --- | --- |
 | `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost and title, then the notices waiting for the owner. |
-| `shed unit open -change <id> <title>` | Opens a unit in `proposed`. |
+| `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
 | `shed unit move <unit> <state> <reason>` | Moves a unit by hand to `implementing`, `verifying` or `queued`, or from `contested` back to `proposed`. |
 | `shed unit reopen [-amendment] <unit> <reason>` | Sends a unit back to the shed. |
 | `shed unit log <unit>` | Prints a unit's events. |
+| `shed unit path <unit>` | Prints the directory of the unit's workspace. |
+| `shed land <unit>` | Lands a queued unit on main. See [version control](vcs.md). |
 | `shed tracker rebuild` | Rebuilds the database from the event log. |
 | `shed config` | Prints the operator settings in effect. |
 
 A unit argument is any prefix of its change ID that names one unit.
 
 Sealing, landing and archiving each produce a record of their own, so they
-cannot be done by hand with `unit move`.
+cannot be done by hand with `unit move`. `shed land` is the only way a unit
+becomes landed.
 
 ## Operator settings
 
@@ -115,6 +119,13 @@ steps = [
   { name = "implement", needs = ["proofs"] },
   { name = "docs", needs = ["implement"] },
 ]
+
+[vcs]
+jj = "jj"                # the jj executable
+main = "main"            # the bookmark units land on
+remote = ""              # fetched before and pushed after each landing; empty keeps main local
+landing_name = "shed wheelbuilder"
+landing_email = "wheelbuilder@shed.localhost"
 ```
 
 A profile's fallback must name another profile, and fallbacks may not loop.

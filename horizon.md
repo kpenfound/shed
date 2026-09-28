@@ -11,9 +11,9 @@ clauses are precise enough to propose against. Distant clauses state intent and
 need sharpening before a painter can footprint them. Eventual clauses are
 vision that may never fully resolve.
 
-Nothing is in flight, so the near tier is empty. Clauses in M1 to M6 are soon.
-Clauses in M7 to M14 are distant, and those milestones are provisional until
-their clauses are promoted.
+Nothing is in flight, so the near tier is empty. M1 to M6 and M15 are made of
+soon clauses. The other milestones are provisional: most of their clauses are
+distant and get promoted as the soon tier drains.
 
 ## Documents
 
@@ -69,7 +69,7 @@ their clauses are promoted.
 
 ## Change units
 
-- **H.unit.1** (soon) A change unit is one spec diff with its proofs and
+- **H.unit.1** (soon, realised) A change unit is one spec diff with its proofs and
   implementation. It lives on its own jj change, and shed identifies it by that
   change ID.
 - **H.unit.2** (soon, realised) A unit is in one state at a time: proposed, sealed,
@@ -94,18 +94,18 @@ their clauses are promoted.
 
 ## Version control
 
-- **H.vcs.1** (soon) Shed works in a jj repository colocated with git and
+- **H.vcs.1** (soon, realised) Shed works in a jj repository colocated with git and
   refuses to run with a jj version outside the pinned range.
 - **H.vcs.2** (soon) Shed performs every VCS operation itself. A session gets a
   directory with no `.git` or `.jj`, and no VCS tools or credentials.
-- **H.vcs.3** (soon) Each unit is a jj change descending from main. Shed
+- **H.vcs.3** (soon, realised) Each unit is a jj change descending from main. Shed
   snapshots session output onto that change.
-- **H.vcs.4** (soon) Shed checkpoints the jj operation log before each
+- **H.vcs.4** (soon, realised) Shed checkpoints the jj operation log before each
   multi-step VCS operation and restores it if the operation fails.
-- **H.vcs.5** (soon) Landing squashes a unit into one commit on main and pushes
+- **H.vcs.5** (soon, realised) Landing squashes a unit into one commit on main and pushes
   main fast-forward only, under the landing identity. The commit message comes
   from the unit's seal and spec diff and includes its change ID.
-- **H.vcs.6** (soon) Nothing but landing moves main.
+- **H.vcs.6** (soon, realised) Nothing but landing moves main.
 - **H.vcs.7** (distant) After every landing shed rebases every in-flight unit
   onto the new main. Conflicts are stored in the change and block nothing.
 - **H.vcs.8** (distant) Shed lists the in-flight units that carry stored
@@ -132,6 +132,10 @@ their clauses are promoted.
 - **H.sess.8** (soon) Shed classifies each failure as infrastructure or
   behavioural. It retries infrastructure failures or falls back to another
   profile. Behavioural failures are outcomes that feed the state machine.
+- **H.sess.9** (soon) A session that implements or verifies can run the
+  project's proofs and tests the way the project runs them, through the runner
+  `shed.toml` configures, even when that runner needs a container engine such
+  as Dagger. The session still holds no version control.
 
 ## The shed
 
@@ -166,8 +170,11 @@ their clauses are promoted.
   new seal and returns the unit to implementing with the mechanic told the
   diff. If it is rejected, the mechanic implements as written or the unit is
   discarded.
-- **H.shed.12** (distant) The painter reads the gap and the deferred shelf and
+- **H.shed.12** (soon) The painter reads the gap and the deferred shelf and
   drafts proposals, throttled by a proposal rate.
+- **H.shed.13** (soon) The painter proposes against near and soon clauses
+  only. It does not propose against a horizon clause an in-flight unit already
+  advances, or re-propose an idea on the rejected shelf.
 
 ## Footprints
 
@@ -233,23 +240,24 @@ their clauses are promoted.
 
 - **H.sched.1** (soon) The owner can take one unit from proposed to landed with
   shed commands and no VCS work of their own.
-- **H.sched.2** (distant) `shed serve` runs one controller per role: painter,
-  shed, mechanic, verifier, wheelbuilder and sweeper. All of them share the
-  tracker.
-- **H.sched.3** (distant) Controllers are level-triggered. They reconcile
+- **H.sched.2** (soon) `shed serve` runs one controller for each role that has
+  work, all sharing the tracker.
+- **H.sched.3** (soon) Controllers are level-triggered. They reconcile
   against current tracker state, and events only wake them early. A missed
   event costs latency, never correctness.
-- **H.sched.4** (distant) The scheduler never waits on a model. Sessions report
+- **H.sched.4** (soon) The scheduler never waits on a model. Sessions report
   by writing transitions, which wake the relevant controller.
-- **H.sched.5** (distant) A cap limits units across implementing and verifying.
+- **H.sched.5** (soon) A cap limits units across implementing and verifying.
   Dispatch goes downstream first: verify, then implement, then debate, then
   propose.
-- **H.sched.6** (distant) A proposal rate throttles the painter. The sweeper is
+- **H.sched.6** (soon) A proposal rate throttles the painter. The sweeper is
   the only controller on a timer.
-- **H.sched.7** (distant) A global daily budget pauses dispatch when spent.
+- **H.sched.7** (soon) A global daily budget pauses dispatch when spent.
   Status shows streaks of degraded operation.
 - **H.sched.8** (distant) When the gap is empty the painter proposes nothing
   until the horizon moves. The sweeper keeps patrolling.
+- **H.sched.9** (soon) The operator can cap the units in flight from sealed
+  through queued. Shed seals no unit while the cap is reached.
 
 ## Horizon governance
 
@@ -274,6 +282,10 @@ their clauses are promoted.
   horizon moves.
 - **H.hz.9** (distant) Shed reports progress per horizon clause and per
   milestone. A milestone is done when every clause in it is realised on main.
+- **H.hz.10** (soon) A unit may mark the horizon clauses it fully realises as
+  realised, in the same diff as its spec change. Verification checks each
+  claim against the unit's behaviour, and refuses one the spec does not
+  fully satisfy.
 
 ## The owner
 
@@ -359,26 +371,36 @@ their clauses are promoted.
 ## Milestones
 
 A milestone is a named bundle of horizon clauses. It is done when every clause
-in it is realised on main. M7 onward are not ordered among themselves.
+in it is realised on main. They come in the order listed. After M15, the
+remaining milestones are not ordered among themselves.
 
 - **M1** Clause foundations. Everything else reduces to set operations on
-  clause IDs, so the document format comes first. H.doc.1 to H.doc.13.
+  clause IDs, so the document format comes first. H.doc.2 to H.doc.13.
 - **M2** Tracker and units. The deterministic state machine and its storage.
-  H.track.1 to H.track.7, H.unit.1 to H.unit.6.
+  H.track.1 to H.track.4, H.track.6, H.track.7, H.unit.1 to H.unit.6.
 - **M3** Hands off version control. Shed owns every jj operation and sessions
-  never see one. H.vcs.1 to H.vcs.6.
+  never see one. H.vcs.1, H.vcs.3 to H.vcs.6.
 - **M4** Sessions and bundles. Roles run through busybees/core with scoped
-  grants, outcome tools and assembled bundles. H.sess.1 to H.sess.8.
+  grants, outcome tools and assembled bundles, and can run the project's
+  tests without holding version control. H.sess.1 to H.sess.9, H.vcs.2.
 - **M5** The shed. Debate, veto, deferral, consensus, sealing and the archive.
-  H.shed.1 to H.shed.10, H.fp.1, H.fp.2.
+  H.doc.1, H.shed.1 to H.shed.10, H.fp.1, H.fp.2.
 - **M6** Self-hosting. The shed can run itself: the owner drives a unit from
   proposal to landing with shed commands alone. After M6, changes to this
-  repository go through shed. H.shed.11, H.impl.1 to H.impl.4, H.verify.1 to
-  H.verify.4, H.queue.1, H.queue.2, H.sched.1.
+  repository go through shed. A mechanic who finds the spec wrong reopens the
+  unit for a full debate. H.impl.1 to H.impl.3, H.verify.1 to H.verify.4,
+  H.queue.1, H.queue.2, H.sched.1.
+- **M15** Autopilot. Shed works through the soon tier on its own: the painter
+  proposes from the gap, controllers carry each unit through the shed to main,
+  and a budget stops the spending. The in-flight cap stays at one until M7, so
+  nothing needs reconciling. The owner promotes clauses to soon by editing
+  the horizon until M9. H.track.5, H.shed.12, H.shed.13, H.sched.2 to
+  H.sched.7, H.sched.9, H.hz.10.
 - **M7** Reconcile and entanglement. Many units in flight at once without merge
   hell. H.vcs.7 to H.vcs.9, H.fp.3, H.fp.4, H.queue.3 to H.queue.5.
-- **M8** Autonomous scheduling. Per-role controllers replace the owner's
-  commands. H.sched.2 to H.sched.8, H.unit.7, H.shed.12, H.impl.5.
+- **M8** Autonomous scheduling at full width. The amendment fast lane, cost
+  overruns, idling and contested timeouts. H.shed.11, H.impl.4, H.impl.5,
+  H.sched.8, H.unit.7.
 - **M9** Horizon governance and the owner. H.hz.1 to H.hz.9, H.owner.1 to
   H.owner.4.
 - **M10** Shed init. H.init.1 to H.init.8.

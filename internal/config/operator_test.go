@@ -32,6 +32,9 @@ func TestOperatorDefaultsAndOverrides(t *testing.T) {
 	if steps := c.Formulas[DefaultFormula].Steps; len(steps) != 3 || steps[0].Name != "proofs" {
 		t.Errorf("default formula = %+v", steps)
 	}
+	if c.VCS != (VCS{Main: "main", LandingName: "shed wheelbuilder", LandingEmail: "wheelbuilder@shed.localhost"}) {
+		t.Errorf("vcs = %+v", c.VCS)
+	}
 
 	c, err = LoadOperator(writeOperator(t, `
 [budget]
@@ -51,6 +54,10 @@ profile = "fast"
 
 [formulas.bug]
 steps = [{ name = "fix" }, { name = "proofs", needs = ["fix"] }]
+
+[vcs]
+remote = "origin"
+landing_email = "lander@example.com"
 `))
 	if err != nil {
 		t.Fatal(err)
@@ -69,6 +76,9 @@ steps = [{ name = "fix" }, { name = "proofs", needs = ["fix"] }]
 	}
 	if len(c.Formulas) != 2 {
 		t.Errorf("formulas = %+v", c.Formulas)
+	}
+	if c.VCS.Remote != "origin" || c.VCS.Main != "main" || c.VCS.LandingEmail != "lander@example.com" || c.VCS.LandingName != "shed wheelbuilder" {
+		t.Errorf("vcs = %+v", c.VCS)
 	}
 }
 
@@ -90,6 +100,8 @@ func TestOperatorRefusesBadSettings(t *testing.T) {
 		{"[formulas.x]\nsteps = [{ name = \"a\", needs = [\"b\"] }, { name = \"b\", needs = [\"a\"] }]\n", "needs itself through a cycle"},
 		{"[formulas.x]\nsteps = [{ name = \"a\" }, { name = \"a\" }]\n", `formulas.x: step "a" appears twice`},
 		{"[formulas.x]\nsteps = []\n", "formulas.x: has no steps"},
+		{"[vcs]\nmain = \"\"\n", "vcs.main must not be empty"},
+		{"[vcs]\nlanding_name = \" \"\n", "vcs.landing_name must not be empty"},
 	} {
 		_, err := LoadOperator(writeOperator(t, tc.toml))
 		if err == nil || !strings.Contains(err.Error(), tc.want) {

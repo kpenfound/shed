@@ -4,8 +4,9 @@ Shed is a spec-driven software factory that runs on a plain git repository.
 Agents propose changes to the spec, debate them, implement them and land them
 whole. The [design](docs/design.md) describes where it is going.
 
-Shed is under construction. Today it checks its three documents and tracks
-change units through their states. The documents are:
+Shed is under construction. Today it checks its three documents, tracks
+change units through their states, keeps each unit on a jj change of its own
+and lands units on main. The documents are:
 
 - [charter.md](charter.md), the purpose and boundaries, which only the owner
   changes
@@ -22,5 +23,6 @@ go build -o shed ./cmd/shed
 
 [Clauses, citations and proofs](docs/clauses.md) covers the document format.
 [Units and the tracker](docs/tracker.md) covers unit states, the state
-directory and operator settings. [AGENTS.md](AGENTS.md) covers how to work
+directory and operator settings. [Version control](docs/vcs.md) covers the
+jj repository, unit workspaces and landing. [AGENTS.md](AGENTS.md) covers how to work
 on shed.

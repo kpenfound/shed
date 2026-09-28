@@ -68,7 +68,7 @@ func Open(dir string, opts Options) (*Tracker, error) {
 	}
 	db.SetMaxOpenConns(1)
 	t := &Tracker{dir: dir, db: db, opts: opts}
-	if _, err := db.Exec(schema); err != nil {
+	if err := t.migrate(); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("creating tracker schema: %w", err)
 	}
@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS units (
 	amendments INTEGER NOT NULL DEFAULT 0,
 	shelf TEXT NOT NULL DEFAULT '',
 	reason TEXT NOT NULL DEFAULT '',
+	landed TEXT NOT NULL DEFAULT '',
 	opened_seq INTEGER NOT NULL,
 	opened_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
@@ -140,6 +141,29 @@ CREATE TABLE IF NOT EXISTS notices (
 `
 
 var tables = []string{"units", "seals", "footprints", "sessions", "steps", "notices", "meta"}
+
+// schemaVersion changes whenever the schema does. The database is derived
+// from the event log, so a database with another version is dropped and
+// rebuilt rather than migrated.
+const schemaVersion = 2
+
+func (t *Tracker) migrate() error {
+	var v string
+	err := t.db.QueryRow(`SELECT value FROM meta WHERE key = 'schema'`).Scan(&v)
+	if err == nil && v == strconv.Itoa(schemaVersion) {
+		return nil
+	}
+	for _, table := range tables {
+		if _, err := t.db.Exec("DROP TABLE IF EXISTS " + table); err != nil {
+			return err
+		}
+	}
+	if _, err := t.db.Exec(schema); err != nil {
+		return err
+	}
+	_, err = t.db.Exec(`INSERT INTO meta (key, value) VALUES ('schema', ?)`, strconv.Itoa(schemaVersion))
+	return err
+}
 
 // write runs one change to the tracker under the state directory lock. build
 // reads the caught-up database and returns the events to record, or an
@@ -249,6 +273,9 @@ func (t *Tracker) Rebuild() error {
 			return err
 		}
 	}
+	if _, err := tx.Exec(`INSERT INTO meta (key, value) VALUES ('schema', ?)`, strconv.Itoa(schemaVersion)); err != nil {
+		return err
+	}
 	if err := tx.Commit(); err != nil {
 		return err
 	}
@@ -282,8 +309,8 @@ func apply(tx *sql.Tx, e Event) error {
 			VALUES (?, ?, ?, ?, ?, ?, ?)`, e.Unit, e.Title, e.To, e.Seq, at, at, e.Reason)
 	case UnitMoved:
 		if err := exec(`UPDATE units SET state = ?, bounces = bounces + ?, amendments = amendments + ?,
-			shelf = ?, reason = ?, updated_at = ? WHERE change = ?`,
-			e.To, boolInt(e.Bounce), boolInt(e.Amendment), e.Shelf, e.Reason, at, e.Unit); err != nil {
+			shelf = ?, reason = ?, landed = ?, updated_at = ? WHERE change = ?`,
+			e.To, boolInt(e.Bounce), boolInt(e.Amendment), e.Shelf, e.Reason, e.Commit, at, e.Unit); err != nil {
 			return err
 		}
 		if e.Seal != nil {

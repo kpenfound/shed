@@ -73,8 +73,12 @@ func get(t *testing.T, tr *Tracker, ref string) Unit {
 func through(t *testing.T, tr *Tracker, change string, states ...unit.State) {
 	t.Helper()
 	for _, s := range states {
-		if s == unit.Sealed {
+		switch s {
+		case unit.Sealed:
 			must(t, tr.Seal(change, "main1", Footprint{}, unit.Committee, "consensus", nil))
+			continue
+		case unit.Landed:
+			must(t, tr.Land(change, "landed1", unit.Wheelbuilder, "landed"))
 			continue
 		}
 		must(t, tr.Move(change, s, unit.Mechanic, "next"))

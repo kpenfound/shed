@@ -48,6 +48,8 @@ func (t *Tracker) Move(change string, to unit.State, actor unit.Actor, reason st
 		return errors.New("use Seal to seal a unit")
 	case unit.Archived:
 		return errors.New("use Archive to archive a unit")
+	case unit.Landed:
+		return errors.New("use Land to land a unit")
 	}
 	return t.move(change, Event{To: to, Actor: actor, Reason: reason})
 }
@@ -66,6 +68,14 @@ func (t *Tracker) Seal(change, main string, fp Footprint, actor unit.Actor, reas
 	}
 	return t.move(change, Event{To: unit.Sealed, Actor: actor, Reason: reason,
 		Seal: &Seal{Main: main, Change: change}, Footprint: &fp}, onMain)
+}
+
+// Land records that a queued unit landed on main as a commit.
+func (t *Tracker) Land(change, commit string, actor unit.Actor, reason string) error {
+	if strings.TrimSpace(commit) == "" {
+		return errors.New("a landing needs the commit on main")
+	}
+	return t.move(change, Event{To: unit.Landed, Commit: commit, Actor: actor, Reason: reason})
 }
 
 // Archive moves a unit to the archive on a shelf.

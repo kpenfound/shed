@@ -39,10 +39,12 @@ Documents:
 
 Units:
   status                                  list units and what waits for the owner
-  unit open -change <id> <title>          open a unit in proposed
+  unit open <title>                       make a change for a unit and open it in proposed
   unit move <unit> <state> <reason>       move a unit to another state
   unit reopen [-amendment] <unit> <reason> send a unit back to the shed
   unit log <unit>                         print a unit's events
+  unit path <unit>                        print the directory of a unit's workspace
+  land <unit>                             land a queued unit on main
 
 State:
   config             print the operator settings in effect
@@ -96,6 +98,8 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return e.status(rest)
 	case "unit":
 		return e.unit(rest)
+	case "land":
+		return e.land(rest)
 	case "config":
 		return e.config(rest)
 	case "tracker":

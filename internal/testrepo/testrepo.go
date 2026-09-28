@@ -14,6 +14,8 @@ import (
 type Repo struct {
 	t   testing.TB
 	Dir string
+	// Remote is the bare repository origin points at, when there is one.
+	Remote string
 }
 
 // New returns an empty repository directory.
@@ -74,12 +76,68 @@ func (r *Repo) Remove(path string) {
 	}
 }
 
+// RequireJJ skips the test when jj is not installed. When SHED_REQUIRE_JJ is
+// 1, as in the Dagger checks, a missing jj fails the test instead.
+func RequireJJ(t testing.TB) {
+	t.Helper()
+	if _, err := exec.LookPath("jj"); err != nil {
+		if os.Getenv("SHED_REQUIRE_JJ") == "1" {
+			t.Fatalf("jj is required: %v", err)
+		}
+		t.Skip("jj is not installed")
+	}
+}
+
+// Colocated returns a repository holding the Minimal documents and a
+// .gitignore for the state directory, committed on main, pushed to a bare
+// remote named origin and colocated with jj.
+func Colocated(t testing.TB) *Repo {
+	t.Helper()
+	RequireJJ(t)
+	r := Minimal(t)
+	r.Write(".gitignore", ".shed/\n")
+	r.Init()
+	r.Commit("documents")
+	r.Remote = t.TempDir()
+	r.gitIn(r.Remote, "init", "-q", "--bare", "-b", "main")
+	r.Git("remote", "add", "origin", r.Remote)
+	r.Git("push", "-q", "origin", "main")
+	r.JJ("git", "init", "--colocate")
+	return r
+}
+
+// JJ runs jj in the repository without the user's configuration and
+// returns its trimmed output.
+func (r *Repo) JJ(args ...string) string {
+	r.t.Helper()
+	cmd := exec.Command("jj", append([]string{"--no-pager", "--color=never",
+		"--config", "user.name=owner", "--config", "user.email=owner@example.com"}, args...)...)
+	cmd.Dir = r.Dir
+	cmd.Env = append(os.Environ(), "JJ_CONFIG="+os.DevNull)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		r.t.Fatalf("jj %s: %v\n%s", strings.Join(args, " "), err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // Git runs git in the repository with a fixed identity and no user or
 // system configuration, and returns its trimmed output.
 func (r *Repo) Git(args ...string) string {
 	r.t.Helper()
+	return r.gitIn(r.Dir, args...)
+}
+
+// GitRemote runs git in the bare remote.
+func (r *Repo) GitRemote(args ...string) string {
+	r.t.Helper()
+	return r.gitIn(r.Remote, args...)
+}
+
+func (r *Repo) gitIn(dir string, args ...string) string {
+	r.t.Helper()
 	cmd := exec.Command("git", args...)
-	cmd.Dir = r.Dir
+	cmd.Dir = dir
 	cmd.Env = append(os.Environ(),
 		"GIT_CONFIG_NOSYSTEM=1",
 		"GIT_CONFIG_GLOBAL="+os.DevNull,

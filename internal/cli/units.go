@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"path/filepath"
@@ -9,8 +10,10 @@ import (
 	"time"
 
 	"github.com/kpenfound/shed/internal/config"
+	"github.com/kpenfound/shed/internal/landing"
 	"github.com/kpenfound/shed/internal/tracker"
 	"github.com/kpenfound/shed/internal/unit"
+	"github.com/kpenfound/shed/internal/vcs"
 )
 
 // DefaultStateDir is the state directory under the repository root. It holds
@@ -20,6 +23,27 @@ const DefaultStateDir = ".shed"
 
 func (e env) operator() (config.Operator, error) {
 	return config.LoadOperator(filepath.Join(e.state, config.OperatorFile))
+}
+
+func (e env) openRepo(op config.Operator) (*vcs.Repo, error) {
+	return vcs.Open(e.ctx, e.root, e.state, vcs.Options{
+		JJ: op.VCS.JJ, Main: op.VCS.Main, Remote: op.VCS.Remote,
+		Landing: vcs.Identity{Name: op.VCS.LandingName, Email: op.VCS.LandingEmail},
+	})
+}
+
+// withRepo opens the tracker and the repository, runs fn and closes the
+// tracker.
+func (e env) withRepo(fn func(*tracker.Tracker, *vcs.Repo) int) int {
+	op, err := e.operator()
+	if err != nil {
+		return e.fail(err)
+	}
+	repo, err := e.openRepo(op)
+	if err != nil {
+		return e.fail(err)
+	}
+	return e.withTracker(func(t *tracker.Tracker) int { return fn(t, repo) })
 }
 
 func (e env) openTracker() (*tracker.Tracker, error) {
@@ -78,7 +102,7 @@ func (e env) status(args []string) int {
 
 func (e env) unit(args []string) int {
 	if len(args) == 0 {
-		return e.misuse("unit needs a subcommand: open, move, reopen or log")
+		return e.misuse("unit needs a subcommand: open, move, reopen, log or path")
 	}
 	switch args[0] {
 	case "open":
@@ -89,6 +113,8 @@ func (e env) unit(args []string) int {
 		return e.unitReopen(args[1:])
 	case "log":
 		return e.unitLog(args[1:])
+	case "path":
+		return e.unitPath(args[1:])
 	}
 	return e.misuse("unknown unit subcommand %q", args[0])
 }
@@ -100,20 +126,55 @@ func (e env) flags(name string) *flag.FlagSet {
 }
 
 func (e env) unitOpen(args []string) int {
-	fs := e.flags("unit open")
-	change := fs.String("change", "", "the unit's change ID")
-	if err := fs.Parse(args); err != nil {
-		return Misused
+	title := strings.Join(args, " ")
+	if strings.TrimSpace(title) == "" {
+		return e.misuse("unit open needs a title")
 	}
-	title := strings.Join(fs.Args(), " ")
-	if *change == "" || title == "" {
-		return e.misuse("unit open needs -change <id> and a title")
-	}
-	return e.withTracker(func(t *tracker.Tracker) int {
-		if err := t.OpenUnit(*change, title, unit.Owner); err != nil {
+	return e.withRepo(func(t *tracker.Tracker, repo *vcs.Repo) int {
+		change, err := repo.NewUnit(e.ctx, title)
+		if err != nil {
 			return e.fail(err)
 		}
-		fmt.Fprintf(e.stdout, "opened %s in proposed\n", unit.Short(*change))
+		if err := t.OpenUnit(change, title, unit.Owner); err != nil {
+			return e.fail(errors.Join(err, repo.Discard(e.ctx, change)))
+		}
+		fmt.Fprintf(e.stdout, "opened %s in proposed\n", change)
+		return OK
+	})
+}
+
+func (e env) unitPath(args []string) int {
+	if len(args) != 1 {
+		return e.misuse("unit path needs one unit")
+	}
+	return e.withRepo(func(t *tracker.Tracker, repo *vcs.Repo) int {
+		u, err := t.Unit(args[0])
+		if err != nil {
+			return e.fail(err)
+		}
+		dir, err := repo.Workspace(e.ctx, u.Change)
+		if err != nil {
+			return e.fail(err)
+		}
+		fmt.Fprintln(e.stdout, dir)
+		return OK
+	})
+}
+
+func (e env) land(args []string) int {
+	if len(args) != 1 {
+		return e.misuse("land needs one unit")
+	}
+	return e.withRepo(func(t *tracker.Tracker, repo *vcs.Repo) int {
+		u, err := t.Unit(args[0])
+		if err != nil {
+			return e.fail(err)
+		}
+		commit, err := landing.Land(e.ctx, t, repo, u.Change, unit.Wheelbuilder)
+		if err != nil {
+			return e.fail(err)
+		}
+		fmt.Fprintf(e.stdout, "landed %s on main as %s\n", unit.Short(u.Change), commit)
 		return OK
 	})
 }

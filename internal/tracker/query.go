@@ -37,7 +37,9 @@ type Unit struct {
 	Reason string
 	Shelf  unit.Shelf
 	// Seal is set once the unit has been sealed.
-	Seal      *Seal
+	Seal *Seal
+	// Landed is the commit on main the unit landed as.
+	Landed    string
 	Footprint Footprint
 	// CostUSD is the total cost of the unit's sessions so far.
 	CostUSD float64
@@ -144,10 +146,10 @@ func (t *Tracker) Unit(ref string) (Unit, error) {
 func loadUnit(q querier, change string) (Unit, error) {
 	u := Unit{Change: change}
 	var opened, updated, shelf, state string
-	err := q.QueryRow(`SELECT title, state, bounces, amendments, reason, shelf, opened_at, updated_at,
+	err := q.QueryRow(`SELECT title, state, bounces, amendments, reason, shelf, landed, opened_at, updated_at,
 		(SELECT COALESCE(SUM(cost_usd), 0) FROM sessions WHERE change = units.change)
 		FROM units WHERE change = ?`, change).
-		Scan(&u.Title, &state, &u.Bounces, &u.Amendments, &u.Reason, &shelf, &opened, &updated, &u.CostUSD)
+		Scan(&u.Title, &state, &u.Bounces, &u.Amendments, &u.Reason, &shelf, &u.Landed, &opened, &updated, &u.CostUSD)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Unit{}, fmt.Errorf("unit %s: %w", unit.Short(change), ErrNotFound)
 	}
@@ -303,6 +305,9 @@ func Describe(e Event) string {
 		}
 		if e.Seal != nil {
 			fmt.Fprintf(&b, " at main %s", shortHash(e.Seal.Main))
+		}
+		if e.Commit != "" {
+			fmt.Fprintf(&b, " as %s", shortHash(e.Commit))
 		}
 	case UnitFootprint:
 		b.WriteString("footprint declared")

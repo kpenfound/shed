@@ -45,7 +45,9 @@ type Event struct {
 	// Shelf is set when a unit is archived.
 	Shelf unit.Shelf `json:"shelf,omitempty"`
 	// Seal is set when a unit is sealed.
-	Seal      *Seal      `json:"seal,omitempty"`
+	Seal *Seal `json:"seal,omitempty"`
+	// Commit is the commit on main a unit landed as.
+	Commit    string     `json:"commit,omitempty"`
 	Footprint *Footprint `json:"footprint,omitempty"`
 	Session   *SessionEv `json:"session,omitempty"`
 	Notice    *NoticeEv  `json:"notice,omitempty"`

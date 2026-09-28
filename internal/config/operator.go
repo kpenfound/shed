@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -27,6 +28,22 @@ type Operator struct {
 	Profiles    map[string]Profile `toml:"profiles"`
 	Roles       map[string]Role    `toml:"roles"`
 	Formulas    map[string]Formula `toml:"formulas"`
+	VCS         VCS                `toml:"vcs"`
+}
+
+// VCS configures version control.
+type VCS struct {
+	// JJ is the jj executable; empty runs jj from PATH.
+	JJ string `toml:"jj,omitempty"`
+	// Main is the bookmark units land on.
+	Main string `toml:"main"`
+	// Remote, when set, is fetched before each landing and receives main
+	// after it.
+	Remote string `toml:"remote,omitempty"`
+	// LandingName and LandingEmail are the identity landed commits are made
+	// under.
+	LandingName  string `toml:"landing_name"`
+	LandingEmail string `toml:"landing_email"`
 }
 
 // Budget limits spending. Zero means no limit.
@@ -118,6 +135,7 @@ func Defaults() Operator {
 			{Name: "implement", Needs: []string{"proofs"}},
 			{Name: "docs", Needs: []string{"implement"}},
 		}}},
+		VCS: VCS{Main: "main", LandingName: "shed wheelbuilder", LandingEmail: "wheelbuilder@shed.localhost"},
 	}
 }
 
@@ -206,6 +224,13 @@ func (c Operator) Validate() error {
 	for _, name := range sortedKeys(c.Formulas) {
 		if err := c.Formulas[name].validate(); err != nil {
 			fail("formulas.%s: %v", name, err)
+		}
+	}
+	for name, v := range map[string]string{
+		"vcs.main": c.VCS.Main, "vcs.landing_name": c.VCS.LandingName, "vcs.landing_email": c.VCS.LandingEmail,
+	} {
+		if strings.TrimSpace(v) == "" {
+			fail("%s must not be empty", name)
 		}
 	}
 	return errors.Join(errs...)
