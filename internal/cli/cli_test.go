@@ -300,6 +300,38 @@ func TestTraceShowsRefinement(t *testing.T) {
 	}
 }
 
+//shed:proves S.horizon.10
+func TestGapShowsRefinement(t *testing.T) {
+	r := project(t)
+	r.Write("horizon.md", `- **H.greet.1** (soon, realised) Fine.
+- **H.greet.2** (soon, refines H.greet.3) Refines.
+- **H.greet.3** (distant) Parent.
+- **H.greet.4** (near, refines H.greet.5) Refines the far one.
+- **H.greet.5** (eventual) Far parent.
+- **H.greet.6** (soon) Stands alone.
+`)
+	stdout, stderr, code := run(t, r.Dir, "gap")
+	if code != OK {
+		t.Fatalf("gap = %d, stderr %q", code, stderr)
+	}
+	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
+	want := []string{
+		"H.greet.2 soon - refines H.greet.3 (distant)",
+		"H.greet.3 distant -",
+		"H.greet.4 near - refines H.greet.5 (eventual)",
+		"H.greet.5 eventual -",
+		"H.greet.6 soon -",
+	}
+	if len(lines) != len(want) {
+		t.Fatalf("gap =\n%s\nwant %d lines", stdout, len(want))
+	}
+	for i, line := range lines {
+		if got := strings.Join(strings.Fields(line), " "); got != want[i] {
+			t.Errorf("gap line %d = %q, want %q", i+1, got, want[i])
+		}
+	}
+}
+
 //shed:proves S.proof.4 S.proof.5
 func TestProve(t *testing.T) {
 	r := project(t)

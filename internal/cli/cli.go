@@ -361,7 +361,11 @@ func (e env) trace(args []string, gapOnly bool) int {
 			advanced = docs.JoinIDs(en.AdvancedBy)
 		}
 		if gapOnly {
-			fmt.Fprintf(w, "%s\t%s\t%s\n", en.Clause.ID, en.Tier, advanced)
+			var refinement string
+			if en.Refines != (clause.ID{}) {
+				refinement = fmt.Sprintf("\trefines %s (%s)", en.Refines, en.RefinesTier)
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s%s\n", en.Clause.ID, en.Tier, advanced, refinement)
 		} else {
 			var refinement string
 			switch {

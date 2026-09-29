@@ -110,7 +110,7 @@ runner = ["scripts/in-dagger"]
 | `shed show <citation>...` | Prints the clauses the citations name. |
 | `shed diff <from> [<to>]` | Lists spec and horizon clauses added, removed or changed between revisions, or between a revision and the working tree, and the tier of the horizon amendment. |
 | `shed trace` | Lists every horizon clause with its tier, whether it is realised, the spec clauses advancing it, and the clause it refines or the clauses refining it. |
-| `shed gap` | Lists the horizon clauses not yet realised. |
+| `shed gap` | Lists the horizon clauses not yet realised, with their tier, the spec clauses advancing them, and the ID and tier of the clause each refines. |
 | `shed prove [<id>...]` | Runs proofs and reports per clause. |
 
 ## Diffs

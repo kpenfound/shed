@@ -266,6 +266,9 @@ func (f *Factory) painterSections(gap []docs.TraceEntry) ([]bundle.Section, erro
 		if len(e.AdvancedBy) > 0 {
 			fmt.Fprintf(&g, " Already advanced by %s.", docs.JoinIDs(e.AdvancedBy))
 		}
+		if e.Refines != (clause.ID{}) {
+			fmt.Fprintf(&g, " Refines %s (%s).", e.Refines, e.RefinesTier)
+		}
 		g.WriteString("\n")
 	}
 	entries, err := archive.Read(f.Root)

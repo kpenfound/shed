@@ -26,3 +26,7 @@
 - **S.horizon.7** (H.hz.3) `shed trace` shows, for each horizon clause that
   refines another, the clause it refines, and for each distant or eventual
   clause, the clauses that refine it.
+- **S.horizon.10** (H.hz.3) `shed gap`, and the gap in the painter's bundle
+  (S.paint.2), show for each listed clause that refines another (S.horizon.6)
+  the ID and tier of the clause it refines. A listed clause with no
+  `refines` tag shows none.

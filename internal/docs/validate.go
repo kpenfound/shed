@@ -163,6 +163,8 @@ type TraceEntry struct {
 	AdvancedBy []clause.ID
 	// Refines is the clause this one refines, or the zero ID.
 	Refines clause.ID
+	// RefinesTier is the tier of the clause this one refines, or "".
+	RefinesTier string
 	// RefinedBy holds the clauses that refine this one, in document order.
 	RefinedBy []clause.ID
 }
@@ -196,8 +198,15 @@ func Trace(s *Set) []TraceEntry {
 		}
 		out = append(out, e)
 	}
+	tiers := map[clause.ID]string{}
+	for _, e := range out {
+		tiers[e.Clause.ID] = e.Tier
+	}
 	for i := range out {
 		out[i].RefinedBy = refinedBy[out[i].Clause.ID]
+		if out[i].Refines != (clause.ID{}) {
+			out[i].RefinesTier = tiers[out[i].Refines]
+		}
 	}
 	return out
 }

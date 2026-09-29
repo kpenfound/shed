@@ -157,6 +157,56 @@ func TestPainterGap(t *testing.T) {
 	}
 }
 
+//shed:proves S.horizon.10
+func TestPainterGapShowsRefinement(t *testing.T) {
+	r := projectWith(t, map[string]string{"horizon.md": `# Horizon
+
+- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (soon, refines H.greet.3) The tool says goodbye.
+- **H.greet.3** (distant) The tool greets in any language, within C2.
+- **H.greet.4** (near, refines H.greet.5) The tool bows.
+- **H.greet.5** (eventual) The tool sings.
+- **H.greet.6** (soon) The tool waves.
+`})
+	fake := newFake(t)
+	f := open(t, r, fake, "")
+	gap, err := f.Gap(ctx)
+	must(t, err)
+	sections, err := f.painterSections(gap)
+	must(t, err)
+	var body string
+	for _, sec := range sections {
+		if sec.Title == "Gap" {
+			body = sec.Body
+		}
+	}
+	lines := map[string]string{}
+	for _, line := range strings.Split(body, "\n") {
+		if fields := strings.Fields(line); len(fields) > 1 {
+			lines[fields[1]] = strings.ToLower(line)
+		}
+	}
+	for id, want := range map[string][]string{
+		"H.greet.2": {"(soon)", "refines h.greet.3 (distant)"},
+		"H.greet.4": {"(near)", "refines h.greet.5 (eventual)"},
+		"H.greet.6": {"(soon)"},
+	} {
+		line, ok := lines[id]
+		if !ok {
+			t.Errorf("the gap lacks %s:\n%s", id, body)
+			continue
+		}
+		for _, w := range want {
+			if !strings.Contains(line, w) {
+				t.Errorf("the gap line for %s lacks %q: %q", id, w, line)
+			}
+		}
+	}
+	if strings.Contains(lines["H.greet.6"], "refine") {
+		t.Errorf("the gap line for a clause with no refines tag names a parent: %q", lines["H.greet.6"])
+	}
+}
+
 //shed:proves S.serve.4 S.serve.5
 func TestServeFinishesBeforeStarting(t *testing.T) {
 	r := project(t)

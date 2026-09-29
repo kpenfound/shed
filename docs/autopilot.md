@@ -298,9 +298,11 @@ that goes nowhere, archived or contested without being sealed, it waits
 painter session that failed before doing anything does not count.
 
 The painter works on the gap: near and soon horizon clauses that are not
-realised and that no unit in flight advances. It sees the deferred and
-rejected shelves and the units in flight. Distant clauses need promoting to
-soon, by editing the horizon, before the painter proposes against them.
+realised and that no unit in flight advances. Each gap clause comes with the
+spec clauses already advancing it and, if it refines another clause, that
+clause's ID and tier. It sees the deferred and rejected shelves and the units
+in flight. Distant clauses need promoting to soon, by editing the horizon,
+before the painter proposes against them.
 
 The in-flight cap defaults to one, so only one unit is ever between sealed
 and landed and nothing needs reconciling.
