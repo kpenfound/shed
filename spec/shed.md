@@ -89,3 +89,12 @@
   its next implementation has a bundle that states the requested amendment
   was rejected, that the sealed spec stands as written, and gives the
   objections that stood at the cap.
+- **S.shed.15** (H.owner.4) When a proposal archived under S.shed.10 adds,
+  changes or removes horizon clauses in `horizon.md` against the latest main
+  commit its change descends from, its archive entry lists those clauses in
+  document order beside its spec changes and debate. Each is listed with its
+  ID and whether it was added, changed or removed, with its tag list and text
+  before the proposal, after it, or both, as each exists. A horizon clause
+  counts as changed when its tag list differs or its text differs once runs
+  of whitespace are collapsed to one space. The entry of a proposal that
+  changes no horizon clause lists no horizon changes.

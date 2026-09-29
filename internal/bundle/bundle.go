@@ -208,6 +208,27 @@ func Changes(main, head *docs.Set) string {
 	return s.String()
 }
 
+// HorizonChanges lists the horizon clauses that differ between main and
+// head, in document order (S.shed.15): each with its ID, whether it was
+// added, changed or removed, and its tag list and text as each exists
+// before and after. It is empty when no horizon clause differs.
+func HorizonChanges(main, head *docs.Set) string {
+	var s strings.Builder
+	for _, c := range docs.DiffHorizon(main, head) {
+		was, _ := main.Lookup(c.ID)
+		now, _ := head.Lookup(c.ID)
+		switch c.Change {
+		case "added":
+			fmt.Fprintf(&s, "- Added %s\n", describe(now))
+		case "removed":
+			fmt.Fprintf(&s, "- Removed %s\n", describe(was))
+		default:
+			fmt.Fprintf(&s, "- Changed %s\n  Was: %s\n  Now: %s\n", c.ID, body(was), body(now))
+		}
+	}
+	return s.String()
+}
+
 // Amendment describes what an amendment changed (S.shed.13): the spec
 // clauses whose text differs between the unit's commit at its earlier seal,
 // was, and at its new seal, now. A clause is left out when, on each unit

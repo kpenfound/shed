@@ -642,8 +642,9 @@ func charterNamed(main *docs.Set, reason string) ([]string, error) {
 }
 
 // shelve puts a proposal on a shelf: it writes the archive entry, with the
-// owner's answers to the unit and the answer being given, if any, records
-// the unit as archived and discards its change.
+// owner's answers to the unit and the answer being given, if any, and the
+// horizon clauses the proposal changes against the main commit it descends
+// from (S.shed.15), records the unit as archived and discards its change.
 func (f *Factory) shelve(ctx context.Context, u tracker.Unit, shelf unit.Shelf, citations []string, why string, actor unit.Actor, reason string, answer *tracker.Answer) (Outcome, error) {
 	main, err := f.mainSet(ctx)
 	if err != nil {
@@ -653,6 +654,11 @@ func (f *Factory) shelve(ctx context.Context, u tracker.Unit, shelf unit.Shelf, 
 	if err != nil {
 		return "", err
 	}
+	base, err := f.Repo.Base(ctx, u.Change)
+	if err != nil {
+		return "", err
+	}
+	from, _ := docs.Load(revision.Git{Root: f.Root, Rev: base})
 	record, err := f.record(u.Change)
 	if err != nil {
 		return "", err
@@ -666,7 +672,8 @@ func (f *Factory) shelve(ctx context.Context, u tracker.Unit, shelf unit.Shelf, 
 	}
 	entry := archive.Format(archive.Record{
 		Title: u.Title, Change: u.Change, Shelf: shelf, Citations: citations,
-		Reason: why, Proposal: bundle.Changes(main, head), Answers: renderAnswers(answers), Debate: record,
+		Reason: why, Proposal: bundle.Changes(main, head),
+		Horizon: bundle.HorizonChanges(from, head), Answers: renderAnswers(answers), Debate: record,
 	})
 	if _, err := f.Repo.WriteArchive(ctx, archive.Path(shelf, u.Change), []byte(entry),
 		fmt.Sprintf("%s: %s", shelf, u.Title)); err != nil {

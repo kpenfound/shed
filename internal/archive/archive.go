@@ -41,6 +41,9 @@ type Record struct {
 	// decision.
 	Reason   string
 	Proposal string
+	// Horizon lists the horizon clauses the proposal adds, changes or
+	// removes, one per item.
+	Horizon string
 	// Answers are the owner's answers to the unit, one per line.
 	Answers string
 	Debate  string
@@ -60,6 +63,9 @@ func Format(r Record) string {
 	fmt.Fprintf(&b, "\n## %s\n\n%s\n", label, strings.TrimSpace(r.Reason))
 	if r.Proposal != "" {
 		fmt.Fprintf(&b, "\n## Proposal\n\n%s\n", strings.TrimSpace(r.Proposal))
+	}
+	if r.Horizon != "" {
+		fmt.Fprintf(&b, "\n## Horizon changes\n\n%s\n", strings.TrimSpace(r.Horizon))
 	}
 	if r.Answers != "" {
 		fmt.Fprintf(&b, "\n## Owner's answers\n\n%s\n", strings.TrimSpace(r.Answers))

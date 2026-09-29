@@ -200,6 +200,21 @@ func (r *Repo) Commit(ctx context.Context, change string) (string, error) {
 	return out, nil
 }
 
+// Base returns the latest main commit a unit's change descends from.
+func (r *Repo) Base(ctx context.Context, change string) (string, error) {
+	if err := r.importGit(ctx); err != nil {
+		return "", err
+	}
+	out, err := r.log(ctx, fmt.Sprintf("heads(::%s & ::%s)", changeRevset(change), r.mainRevset()), "commit_id")
+	if err != nil {
+		return "", err
+	}
+	if out == "" {
+		return "", fmt.Errorf("change %s does not descend from %s", change, r.opts.Main)
+	}
+	return out, nil
+}
+
 func changeRevset(change string) string { return fmt.Sprintf("change_id(%s)", change) }
 
 // log evaluates a template over a revset without touching any working copy.

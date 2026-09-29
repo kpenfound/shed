@@ -299,7 +299,7 @@ distant and get promoted as the soon tier drains.
 - **H.owner.3** (distant) When painters keep hitting the same charter clause,
   shed raises a charter question. Until the owner answers, painters propose
   nothing in that direction.
-- **H.owner.4** (soon) Declined horizon amendments go to the archive with
+- **H.owner.4** (soon, realised) Declined horizon amendments go to the archive with
   their debate record.
 
 ## Init

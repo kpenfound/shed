@@ -166,7 +166,7 @@ Rejected entries violated the charter. Each records the citation. Their main job
 
 Deferred entries were clean but off the horizon. Each records what would change the decision. Painters re-read this shelf whenever the horizon moves.
 
-Declined charter and horizon amendments go here too.
+Declined charter and horizon amendments go here too. An entry lists the horizon clauses its proposal added, changed or removed, with their tags and text before and after, beside its spec changes and debate.
 
 ---
 
