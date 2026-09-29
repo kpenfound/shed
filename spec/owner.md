@@ -30,3 +30,15 @@
 - **S.owner.6** (H.owner.1) Shed refuses a `shed answer` to a unit that is
   not contested, with a kind other than `retry` or `defer`, or with an empty
   reason. A refused answer records nothing and moves nothing.
+- **S.owner.7** (H.owner.1) `shed inbox` marks as new each contested unit
+  it lists whose latest move to contested has a higher event sequence number
+  (S.track.3, S.track.4) than the one stored by the previous recorded
+  `shed inbox`, and leaves the others unmarked. Every contested unit is new
+  when no `shed inbox` has been recorded. `-peek` marks against the previous
+  recorded `shed inbox` just as a recording read does. Each recorded
+  `shed inbox` stores in the tracker, beside the main commit of S.owner.3,
+  the sequence number of the latest tracker event at the moment it read the
+  contested units, so `shed tracker rebuild` keeps it and a unit contested
+  after that moment is new at the next `shed inbox`. So a unit that is
+  retried and becomes contested again after the previous recorded
+  `shed inbox` is new again.

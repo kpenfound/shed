@@ -111,6 +111,16 @@ unit in the order the units became contested, each with its short change ID,
 bounce count, title and the reason it was contested. A unit that has left
 `contested` drops off the list (S.owner.1).
 
+A contested unit is marked `new` when it became contested after the previous
+recorded `shed inbox` read the list, so the owner can see at a glance what
+they have not seen yet. "After" means event order, not wall-clock time: each
+recorded inbox stores the sequence number of the latest tracker event at the
+moment it read the contested units, and a unit is new when its latest move to
+`contested` has a higher sequence number. A unit contested while an inbox is
+running is therefore new at the next one. When no inbox has been recorded,
+every contested unit is new. A unit that is retried and becomes contested
+again after the previous recorded inbox is new again (S.owner.7).
+
 Then it lists the horizon clauses added, changed or removed on main since
 the main commit the previous `shed inbox` read. They come in document order,
 each with its ID and tier. A removed clause shows its tier at that earlier
@@ -120,20 +130,22 @@ rewrapping a clause is not a change (S.owner.2).
 
 ```
 Contested units:
-  qpvuntsm  bounces 4  Say goodbye: bounced 4 times, over the threshold of 3
+  qpvuntsm  new  bounces 4  Say goodbye: bounced 4 times, over the threshold of 3
 
 Horizon changes since main at 3f2a9c1d7e4b:
   changed  H.greet.2  near
   added    H.greet.4  eventual
 ```
 
-Every `shed inbox` records the main commit it read in the event log, so
-`shed tracker rebuild` keeps it and the next inbox starts from there. The
+Every `shed inbox` records the main commit it read, and the event sequence
+number it marks against, in the event log, so `shed tracker rebuild` keeps
+them and the next inbox starts from there. The
 first inbox has no earlier commit and lists no horizon changes. If the
 recorded commit is not an ancestor of main, for example after the remote was
 re-cloned, the inbox says so and lists no horizon changes, and the commit it
 records becomes the new starting point. `shed inbox -peek` lists the same
-entries and records nothing (S.owner.3).
+entries, marks new units against the previous recorded inbox just as a
+recording read does, and records nothing (S.owner.3, S.owner.7).
 
 Reading the inbox never moves a unit and never starts or stops a stage. The
 factory does not wait for it.
@@ -169,7 +181,7 @@ answer records nothing and moves nothing (S.owner.6).
 | Command | Does |
 | --- | --- |
 | `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost and title, then the notices waiting for the owner. |
-| `shed inbox [-peek]` | Lists contested units and the horizon changes on main since the last inbox. `-peek` records nothing. |
+| `shed inbox [-peek]` | Lists contested units, marking those new since the last inbox, and the horizon changes on main since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
 | `shed answer <unit> retry\|defer <reason>` | Answers a contested unit: moves it back to `proposed` or defers it to the archive. |
 | `shed unit move <unit> <state> <reason>` | Moves a unit by hand to `implementing`, `verifying` or `queued`. |

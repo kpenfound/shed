@@ -13,7 +13,9 @@ import (
 
 // inbox lists the contested units, then the horizon clauses changed on main
 // since the main commit the last inbox recorded (S.owner.1, S.owner.2). It
-// records the main commit it read unless it is a peek (S.owner.3).
+// marks the units contested since the last recorded inbox as new
+// (S.owner.7), and records the main commit and the latest event it read
+// unless it is a peek (S.owner.3).
 func (e env) inbox(args []string) int {
 	fs := e.flags("inbox")
 	peek := fs.Bool("peek", false, "list the inbox without recording that it was read")
@@ -24,7 +26,7 @@ func (e env) inbox(args []string) int {
 		return e.misuse("inbox takes no arguments")
 	}
 	return e.withRepo(func(t *tracker.Tracker, repo *vcs.Repo) int {
-		contested, err := t.Contested()
+		contested, seq, err := t.Contested()
 		if err != nil {
 			return e.fail(err)
 		}
@@ -43,7 +45,11 @@ func (e env) inbox(args []string) int {
 			fmt.Fprintln(e.stdout, "Contested units:")
 			w := tabwriter.NewWriter(e.stdout, 0, 4, 2, ' ', 0)
 			for _, u := range contested {
-				fmt.Fprintf(w, "  %s\tbounces %d\t%s: %s\n", unit.Short(u.Change), u.Bounces, u.Title, u.ContestedReason)
+				mark := ""
+				if u.New {
+					mark = "new"
+				}
+				fmt.Fprintf(w, "  %s\t%s\tbounces %d\t%s: %s\n", unit.Short(u.Change), mark, u.Bounces, u.Title, u.ContestedReason)
 			}
 			if err := w.Flush(); err != nil {
 				return e.fail(err)
@@ -81,7 +87,7 @@ func (e env) inbox(args []string) int {
 		}
 
 		if !*peek {
-			if err := t.RecordInbox(main); err != nil {
+			if err := t.RecordInbox(main, seq); err != nil {
 				return e.fail(err)
 			}
 		}

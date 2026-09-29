@@ -62,6 +62,8 @@ type Event struct {
 	// inbox read.
 	Commit    string     `json:"commit,omitempty"`
 	Footprint *Footprint `json:"footprint,omitempty"`
+	// ReadSeq is the sequence number of the latest event an inbox read.
+	ReadSeq int64 `json:"read_seq,omitempty"`
 	// Actual and Drift are set when a unit lands: its actual footprint and
 	// how that differs from the footprint recorded at its seal.
 	Actual    *Footprint   `json:"actual,omitempty"`

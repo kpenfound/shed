@@ -418,7 +418,10 @@ func apply(tx *sql.Tx, e Event) error {
 	case ObjectionAnswer:
 		return exec(`UPDATE objections SET answer = ? WHERE id = ?`, e.Objection.Text, e.Objection.ID)
 	case InboxRead:
-		return exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('inbox', ?)`, e.Commit)
+		if err := exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('inbox', ?)`, e.Commit); err != nil {
+			return err
+		}
+		return setMeta(tx, "inbox_seq", e.ReadSeq)
 	}
 	return fmt.Errorf("unknown event kind %q", e.Kind)
 }

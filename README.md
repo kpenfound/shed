@@ -199,7 +199,7 @@ shed run <unit>                    # debate, implement, verify, land
 | `shed show <citation>...` | Prints the clauses citations name, at any revision. |
 | `shed diff <from> [<to>]` | Lists spec clauses added, changed and removed between revisions. |
 | `shed status` | Lists units, what waits for the owner, and whether the factory is paused. |
-| `shed inbox [-peek]` | Lists contested units and the horizon changes since you last looked. |
+| `shed inbox [-peek]` | Lists contested units, marking those new since you last looked, and the horizon changes since then. |
 | `shed answer <unit> retry\|defer <reason>` | Answers a contested unit: retry it in the shed or defer it to the archive. |
 | `shed unit open\|declare\|move\|reopen\|log\|path` | Drives units by hand. |
 | `shed debate\|land\|run <unit>` | Runs one stage of a unit, or all of them. |

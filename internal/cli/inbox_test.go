@@ -13,9 +13,10 @@ import (
 )
 
 // inboxEntries returns the inbox's contested units and horizon changes, one
-// per line with runs of whitespace collapsed.
+// per line with runs of whitespace collapsed. A contested unit new since the
+// last recorded inbox reads "<change> new bounces ...".
 func inboxEntries(out string) (contested, horizon []string) {
-	contestedLine := regexp.MustCompile(`^[a-z]+ bounces \d+ `)
+	contestedLine := regexp.MustCompile(`^[a-z]+ (new )?bounces \d+ `)
 	horizonLine := regexp.MustCompile(`^(added|changed|removed) H\.`)
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.Join(strings.Fields(line), " ")
@@ -144,8 +145,8 @@ func TestInboxListsContestedUnits(t *testing.T) {
 
 	contested, _ = inboxEntries(mustRun(t, r.Dir, "inbox"))
 	wantEntries(t, "contested units", contested,
-		unit.Short(b)+" bounces 1 Wave: bounced 1 time, over the threshold of 0",
-		unit.Short(a)+" bounces 2 Say goodbye: bounced 2 times, over the threshold of 1")
+		unit.Short(b)+" new bounces 1 Wave: bounced 1 time, over the threshold of 0",
+		unit.Short(a)+" new bounces 2 Say goodbye: bounced 2 times, over the threshold of 1")
 }
 
 //shed:proves S.owner.2
@@ -271,4 +272,61 @@ func TestInboxRecordsWhatItRead(t *testing.T) {
 	if after := units(); after != before {
 		t.Errorf("reading the inbox moved units or sessions:\n%s\nwant\n%s", after, before)
 	}
+}
+
+//shed:proves S.owner.7
+func TestInboxMarksNewContestedUnits(t *testing.T) {
+	r := testrepo.Colocated(t)
+	state := filepath.Join(r.Dir, DefaultStateDir)
+	r.Write(".shed/config.toml", "[shed]\nbounce_threshold = 0\n")
+	a := openUnit(t, r.Dir, "Say goodbye")
+	b := openUnit(t, r.Dir, "Wave")
+	contest := func(change string) {
+		t.Helper()
+		seal(t, state, change)
+		mustRun(t, r.Dir, "unit", "reopen", change, "the", "spec", "is", "wrong")
+	}
+	line := func(change, title string, bounces int, isNew bool) string {
+		mark := ""
+		if isNew {
+			mark = "new "
+		}
+		times := "times"
+		if bounces == 1 {
+			times = "time"
+		}
+		return fmt.Sprintf("%s %sbounces %d %s: bounced %d %s, over the threshold of 0", unit.Short(change), mark, bounces, title, bounces, times)
+	}
+	inbox := func(what string, args []string, want ...string) {
+		t.Helper()
+		contested, _ := inboxEntries(mustRun(t, r.Dir, append([]string{"inbox"}, args...)...))
+		wantEntries(t, what, contested, want...)
+	}
+
+	// With no inbox recorded, every contested unit is new, and a peek
+	// leaves it so.
+	contest(a)
+	inbox("peeked before any inbox", []string{"-peek"}, line(a, "Say goodbye", 1, true))
+	inbox("the first inbox", nil, line(a, "Say goodbye", 1, true))
+
+	// Only a unit contested since the last recorded inbox is new. A peek
+	// marks against that inbox, so it marks the same units.
+	contest(b)
+	inbox("peeked after a unit is contested", []string{"-peek"},
+		line(a, "Say goodbye", 1, false), line(b, "Wave", 1, true))
+	inbox("inbox after a unit is contested", nil,
+		line(a, "Say goodbye", 1, false), line(b, "Wave", 1, true))
+	inbox("inbox with nothing contested since", nil,
+		line(a, "Say goodbye", 1, false), line(b, "Wave", 1, false))
+
+	// A unit retried and contested again is new again, and the last
+	// recorded inbox survives a rebuild of the tracker.
+	mustRun(t, r.Dir, "answer", a, "retry", "narrow", "the", "scope")
+	contest(a)
+	mustRun(t, r.Dir, "tracker", "rebuild")
+	inbox("inbox after a retry and a rebuild", nil,
+		line(b, "Wave", 1, false), line(a, "Say goodbye", 2, true))
+	mustRun(t, r.Dir, "tracker", "rebuild")
+	inbox("inbox after another rebuild", nil,
+		line(b, "Wave", 1, false), line(a, "Say goodbye", 2, false))
 }
