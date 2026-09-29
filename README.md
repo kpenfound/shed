@@ -197,7 +197,7 @@ shed run <unit>                    # debate, implement, verify, land
 | `shed gap`, `shed trace` | List the horizon clauses not yet realised, or every horizon clause with the spec clauses that advance it and its refinement links. |
 | `shed prove [<id>...]` | Runs the proofs of spec clauses and reports per clause. |
 | `shed show <citation>...` | Prints the clauses citations name, at any revision. |
-| `shed diff <from> [<to>]` | Lists spec clauses added, changed and removed between revisions. |
+| `shed diff <from> [<to>]` | Lists spec and horizon clauses added, changed and removed between revisions, and the horizon amendment's tier. |
 | `shed status` | Lists units, what waits for the owner, and whether the factory is paused. |
 | `shed inbox [-peek]` | Lists contested units, the horizon changes, the charter clauses that keep getting proposals rejected, and sampled horizon amendments, marking what is new since you last looked. |
 | `shed answer <unit> retry\|defer\|reject <reason>` | Answers a contested unit: retry it in the shed, or defer or reject it to the archive. |

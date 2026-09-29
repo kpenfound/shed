@@ -137,3 +137,105 @@ func onlyRealised(from, to *Set, id clause.ID) bool {
 	rest := slices.DeleteFunc(slices.Clone(c.Tags), func(t string) bool { return t == Realised })
 	return slices.Equal(o.Tags, rest)
 }
+
+// TieredHorizonChange is a horizon clause a diff lists, with its tier (S.diff.3).
+type TieredHorizonChange struct {
+	ID   clause.ID
+	Tier string
+}
+
+// HorizonDiff lists the horizon clauses that differ between two revisions and
+// the tier of the amendment they make.
+type HorizonDiff struct {
+	Added   []TieredHorizonChange
+	Removed []TieredHorizonChange
+	Changed []TieredHorizonChange
+	// Tier is the highest tier among the clauses the amendment counts, or
+	// empty when it counts none (S.diff.4).
+	Tier string
+}
+
+// DiffHorizonAmendment compares the horizon clauses of two sets. A clause changes when
+// its text or its tag list changes; whitespace does not count. An added
+// clause takes its tier on to, a removed one its tier on from and a changed
+// one the higher of the two.
+//
+// The amendment's tier counts every listed clause at its own tier, except a
+// changed clause whose only change is gaining realised (S.owner.11). A clause
+// whose refines tag differs between the revisions also counts at the tier of
+// the clause its tag names, on each revision where it carries the tag.
+func DiffHorizonAmendment(from, to *Set) HorizonDiff {
+	var d HorizonDiff
+	old := horizonByID(from)
+	cur := horizonByID(to)
+	count := func(tier string) {
+		if tierRank(tier) > tierRank(d.Tier) {
+			d.Tier = tier
+		}
+	}
+	countParents := func(o, c *TraceEntry) {
+		var was, now clause.ID
+		if o != nil {
+			was = o.Refines
+		}
+		if c != nil {
+			now = c.Refines
+		}
+		if was == now {
+			return
+		}
+		if parent, ok := old[was]; ok {
+			count(parent.Tier)
+		}
+		if parent, ok := cur[now]; ok {
+			count(parent.Tier)
+		}
+	}
+	for _, id := range slices.SortedFunc(maps.Keys(cur), clause.Compare) {
+		c := cur[id]
+		o, ok := old[id]
+		switch {
+		case !ok:
+			d.Added = append(d.Added, TieredHorizonChange{id, c.Tier})
+			count(c.Tier)
+			countParents(nil, &c)
+		case o.Clause.Text != c.Clause.Text || !slices.Equal(o.Clause.Tags, c.Clause.Tags):
+			tier := o.Tier
+			if tierRank(c.Tier) > tierRank(tier) {
+				tier = c.Tier
+			}
+			d.Changed = append(d.Changed, TieredHorizonChange{id, tier})
+			if !onlyRealised(from, to, id) {
+				count(tier)
+			}
+			countParents(&o, &c)
+		}
+	}
+	for _, id := range slices.SortedFunc(maps.Keys(old), clause.Compare) {
+		if _, ok := cur[id]; !ok {
+			o := old[id]
+			d.Removed = append(d.Removed, TieredHorizonChange{id, o.Tier})
+			count(o.Tier)
+			countParents(&o, nil)
+		}
+	}
+	return d
+}
+
+// Listed reports whether the diff lists any horizon clause.
+func (d HorizonDiff) Listed() bool {
+	return len(d.Added)+len(d.Removed)+len(d.Changed) > 0
+}
+
+// tierRank orders tiers nearest first, from 1; an empty or unknown tier is 0.
+func tierRank(tier string) int {
+	return slices.Index(Tiers, tier) + 1
+}
+
+func horizonByID(s *Set) map[clause.ID]TraceEntry {
+	out := map[clause.ID]TraceEntry{}
+	for _, e := range Trace(s) {
+		out[e.Clause.ID] = e
+	}
+	return out
+}

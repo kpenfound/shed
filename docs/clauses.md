@@ -108,7 +108,37 @@ runner = ["scripts/in-dagger"]
 | --- | --- |
 | `shed check` | Validates documents, IDs, history, citations and proofs. Exits non-zero on any problem. |
 | `shed show <citation>...` | Prints the clauses the citations name. |
-| `shed diff <from> [<to>]` | Lists spec clauses added, removed or changed between revisions, or between a revision and the working tree. |
+| `shed diff <from> [<to>]` | Lists spec and horizon clauses added, removed or changed between revisions, or between a revision and the working tree, and the tier of the horizon amendment. |
 | `shed trace` | Lists every horizon clause with its tier, whether it is realised, the spec clauses advancing it, and the clause it refines or the clauses refining it. |
 | `shed gap` | Lists the horizon clauses not yet realised. |
 | `shed prove [<id>...]` | Runs proofs and reports per clause. |
+
+## Diffs
+
+`shed diff` lists the spec clauses first, then the horizon clauses, each
+horizon clause with its tier. A removed clause takes its tier on the first
+revision, an added clause its tier on the second, and a changed clause the
+higher of the two. A clause changes when its text or its tag list changes.
+Rewrapping or reindenting does not count.
+
+When it lists any horizon clause, the diff ends with the tier of the horizon
+amendment: the highest tier among the clauses it counts.
+
+```
+changed S.core.1
+added   H.greet.9 eventual
+removed H.greet.4 near
+changed H.greet.7 soon
+tier    eventual
+```
+
+Two rules adjust the count:
+
+- A changed clause whose only change is gaining `realised` is listed but
+  not counted. A diff that only marks clauses realised gives no tier.
+  Losing `realised` counts like any other change.
+- A clause whose `refines` tag is added, removed or retargeted, including an
+  added clause that carries one and a removed clause that carried one, also
+  counts at the tier of the clause its tag names on each revision where it
+  carries the tag. Adding a soon clause that refines a distant clause makes
+  a distant amendment.

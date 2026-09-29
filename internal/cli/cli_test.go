@@ -115,6 +115,145 @@ func TestDiff(t *testing.T) {
 	}
 }
 
+// horizonDoc wraps horizon clauses in the heading and milestones the test
+// repository's horizon carries.
+func horizonDoc(clauses string) string {
+	return "# Horizon\n\n" + clauses + "\n## Milestones\n\n- **M1** Greetings. H.greet.1 to H.greet.2.\n"
+}
+
+//shed:proves S.diff.3
+func TestDiffListsHorizonClauses(t *testing.T) {
+	r := project(t)
+	r.Write("horizon.md", horizonDoc(`- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (soon) The tool says goodbye.
+- **H.greet.3** (distant) The tool greets in any language, within C2.
+- **H.greet.4** (near) Removed later.
+- **H.greet.5** (near) Rewrapped only.
+- **H.greet.6** (near) Text changes.
+- **H.greet.7** (soon) Tier changes.
+- **H.greet.8** (near) Tier rises.
+`))
+	r.Init()
+	first := r.Commit("first")
+	r.Write("spec/core.md", "# Core\n\n- **S.core.1** (H.greet.1) Running the tool prints hello, twice.\n")
+	r.Write("horizon.md", horizonDoc(`- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (soon) The tool says goodbye.
+- **H.greet.3** (distant) The tool greets in any language, within C2.
+- **H.greet.5**   (near)   Rewrapped
+  only.
+- **H.greet.6** (near) Text changed.
+- **H.greet.7** (near) Tier changes.
+- **H.greet.8** (distant) Tier rises.
+- **H.greet.9** (eventual) Added.
+`))
+	second := r.Commit("second")
+
+	stdout, stderr, code := run(t, r.Dir, "diff", first, second)
+	want := "changed S.core.1\n" +
+		"added   H.greet.9 eventual\n" +
+		"removed H.greet.4 near\n" +
+		"changed H.greet.6 near\n" +
+		"changed H.greet.7 soon\n" +
+		"changed H.greet.8 distant\n" +
+		"tier    eventual\n"
+	if code != OK || stderr != "" || stdout != want {
+		t.Errorf("diff = %d, stderr %q\n%s\nwant\n%s", code, stderr, stdout, want)
+	}
+
+	// Against the working tree, and in the other direction, tiers come from
+	// the revision each clause is on.
+	r.Write("horizon.md", horizonDoc(`- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (soon) The tool says goodbye.
+- **H.greet.3** (distant) The tool greets in any language, within C2.
+- **H.greet.5** (near) Rewrapped only.
+- **H.greet.6** (near) Text changed.
+- **H.greet.7** (near) Tier changes.
+- **H.greet.8** (distant) Tier rises.
+`))
+	stdout, stderr, code = run(t, r.Dir, "diff", "HEAD")
+	want = "removed H.greet.9 eventual\ntier    eventual\n"
+	if code != OK || stderr != "" || stdout != want {
+		t.Errorf("diff HEAD = %d, stderr %q\n%s\nwant\n%s", code, stderr, stdout, want)
+	}
+	stdout, stderr, code = run(t, r.Dir, "diff", second, first)
+	want = "changed S.core.1\n" +
+		"added   H.greet.4 near\n" +
+		"removed H.greet.9 eventual\n" +
+		"changed H.greet.6 near\n" +
+		"changed H.greet.7 soon\n" +
+		"changed H.greet.8 distant\n" +
+		"tier    eventual\n"
+	if code != OK || stderr != "" || stdout != want {
+		t.Errorf("diff second first = %d, stderr %q\n%s\nwant\n%s", code, stderr, stdout, want)
+	}
+}
+
+//shed:proves S.diff.4
+func TestDiffGivesHorizonAmendmentTier(t *testing.T) {
+	base := `- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (soon) The tool says goodbye.
+- **H.greet.3** (distant) The tool greets in any language, within C2.
+- **H.greet.4** (eventual) The tool greets everyone at once.
+- **H.greet.5** (near, refines H.greet.3) The tool greets in French.
+`
+	r := project(t)
+	r.Write("horizon.md", horizonDoc(base))
+	r.Init()
+	r.Commit("base")
+
+	for _, tc := range []struct {
+		name    string
+		horizon string
+		want    string
+	}{
+		{"no horizon change", base, ""},
+		{"gaining realised is listed, not counted",
+			strings.Replace(base, "(soon) The tool says goodbye.", "(soon, realised) The tool says goodbye.", 1),
+			"changed H.greet.2 soon\n"},
+		{"losing realised counts",
+			strings.Replace(base, "(soon, realised) The tool says hello.", "(soon) The tool says hello.", 1),
+			"changed H.greet.1 soon\ntier    soon\n"},
+		{"realised on a refining clause is not counted",
+			strings.Replace(base, "(near, refines H.greet.3)", "(near, refines H.greet.3, realised)", 1),
+			"changed H.greet.5 near\n"},
+		{"realised with a text change counts",
+			strings.Replace(base, "(soon) The tool says goodbye.", "(soon, realised) The tool says goodbye politely.", 1),
+			"changed H.greet.2 soon\ntier    soon\n"},
+		{"the tier is the highest counted, ignoring realised-only changes",
+			strings.NewReplacer(
+				"(soon) The tool says goodbye.", "(soon) The tool says goodbye politely.",
+				"(distant) The tool", "(distant, realised) The tool",
+			).Replace(base),
+			"changed H.greet.2 soon\nchanged H.greet.3 distant\ntier    soon\n"},
+		{"a refining clause with an unchanged tag counts at its own tier",
+			strings.Replace(base, "greets in French.", "greets in French, formally.", 1),
+			"changed H.greet.5 near\ntier    near\n"},
+		{"an added clause that refines counts at its parent's tier",
+			base + "- **H.greet.6** (near, refines H.greet.3) The tool greets in German.\n",
+			"added   H.greet.6 near\ntier    distant\n"},
+		{"a removed clause that refined counts at its parent's tier",
+			strings.Replace(base, "- **H.greet.5** (near, refines H.greet.3) The tool greets in French.\n", "", 1),
+			"removed H.greet.5 near\ntier    distant\n"},
+		{"a dropped refines tag counts at the old parent's tier",
+			strings.Replace(base, "(near, refines H.greet.3)", "(near)", 1),
+			"changed H.greet.5 near\ntier    distant\n"},
+		{"a new refines tag counts at the new parent's tier",
+			strings.Replace(base, "(soon) The tool says goodbye.", "(soon, refines H.greet.4) The tool says goodbye.", 1),
+			"changed H.greet.2 soon\ntier    eventual\n"},
+		{"a retargeted refines tag counts at both parents' tiers",
+			strings.Replace(base, "(near, refines H.greet.3)", "(near, refines H.greet.4)", 1),
+			"changed H.greet.5 near\ntier    eventual\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r.Write("horizon.md", horizonDoc(tc.horizon))
+			stdout, stderr, code := run(t, r.Dir, "diff", "HEAD")
+			if code != OK || stderr != "" || stdout != tc.want {
+				t.Errorf("diff = %d, stderr %q\n%s\nwant\n%s", code, stderr, stdout, tc.want)
+			}
+		})
+	}
+}
+
 //shed:proves S.horizon.4 S.horizon.5
 func TestTraceAndGap(t *testing.T) {
 	r := project(t)

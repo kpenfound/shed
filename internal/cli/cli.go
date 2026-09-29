@@ -67,7 +67,7 @@ const usage = `usage: shed [-C dir] [-state dir] <command> [arguments]
 Documents:
   check              validate the documents, proofs and citations
   show <citation>... print the clauses the citations name
-  diff <from> [<to>] list spec clauses added, removed or changed between revisions
+  diff <from> [<to>] list spec and horizon clauses added, removed or changed between revisions
   trace              list every horizon clause with the spec clauses advancing it
   gap                list the horizon clauses the spec has not realised
   prove [<id>...]    run the proofs of spec clauses and report per clause
@@ -313,6 +313,18 @@ func (e env) diff(args []string) int {
 		for _, id := range group.ids {
 			fmt.Fprintf(e.stdout, "%-8s%s\n", group.label, id)
 		}
+	}
+	h := docs.DiffHorizonAmendment(from, to)
+	for _, group := range []struct {
+		label   string
+		changes []docs.TieredHorizonChange
+	}{{"added", h.Added}, {"removed", h.Removed}, {"changed", h.Changed}} {
+		for _, c := range group.changes {
+			fmt.Fprintf(e.stdout, "%-8s%s %s\n", group.label, c.ID, c.Tier)
+		}
+	}
+	if h.Tier != "" {
+		fmt.Fprintf(e.stdout, "%-8s%s\n", "tier", h.Tier)
 	}
 	return OK
 }
