@@ -40,6 +40,8 @@ type Factory struct {
 	Repo     *vcs.Repo
 	Sessions *session.Sessions
 	Provider bundle.Provider
+
+	live live
 }
 
 // Open opens the factory of a repository with its state directory. Runner
@@ -75,12 +77,18 @@ func Open(ctx context.Context, root, state string, runner session.Runner) (*Fact
 			SessionsDir: filepath.Join(state, tracker.SessionsDir), NamePrefix: "shed-",
 		}}
 	}
-	return &Factory{
+	f := &Factory{
 		Root: repo.Root(), State: state, Operator: op, Project: project,
 		Tracker: tr, Repo: repo,
 		Sessions: &session.Sessions{Tracker: tr, Runner: runner, Retries: 2},
 		Provider: bundle.Files{},
-	}, nil
+	}
+	// Finish any sweep a stopped process left undone (S.vcs.11).
+	if err := f.sweep(ctx, ""); err != nil {
+		tr.Close()
+		return nil, err
+	}
+	return f, nil
 }
 
 // Close closes the tracker.
@@ -108,13 +116,19 @@ type work struct {
 
 // session runs one session on a unit: it exports the unit's files into a
 // fresh directory, builds the bundle, runs the session and, for a writable
-// one, captures the directory back onto the unit's change.
+// one, captures the directory back onto the unit's change. No rebase moves
+// the unit's change while it runs.
 func (f *Factory) session(ctx context.Context, w work) (session.Result, error) {
+	f.enter(w.Unit.Change)
+	defer f.leave(ctx, w.Unit.Change)
 	view := filepath.Join(f.State, "views", nonce())
 	if err := f.Repo.Export(ctx, w.Unit.Change, view); err != nil {
 		return session.Result{}, err
 	}
 	defer os.RemoveAll(view)
+	if err := f.recordMarkers(ctx, w.Unit.Change, view); err != nil {
+		return session.Result{}, err
+	}
 
 	main, err := f.mainSet(ctx)
 	if err != nil {

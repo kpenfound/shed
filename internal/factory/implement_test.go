@@ -322,9 +322,10 @@ func TestResealTellsTheMechanicTheAmendment(t *testing.T) {
 		}
 	}
 
-	// Main changes the hello clause, which the unit only depends on, and the
-	// amendment carries main's text, changes the goodbye clause and drops
-	// the wave clause.
+	// Main changes the hello clause, which the unit only depends on, the
+	// unit is rebased onto it as after any landing, and the amendment
+	// carries main's text, changes the goodbye clause and drops the wave
+	// clause.
 	other, err := f.Repo.NewUnit(ctx, "Hello")
 	must(t, err)
 	odir, err := f.Repo.Workspace(ctx, other)
@@ -333,6 +334,7 @@ func TestResealTellsTheMechanicTheAmendment(t *testing.T) {
 	write(t, odir, "spec/core.md", hello)
 	_, err = f.Repo.Land(ctx, other, func(context.Context, string, string) (string, error) { return "Hello", nil })
 	must(t, err)
+	must(t, f.sweep(ctx, other))
 	const byeAmended = "- **S.core.2** (H.greet.2) Running the tool with --bye prints goodbye on standard output.\n"
 	write(t, dir, "spec/core.md", hello+byeAmended)
 	reseal()
@@ -467,6 +469,21 @@ func TestRejectedAmendmentKeepsTheSealedSpec(t *testing.T) {
 		t.Error("the added spec file was removed while sealing was held back")
 	}
 
+	// A unit lands a spec clause of its own meanwhile, and the next shed
+	// process rebases the unit onto it.
+	hola, err := f.Repo.NewUnit(ctx, "Hola")
+	must(t, err)
+	holaDir, err := f.Repo.Workspace(ctx, hola)
+	must(t, err)
+	write(t, holaDir, "spec/hola.md", "# Hola\n\n- **S.hola.1** (H.greet.3) Running the tool with --hola prints hola.\n")
+	if _, err := f.Repo.Land(ctx, hola, func(context.Context, string, string) (string, error) { return "Hola", nil }); err != nil {
+		t.Fatal(err)
+	}
+	must(t, f.Close())
+	f, err = Open(ctx, r.Dir, f.State, fake)
+	must(t, err)
+	t.Cleanup(func() { f.Close() })
+
 	// Once the cap frees, the next debate runs no further round and rejects
 	// the amendment: the spec is restored and the unit sealed.
 	must(t, f.Tracker.Reopen(other, unit.Wheelbuilder, "the proof is weak", false))
@@ -505,8 +522,17 @@ func TestRejectedAmendmentKeepsTheSealedSpec(t *testing.T) {
 	if entries, _ := archive.Read(r.Dir); len(entries) != 0 {
 		t.Errorf("rejecting the amendment archived %+v", entries)
 	}
-	if got, want := r.Git("ls-tree", "-r", commit, "spec/"), r.Git("ls-tree", "-r", seal, "spec/"); got != want {
-		t.Errorf("spec/ on the change:\n%s\nwant it as sealed:\n%s", got, want)
+	// spec/ is the sealed spec rebased onto main: the clause main gained
+	// after the seal stays, and the spec file the amendment added goes.
+	wantSpec := strings.Split(r.Git("ls-tree", "-r", seal, "spec/")+"\n"+r.Git("ls-tree", "-r", main, "spec/hola.md"), "\n")
+	slices.SortFunc(wantSpec, func(a, b string) int {
+		return strings.Compare(a[strings.Index(a, "\t"):], b[strings.Index(b, "\t"):])
+	})
+	if got, want := r.Git("ls-tree", "-r", commit, "spec/"), strings.Join(wantSpec, "\n"); got != want {
+		t.Errorf("spec/ on the change:\n%s\nwant it as sealed on main:\n%s", got, want)
+	}
+	if parent := r.Git("rev-parse", commit+"^"); parent != main {
+		t.Errorf("the change sits on %s, want main %s", parent, main)
 	}
 	if got := r.Git("show", commit+":bye_test.go"); !strings.Contains(got, "func TestBye") {
 		t.Errorf("the captured proof left the change: %q", got)
@@ -564,6 +590,67 @@ func TestRejectedAmendmentKeepsTheSealedSpec(t *testing.T) {
 	}
 	if u, _ := f2.Tracker.Unit(vetoed); u.State != unit.Archived || u.Shelf != unit.Rejected {
 		t.Errorf("unit = %+v", u)
+	}
+}
+
+//shed:proves S.shed.14 S.vcs.10
+func TestRejectedAmendmentBouncesOnASpecConflict(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[shed]\nmax_rounds = 3\namendment_rounds = 1\nbounce_threshold = 10\n")
+	change := sealed(t, f, fake)
+	must(t, f.Tracker.Reopen(change, unit.Mechanic, "the mechanic requested an amendment:\nS.core.2 should say more.", true))
+	dir, err := f.Repo.Workspace(ctx, change)
+	must(t, err)
+	write(t, dir, "spec/core.md", strings.Replace(goodbyeSpec, "prints goodbye.", "prints goodbye on standard output.", 1))
+
+	// Main gains a clause where the sealed spec added its own.
+	main := landOther(t, f, "Wave", map[string]string{
+		"spec/core.md": testrepo.Spec + "- **S.core.3** (H.greet.3) Running the tool with --wave waves.\n"})
+
+	fake.on(unit.Committee, "debate", func(turn session.Turn) session.Result {
+		if member(turn) == 1 {
+			_, err := call(t, turn, "object", map[string]any{"kind": "spec", "citations": []string{"S.core.2"}, "text": "Standard output is not the tool's concern."})
+			must(t, err)
+			return done("objecting")
+		}
+		return done("clean")
+	})
+	fake.on(unit.Painter, "reply", func(session.Turn) session.Result { return done("replied") })
+
+	// The rejected amendment's restored spec conflicts with main, so the
+	// unit is not sealed: it keeps the restored files and bounces, naming
+	// the conflict, and stays in the amendment lane.
+	out, err := f.Debate(ctx, change)
+	must(t, err)
+	if out != Bounced {
+		t.Fatalf("a rejected amendment whose restored spec conflicts = %s", out)
+	}
+	u, err := f.Tracker.Unit(change)
+	must(t, err)
+	if u.State != unit.Proposed || u.Bounces != 2 {
+		t.Errorf("unit = %+v, want proposed with a second bounce", u)
+	}
+	for _, want := range []string{"spec/core.md", "S.core.2"} {
+		if !strings.Contains(u.Reason, want) {
+			t.Errorf("the bounce does not name %s: %q", want, u.Reason)
+		}
+	}
+	if lane, _ := f.lane(change); lane == nil {
+		t.Error("the bounced unit left the amendment lane")
+	}
+	if got := parent(t, f, r, change); got != main {
+		t.Errorf("the change sits on %s, want main %s", got, main)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "spec", "core.md"))
+	must(t, err)
+	for _, want := range []string{"<<<<<<<", "Running the tool with --bye prints goodbye.", "Running the tool with --wave waves."} {
+		if !strings.Contains(string(got), want) {
+			t.Errorf("the restored spec/core.md lacks %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(string(got), "standard output") {
+		t.Errorf("the rejected amendment's text stayed in spec/core.md:\n%s", got)
 	}
 }
 
@@ -746,6 +833,15 @@ func TestLandResolvesConflicts(t *testing.T) {
 	})
 	must2(t, f.Implement)(second)
 	must2(t, f.Verify)(second)
+
+	// Main moves under the queued unit, changing the line it changed.
+	third, err := f.Repo.NewUnit(ctx, "Warmly")
+	must(t, err)
+	tdir, err := f.Repo.Workspace(ctx, third)
+	must(t, err)
+	write(t, tdir, "greet.go", "package greet\n\n// Hello greets most warmly.\nfunc Hello() string { return \"hello\" }\n")
+	_, err = f.Repo.Land(ctx, third, func(context.Context, string, string) (string, error) { return "Warmly", nil })
+	must(t, err)
 	fake.on(unit.Wheelbuilder, "resolve", func(turn session.Turn) session.Result {
 		got, _ := os.ReadFile(filepath.Join(turn.Dir, "greet.go"))
 		if !strings.Contains(string(got), "<<<<<<<") {

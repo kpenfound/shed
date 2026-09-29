@@ -232,6 +232,6 @@ distant horizon clauses to soon by editing the horizon.
 | [The life of a unit, and autopilot](docs/autopilot.md) | Debate, implementation, verification, landing and `shed serve`. |
 | [Sessions](docs/sessions.md) | The sandbox, the tools and the bundles agents get. |
 | [Units and the tracker](docs/tracker.md) | Unit states, the owner inbox, the state directory and operator settings. |
-| [Version control](docs/vcs.md) | The jj repository, unit workspaces and landing. |
+| [Version control](docs/vcs.md) | The jj repository, unit workspaces, landing, and rebasing units onto main. |
 | [Releasing](docs/releasing.md) | Cutting a release. |
 | [AGENTS.md](AGENTS.md) | Working on shed itself. |

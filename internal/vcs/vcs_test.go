@@ -494,3 +494,55 @@ func TestTheOwnersGitStateIsLeftAlone(t *testing.T) {
 		t.Error("landing changed the owner's index")
 	}
 }
+
+//shed:proves S.vcs.11
+func TestInterruptedUnitRebaseIsRestored(t *testing.T) {
+	r := testrepo.Colocated(t)
+	repo := openRepo(t, r, "")
+	x := newUnit(t, repo, "Wave", map[string]string{"wave.txt": "wave\n"})
+	landed, err := repo.Land(ctx, newUnit(t, repo, "Hello", map[string]string{"hello.txt": "hello\n"}), message("Hello"))
+	must(t, err)
+	before, err := repo.Snapshot(ctx, x)
+	must(t, err)
+	dir, err := repo.Workspace(ctx, x)
+	must(t, err)
+
+	// Shed stopped partway through rebasing the unit after the landing:
+	// the change moved and its workspace was not yet updated.
+	if _, err := repo.checkpoint(ctx, "rebase "+x); err != nil {
+		t.Fatal(err)
+	}
+	r.JJ("-R", filepath.Join(repo.state, WorkspacesDir, baseDir), "--ignore-working-copy",
+		"rebase", "-s", changeRevset(x), "-d", "main")
+
+	reopened := openRepo(t, r, "")
+	if main, _ := reopened.MainCommit(ctx); main != landed {
+		t.Errorf("recovery moved main to %s, want the landing %s", main, landed)
+	}
+	if after, _ := reopened.Commit(ctx, x); after != before {
+		t.Errorf("the unit's rebase was not restored: %s became %s", before, after)
+	}
+	if entries, _ := os.ReadDir(filepath.Join(repo.state, CheckpointsDir)); len(entries) != 0 {
+		t.Errorf("checkpoints left after recovery: %d", len(entries))
+	}
+
+	// Rebasing it again finishes with the workspace on the new main.
+	conflicted, err := reopened.Rebase(ctx, x)
+	must(t, err)
+	if conflicted {
+		t.Error("the rebase conflicts")
+	}
+	commit, err := reopened.Commit(ctx, x)
+	must(t, err)
+	if parent := r.Git("rev-parse", commit+"^"); parent != landed {
+		t.Errorf("the unit sits on %s, want the landing %s", parent, landed)
+	}
+	for _, name := range []string{"wave.txt", "hello.txt"} {
+		if !exists(filepath.Join(dir, name)) {
+			t.Errorf("the rebased workspace lacks %s", name)
+		}
+	}
+	if entries, _ := os.ReadDir(filepath.Join(repo.state, CheckpointsDir)); len(entries) != 0 {
+		t.Errorf("checkpoints left after the rebase: %d", len(entries))
+	}
+}

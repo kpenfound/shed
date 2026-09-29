@@ -12,7 +12,6 @@ import (
 
 	"github.com/kpenfound/shed/internal/archive"
 	"github.com/kpenfound/shed/internal/session"
-	"github.com/kpenfound/shed/internal/testrepo"
 	"github.com/kpenfound/shed/internal/tracker"
 	"github.com/kpenfound/shed/internal/unit"
 	"github.com/kpenfound/shed/internal/vcs"
@@ -187,6 +186,75 @@ func TestOffHorizonDefers(t *testing.T) {
 	}
 	if !strings.Contains(archive.Shelf(entries, unit.Deferred), change) || archive.Shelf(entries, unit.Rejected) != "" {
 		t.Error("shelves do not hold the entry where it belongs")
+	}
+}
+
+//shed:proves S.shed.15
+func TestArchiveEntryListsHorizonChanges(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[shed]\nmax_rounds = 1\n")
+	change := propose(t, f)
+	dir, err := f.Repo.Workspace(ctx, change)
+	must(t, err)
+	write(t, dir, "horizon.md", `# Horizon
+
+- **H.greet.1** (soon, realised) The tool
+  says hello.
+- **H.greet.2** (near) The tool says goodbye.
+- **H.greet.3** (distant) The tool greets in any language, within C2.
+- **H.greet.4** (eventual) The tool waves.
+
+## Milestones
+
+- **M1** Greetings. H.greet.1 to H.greet.2.
+`)
+	fake.on(unit.Committee, "debate round 1", func(turn session.Turn) session.Result {
+		if member(turn) == 1 {
+			_, err := call(t, turn, "object", map[string]any{"kind": "horizon", "citations": []string{"H.greet.3"},
+				"text": "Waving is not on the horizon."})
+			must(t, err)
+			return done("objecting")
+		}
+		return done("clean")
+	})
+	fake.on(unit.Painter, "reply", func(session.Turn) session.Result { return done("replied") })
+	out, err := f.Debate(ctx, change)
+	must(t, err)
+	if out != Deferred {
+		t.Fatalf("debate = %s", out)
+	}
+	entries, err := archive.Read(r.Dir)
+	must(t, err)
+	if len(entries) != 1 {
+		t.Fatalf("archive = %+v", entries)
+	}
+	want := "## Horizon changes\n\n" +
+		"- Changed H.greet.2\n  Was: (soon) The tool says goodbye.\n  Now: (near) The tool says goodbye.\n" +
+		"- Added H.greet.4 (eventual) The tool waves.\n"
+	if !strings.Contains(entries[0].Text, want) {
+		t.Errorf("entry = %s, want it to hold\n%s", entries[0].Text, want)
+	}
+	if strings.Contains(entries[0].Text, "H.greet.1 ") {
+		t.Errorf("a rewrapped clause counts as changed:\n%s", entries[0].Text)
+	}
+	if strings.Index(entries[0].Text, "## Proposal") > strings.Index(entries[0].Text, "## Horizon changes") ||
+		strings.Index(entries[0].Text, "## Horizon changes") > strings.Index(entries[0].Text, "## Debate") {
+		t.Errorf("horizon changes are not beside the spec changes and debate:\n%s", entries[0].Text)
+	}
+
+	other := propose(t, f)
+	out, err = f.Debate(ctx, other)
+	must(t, err)
+	if out != Deferred {
+		t.Fatalf("debate = %s", out)
+	}
+	entries, err = archive.Read(r.Dir)
+	must(t, err)
+	for _, e := range entries {
+		if strings.Contains(e.Path, other) && strings.Contains(e.Text, "Horizon changes") {
+			t.Errorf("an entry with no horizon change lists some:\n%s", e.Text)
+		}
 	}
 }
 
@@ -436,16 +504,27 @@ func TestAmendmentLaneKeepsToTheSealedScope(t *testing.T) {
 	}
 
 	// Another unit lands after the seal and adds a clause this unit never
-	// touched, so the proposal's spec no longer matches main's there.
+	// touched. Shed stopped before rebasing, so the next process rebases
+	// the proposal onto the new main: its spec now holds the clause, which
+	// the main recorded in the seal lacks.
 	other, err := f.Repo.NewUnit(ctx, "Wave")
 	must(t, err)
 	dir, err := f.Repo.Workspace(ctx, other)
 	must(t, err)
-	write(t, dir, "spec/core.md", testrepo.Spec+"- **S.core.3** (H.greet.3) Running the tool with --wave waves.\n")
+	write(t, dir, "spec/wave.md", "# Wave\n\n- **S.wave.1** (H.greet.3) Running the tool with --wave waves.\n")
 	_, err = f.Repo.Land(ctx, other, func(context.Context, string, string) (string, error) { return "Wave", nil })
 	must(t, err)
 	main, err := f.Repo.MainCommit(ctx)
 	must(t, err)
+	must(t, f.Close())
+	f, err = Open(ctx, r.Dir, f.State, fake)
+	must(t, err)
+	t.Cleanup(func() { f.Close() })
+	commit, err := f.Repo.Commit(ctx, change)
+	must(t, err)
+	if parent := r.Git("rev-parse", commit+"^"); parent != main {
+		t.Fatalf("the proposal sits on %s, want the new main %s", parent, main)
+	}
 
 	// told checks that the sessions of the amendment lane were told the
 	// sealed scope: the clause it modified and the clause it depended on.
@@ -486,14 +565,14 @@ func TestAmendmentLaneKeepsToTheSealedScope(t *testing.T) {
 	if u.State != unit.Proposed || u.Bounces != 2 || !strings.Contains(u.Reason, "S.core.4") {
 		t.Errorf("after an amendment outside the scope = %+v", u)
 	}
-	for _, id := range []string{"S.core.1", "S.core.2", "S.core.3"} {
+	for _, id := range []string{"S.core.1", "S.core.2", "S.wave.1"} {
 		if strings.Contains(u.Reason, id) {
 			t.Errorf("the bounce names %s, which is not outside the scope: %q", id, u.Reason)
 		}
 	}
 
 	// An amendment that changes the clauses it modified and depended on
-	// seals, though main changed S.core.3 after the last seal.
+	// seals, though main added S.wave.1 after the last seal.
 	revision = strings.Replace(strings.Replace(goodbyeSpec, "prints goodbye.", "prints the word goodbye.", 1),
 		"prints hello.", "prints the word hello.", 1)
 	committee, painter = len(fake.ran(unit.Committee)), len(fake.ran(unit.Painter))

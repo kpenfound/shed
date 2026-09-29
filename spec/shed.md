@@ -52,11 +52,13 @@
   both those it modified and those it depended on, and every member's and the
   painter's session is told those clauses. A clause is outside the scope when
   it is not in the scope and its text in the proposal differs from its text
-  on the main commit recorded in that seal (S.shed.8), so clauses that main
-  changed after the seal never count against the proposal. When a round ends
-  with no objection standing but a clause is outside the scope, the unit is
-  not sealed: it bounces to its painter as under S.shed.6, with a reason
-  naming each clause outside the scope.
+  on the main commit the unit's change is based on, which is the main commit
+  recorded in that seal (S.shed.8), onto which sealing rebased the change
+  (S.vcs.10), until a later landing rebases it again under S.vcs.10, so
+  clauses that main changed after the seal never count against the proposal.
+  When a round ends with no objection standing but a clause is outside the
+  scope, the unit is not sealed: it bounces to its painter as under S.shed.6,
+  with a reason naming each clause outside the scope.
 - **S.shed.13** (H.shed.11) When a unit is sealed out of the amendment lane
   (S.shed.11), every mechanic session of its next implementation has a bundle
   that states the unit was resealed after an amendment and gives the
@@ -76,10 +78,18 @@
   deferral of S.shed.4; a charter objection standing still rejects the
   proposal under S.shed.3. Rejecting the amendment archives nothing and keeps
   the unit's change. Shed makes the files under `spec/` on the unit's change
-  exactly those on the unit's commit recorded at the last seal (S.shed.8),
-  each with its content there, removing any file under `spec/` absent from
-  that commit and leaving every other file on the change as it is. It records
-  the standing objections as the reason and seals the unit as under S.shed.8.
+  exactly those of the unit's commit recorded at the last seal (S.shed.8)
+  rebased onto the main commit the change is based on: each takes its
+  content there, any file under `spec/` absent there is removed, and every
+  other file on the change is left as it is. Clauses that main added, changed
+  or removed after that seal therefore stay as main has them, and a conflict
+  between main and the sealed spec is stored in the files as under S.vcs.10.
+  It records the standing objections as the reason and seals the unit as
+  under S.shed.8. If a restored file under `spec/` holds a conflict, or
+  sealing's rebase fails or conflicts under `spec/` (S.vcs.10), the unit is
+  not sealed: it keeps the restored files and bounces to its painter as
+  S.vcs.10 says, naming those conflicts or the failure, and stays in the
+  amendment lane.
   The restore and the seal happen together: while S.serve.7 holds sealing
   back, nothing is restored and the unit waits in proposed in the amendment
   lane like a proposal that reached consensus, its debate not started afresh,

@@ -37,3 +37,56 @@
   workspace, once, puts the owner's index back as it was. Before it reads or
   moves main, shed brings in commits the owner made with git, and after a
   landing git's main points at the landed commit.
+- **S.vcs.10** (H.vcs.7, H.vcs.9) After `shed land` moves main, shed
+  rebases the change of every other unit that is neither landed nor archived
+  onto the new main. Each change keeps its ID and the unit's workspace is
+  updated to hold the rebased files. A proposed or contested unit's change
+  keeps any conflict with main stored in its files. A unit past its seal (sealed,
+  implementing, verifying or queued) keeps the rebase only if the rebased
+  change holds no conflict in any file; otherwise shed undoes that unit's
+  rebase, leaving its change and workspace as they were, so no mechanic,
+  verifier or gate ever meets a conflict a landing brought in, and the unit
+  takes main's changes when a later landing rebases it cleanly or at its own
+  landing, where the wheelbuilder resolves conflicts against the sealed spec
+  (S.queue.2). No unit changes state because of this rebase, and a rebase
+  that conflicts, is undone or fails does not fail the landing or stop the
+  other units from being rebased.
+  A unit with any session running at that moment is not rebased then: shed
+  rebases it once none of its sessions is running and any session directory
+  has been captured, so a capture applies to the change its session was
+  given and the sessions running together on a unit all see one revision.
+  Sealing a unit (S.shed.8) first rebases its change the same way onto the
+  main commit the seal records, so a sealed unit's change is always based on
+  its seal's main, whatever base it had before. A conflict that rebase leaves
+  only in files outside `spec/` is stored and the unit is sealed, to be
+  resolved against the sealed spec by its mechanics (S.vcs.12): every
+  mechanic session of a unit whose change holds an unresolved conflict
+  (S.vcs.12) has a bundle that names each file holding one and says to
+  resolve it against the sealed spec before other work. If that rebase
+  fails, or leaves an unresolved conflict (S.vcs.12) in any file under
+  `spec/`, nothing is sealed: the unit bounces to its painter as under
+  S.shed.6, staying proposed, counting a bounce and starting its next debate
+  afresh, with a reason that names the failure, or each file under `spec/`
+  holding an unresolved conflict and each clause ID
+  inside a conflicted region. A conflicted change keeps its rebased files, so
+  the painter's next session sees the conflicts and resolves them before any
+  member debates the text; a failed rebase leaves the change as it was.
+- **S.vcs.11** (H.vcs.7, H.vcs.4) The landing's checkpoint ends once main is
+  pushed, and a failure or stop after that never undoes the landing. Shed
+  checkpoints each unit's rebase under S.vcs.10 on its own and restores only
+  that unit's rebase if it fails or shed stops partway. The next shed process
+  to open the repository rebases, as S.vcs.10 says, every unit that is
+  neither landed nor archived, has no running session and whose change does
+  not descend from main, so an interrupted sweep finishes.
+- **S.vcs.12** (H.vcs.9) A file on a unit's change holds an unresolved
+  conflict while jj stores it as conflicted, or while it still holds any
+  line of the conflict markers shed wrote into it when it gave a session a
+  directory of the change's files (S.vcs.2). Shed records, per unit, each
+  file it wrote conflict markers into and those markers' lines, so capture
+  (S.vcs.4) turning markers into plain file content never hides a
+  conflict. Verifying a unit whose change holds an unresolved conflict in
+  any file fails its checks (S.verify.1): the unit returns to implementing as
+  under S.verify.4, with a notice naming each such file, so no unit reaches
+  the queue or lands holding a conflict nobody resolved. The check at
+  sealing under S.vcs.10 uses the same test, so markers a painter left in a
+  file under `spec/` block the seal as a stored conflict would.

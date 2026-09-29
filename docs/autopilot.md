@@ -37,11 +37,21 @@ that must resolve, in one of four kinds:
 Between rounds the painter answers each standing objection once with
 `answer`, and may revise the files. Only the member who raised an objection
 can withdraw it. With no objection standing, the unit is sealed against
-main's current commit and the commit its change points to. At `shed.max_rounds` with objections still standing,
-the proposal bounces back to its painter and counts a bounce. Unless that
-bounce leaves it past `shed.bounce_threshold` bounces, when it is contested
-and waits for the owner's `shed answer`, it stays proposed and debates
-afresh next time.
+main's current commit and the commit its change points to. Sealing first
+rebases the change onto that main commit, so a sealed unit's change is
+always based on its seal's main. A conflict the rebase leaves only in files
+outside `spec/` is stored in them, and the unit is sealed; its mechanics
+resolve it against the sealed spec. If the rebase fails, or leaves an
+unresolved conflict in any file under `spec/`, including markers a painter
+left in place, nothing is sealed: the proposal bounces to its painter, with
+a reason naming the failure, or each file under `spec/` holding an
+unresolved conflict and each clause ID inside a conflicted region. A
+conflicted change keeps its rebased files, so the painter's next session
+sees the markers and resolves them before the committee debates the text
+again. At `shed.max_rounds` with objections still standing, the proposal
+bounces back to its painter and counts a bounce. Unless that bounce leaves
+it past `shed.bounce_threshold` bounces, when it is contested and waits for
+the owner's `shed answer`, it stays proposed and debates afresh next time.
 
 A unit whose latest reopen requested an amendment is debated in the
 amendment lane. Every rule above holds, but the round cap is
@@ -52,20 +62,28 @@ the cap, until it is next sealed.
 An amendment is scoped to the sealed spec: the clauses the footprint
 recorded at the unit's last seal modified or depended on. Every member's and
 the painter's session is told those clauses. A clause outside that scope
-must keep the text it had on the main commit recorded in the seal, so clauses
-that main changed after the seal never count against the amendment. When a
-round ends with no objection standing but the proposal changes a clause
-outside its scope, the unit is not sealed. It bounces to its painter, with a
-reason naming each clause outside the scope.
+must keep the text it has on the main commit the unit's change is based on.
+That is the main commit recorded in the seal, onto which sealing rebased the
+change, until a landing rebases it onto a newer main, so clauses that main
+changed after the seal never count against the amendment. When a round ends
+with no objection standing but the proposal changes a clause outside its
+scope, the unit is not sealed. It bounces to its painter, with a reason
+naming each clause outside the scope.
 
 At the amendment lane's cap, standing objections reject the amendment rather
 than bounce or defer the unit, as long as none of them is a charter
 objection. A charter objection still rejects the whole proposal, which is
 archived. A rejected amendment archives nothing and keeps the unit's change.
-Shed makes the files under `spec/` exactly those on the unit's commit
-recorded at its last seal, removing any spec file absent there and leaving
-every other file alone. It then seals the unit again, with the standing
-objections as the reason. The restore and the seal happen together. While the
+Shed makes the files under `spec/` exactly those of the unit's commit
+recorded at its last seal, rebased onto the main commit the change is based
+on. Any spec file absent there is removed and every other file is left
+alone. Clauses that main added, changed or removed after the seal stay as
+main has them, and a conflict between main and the sealed spec is stored in
+the files. It then seals the unit again, with the standing objections as the
+reason. If a restored file under `spec/` holds a conflict, or sealing's
+rebase fails or conflicts under `spec/`, the unit is not sealed: it keeps
+the restored files, bounces to its painter as any seal does, and stays in
+the amendment lane. The restore and the seal happen together. While the
 in-flight cap holds sealing back, nothing is restored and the unit waits in
 proposed in the amendment lane. Its debate does not start afresh, so the
 next one runs no further round and rejects the amendment again. Once sealed,
@@ -74,16 +92,17 @@ session of its next implementation is told in its bundle that the requested
 amendment was rejected and the sealed spec stands as written, with the
 objections that stood at the cap.
 
-When the amendment lane seals the unit after accepting an amendment the unit, every mechanic session of its next
-implementation is told in its bundle that the unit was resealed after an
-amendment, with the amendment's diff. The diff compares the clauses of
-`spec/` on the unit's commit recorded at its previous seal with those on the
-unit's commit recorded at this seal, and lists each clause whose text
-differs with both texts, marking a clause that was added or removed. A clause
-whose text on each of the two unit commits matches the main commit sealed
-with it is left out, since main changed it and the amendment did not. When
-no clause is listed, the bundle says the amendment changed no clause.
-Bundles after any other seal say nothing of an amendment.
+When the amendment lane seals the unit after accepting an amendment, every
+mechanic session of its next implementation is told in its bundle that the
+unit was resealed after an amendment, with the amendment's diff. The diff
+compares the clauses of `spec/` on the unit's commit recorded at its
+previous seal with those on the unit's commit recorded at this seal, and
+lists each clause whose text differs with both texts, marking a clause that
+was added or removed. A clause whose text on each of the two unit commits
+matches the main commit sealed with it is left out, since main changed it
+and the amendment did not. When no clause is listed, the bundle says the
+amendment changed no clause. Bundles after any other seal say nothing of an
+amendment.
 
 Rejected and deferred proposals go to the archive: a Markdown entry under
 `archive/rejected/` or `archive/deferred/` on the `shed/archive` branch,
@@ -109,7 +128,9 @@ documentation. Each session gets a writable copy of the unit's files and the
 `run_tests` and `prove` tools, and shed captures its files onto the unit's
 change when it ends. A mechanic that finds the sealed spec wrong reports
 `reopen`, and the unit goes back to the shed. A step that fails three times in
-a row reopens the unit too.
+a row reopens the unit too. When the unit's change holds an unresolved
+conflict, every mechanic's bundle names each file holding one and says to
+resolve it against the sealed spec before any other work.
 
 A mechanic that wants the sealed spec changed can report `amend` instead. Its
 note names each sealed clause it wants changed, gives the wording it wants for
@@ -124,8 +145,8 @@ adding `realised` to their tags. Nothing else in the horizon may change.
 
 ## Verification
 
-Verification first checks the unit mechanically: its documents pass
-`shed check`, its horizon changes only mark clauses it advances, and the
+Verification first checks the unit mechanically: its change holds no
+unresolved conflict, its documents pass `shed check`, its horizon changes only mark clauses it advances, and the
 proofs of its footprint pass. With `verify.all_proofs = true` in `shed.toml`
 every proof must pass. Then a committee member who did not work on the unit
 reviews it against the sealed spec and the charter, without keeping any
@@ -140,6 +161,14 @@ Landing rebases the unit onto main, keeping any conflicts in its files. A
 wheelbuilder session resolves them against the sealed spec. Then the unit
 lands as one commit, as [version control](vcs.md) describes. A unit whose
 conflicts cannot be resolved, or that changes nothing, reopens.
+
+After each landing, shed rebases every other unit that is neither landed nor
+archived onto the new main, leaving its state alone. A proposed or contested
+unit keeps any conflict stored in its files for its painter to resolve. A
+unit past its seal keeps the rebase only if it is free of conflicts;
+otherwise shed undoes it, and the unit takes main's changes later. A unit
+with a session running is rebased once its sessions end and are captured.
+See [version control](vcs.md).
 
 ## Autopilot
 

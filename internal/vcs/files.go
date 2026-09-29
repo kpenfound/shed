@@ -200,11 +200,13 @@ func (r *Repo) Snapshot(ctx context.Context, change string) (string, error) {
 	return r.Commit(ctx, change)
 }
 
-// Restore makes the files under dir on a unit's change exactly those on
-// commit, each with its content there: files under dir absent from commit
-// are removed and every other file is left as it is. It returns the
-// change's new commit.
-func (r *Repo) Restore(ctx context.Context, change, commit, dir string) (string, error) {
+// Restore makes the files under dir on a unit's change exactly those of
+// commit rebased onto the commit the change is based on: each takes its
+// content there, and files under dir absent there are removed. Every other
+// file is left as it is. Where main changed a file since commit's parent,
+// main's change stays, and a clash between the two is stored in the file as
+// a conflict. It returns the change's new commit.
+func (r *Repo) Restore(ctx context.Context, change, commit, dir string) (_ string, err error) {
 	unlock, err := r.lock()
 	if err != nil {
 		return "", err
@@ -214,7 +216,46 @@ func (r *Repo) Restore(ctx context.Context, change, commit, dir string) (string,
 	if err != nil {
 		return "", err
 	}
-	if _, err := r.run(ctx, w.dir, shedIdentity, "restore", "--from", commit, fmt.Sprintf("root:%q", dir)); err != nil {
+	if _, err := r.run(ctx, w.dir, shedIdentity, "util", "snapshot"); err != nil {
+		return "", err
+	}
+	base, err := r.Base(ctx, change)
+	if err != nil {
+		return "", err
+	}
+	done, err := r.checkpoint(ctx, "restore "+change)
+	if err != nil {
+		return "", err
+	}
+	defer func() { err = done(err) }()
+
+	// A scratch commit holds commit's files on commit's parent, and is
+	// rebased onto the change's base to carry them over main's changes.
+	marker := "shed: restore " + nonce()
+	if _, err := r.jj(ctx, "new", "--no-edit", "-m", marker, commit+"-"); err != nil {
+		return "", err
+	}
+	scratch, err := r.log(ctx, fmt.Sprintf("description(substring:%q)", marker), "commit_id")
+	if err != nil {
+		return "", err
+	}
+	if scratch == "" || strings.Contains(scratch, "\n") {
+		return "", fmt.Errorf("restoring unit %s: the scratch commit cannot be found", change)
+	}
+	id, err := r.log(ctx, scratch, "change_id")
+	if err != nil {
+		return "", err
+	}
+	if _, err := r.jj(ctx, "restore", "--from", commit, "--into", changeRevset(id)); err != nil {
+		return "", err
+	}
+	if _, err := r.jj(ctx, "rebase", "-r", changeRevset(id), "-d", base); err != nil {
+		return "", err
+	}
+	if _, err := r.run(ctx, w.dir, shedIdentity, "restore", "--from", changeRevset(id), fmt.Sprintf("root:%q", dir)); err != nil {
+		return "", err
+	}
+	if _, err := r.jj(ctx, "abandon", changeRevset(id)); err != nil {
 		return "", err
 	}
 	return r.Commit(ctx, change)

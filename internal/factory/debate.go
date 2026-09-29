@@ -117,16 +117,28 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 	if u.State != unit.Proposed {
 		return "", fmt.Errorf("unit %s is %s; only proposed units are debated", unit.Short(u.Change), u.State)
 	}
-	if _, _, err := f.refreshFootprint(ctx, u); err != nil {
-		return f.bounce(u, err.Error())
-	}
 	lane, err := f.amendmentOf(u.Change)
 	if err != nil {
 		return "", err
 	}
+	if why, err := f.resolve(ctx, u, lane); err != nil || why != "" {
+		if err != nil {
+			return "", err
+		}
+		return f.bounce(u, why)
+	}
+	if _, _, err := f.refreshFootprint(ctx, u); err != nil {
+		return f.bounce(u, err.Error())
+	}
 	max := lane.cap
 	for round := u.Round; ; {
 		if round < max {
+			if why, err := f.resolve(ctx, u, lane); err != nil || why != "" {
+				if err != nil {
+					return "", err
+				}
+				return f.bounce(u, why)
+			}
 			round++
 			if err := f.Tracker.StartRound(u.Change, round); err != nil {
 				return "", err
@@ -261,9 +273,15 @@ func (a amendment) told() string {
 }
 
 // outside lists the spec clauses a proposal changes outside its amendment
-// scope: those whose text differs from the sealed main commit's (S.shed.12).
+// scope: those whose text differs from the main commit the change is based
+// on, which is the sealed main commit until a landing rebases the change
+// (S.shed.12).
 func (f *Factory) outside(ctx context.Context, a amendment, change string) ([]string, error) {
-	sealed, _ := docs.Load(revision.Git{Root: f.Root, Rev: a.main})
+	base, err := f.Repo.Base(ctx, change)
+	if err != nil {
+		return nil, err
+	}
+	sealed, _ := docs.Load(revision.Git{Root: f.Root, Rev: base})
 	head, err := f.headSet(ctx, change)
 	if err != nil {
 		return nil, err
@@ -397,18 +415,53 @@ func (f *Factory) reply(ctx context.Context, u tracker.Unit, round int, lane ame
 	return nil
 }
 
-// seal seals a unit that reached consensus, against main as it is now.
+// resolve hands a proposal whose files under spec/ hold a conflict with
+// main to its painter, whose session resolves it before any member debates
+// the text (S.vcs.10). It returns why the unit bounces when a conflict under
+// spec/ remains, or "" when none does.
+func (f *Factory) resolve(ctx context.Context, u tracker.Unit, lane amendment) (string, error) {
+	conflicts, err := f.specConflicted(ctx, u.Change)
+	if err != nil || conflicts == "" {
+		return "", err
+	}
+	res, err := f.session(ctx, work{
+		Unit: u, Role: unit.Painter, Prompt: roles.PainterReply, Writable: true,
+		Step:     "resolve conflicts",
+		Task:     fmt.Sprintf("Files under spec/ in the proposal %q conflict with main. Resolve every conflict before the committee debates the text: %s.", u.Title, conflicts) + lane.told(),
+		Outcomes: []string{outcomeReplied},
+	})
+	if err != nil {
+		return "", err
+	}
+	if res.Failure != session.NoFailure {
+		return "", fmt.Errorf("the painter's resolution: %s: %s", res.Failure, res.Reason)
+	}
+	if conflicts, err = f.specConflicted(ctx, u.Change); err != nil || conflicts == "" {
+		return "", err
+	}
+	return "conflicts under spec/ remain after the painter's session: " + conflicts, nil
+}
+
+// seal seals a unit that reached consensus, against main as it is now. Its
+// change is first rebased onto that main commit, and a rebase that fails or
+// conflicts under spec/ bounces the unit instead (S.vcs.10).
 func (f *Factory) seal(ctx context.Context, u tracker.Unit, round int) (Outcome, error) {
 	if full, err := f.inFlightFull(u.Change); err != nil || full {
 		return Waiting, err
 	}
-	fp, main, err := f.refreshFootprint(ctx, u)
-	if err != nil {
-		return f.bounce(u, err.Error())
-	}
 	commit, err := f.Repo.MainCommit(ctx)
 	if err != nil {
 		return "", err
+	}
+	if why, err := f.onSeal(ctx, u.Change, commit); err != nil || why != "" {
+		if err != nil {
+			return "", err
+		}
+		return f.bounce(u, why)
+	}
+	fp, main, err := f.refreshFootprint(ctx, u)
+	if err != nil {
+		return f.bounce(u, err.Error())
 	}
 	head, err := f.Repo.Snapshot(ctx, u.Change)
 	if err != nil {
@@ -462,10 +515,13 @@ func (f *Factory) entangle(ctx context.Context, change string, main *docs.Set) e
 
 // rejectAmendment rejects an amendment whose debate reached its cap with
 // objections standing, none of them a charter objection (S.shed.14): the
-// files under spec/ on the unit's change become those on its commit at the
-// last seal, and the unit is sealed again with the standing objections as
-// the reason. While the cap on units in flight holds sealing back, nothing
-// is restored and the unit waits in the amendment lane.
+// unit's change is rebased onto main as sealing does (S.vcs.10), the files
+// under spec/ on it become those of its commit at the last seal rebased onto
+// that main commit, and the unit is sealed again with the standing
+// objections as the reason. A rebase that fails, or a restored file under
+// spec/ that holds a conflict, bounces the unit instead, and it stays in the
+// amendment lane. While the cap on units in flight holds sealing back,
+// nothing is restored and the unit waits in the amendment lane.
 func (f *Factory) rejectAmendment(ctx context.Context, u tracker.Unit, lane amendment, standing []tracker.Objection, round int) (Outcome, error) {
 	if full, err := f.inFlightFull(u.Change); err != nil || full {
 		return Waiting, err
@@ -473,9 +529,22 @@ func (f *Factory) rejectAmendment(ctx context.Context, u tracker.Unit, lane amen
 	if lane.commit == "" {
 		return "", fmt.Errorf("unit %s's last seal does not record its commit, so its sealed spec cannot be restored", unit.Short(u.Change))
 	}
+	commit, err := f.Repo.MainCommit(ctx)
+	if err != nil {
+		return "", err
+	}
+	if _, err := f.Repo.RebaseOnto(ctx, u.Change, commit); err != nil {
+		return f.bounce(u, fmt.Sprintf("sealing could not rebase the change onto main %s: %v", commit, err))
+	}
 	head, err := f.Repo.Restore(ctx, u.Change, lane.commit, "spec")
 	if err != nil {
 		return "", err
+	}
+	if conflicts, err := f.specConflicted(ctx, u.Change); err != nil || conflicts != "" {
+		if err != nil {
+			return "", err
+		}
+		return f.bounce(u, "the amendment was rejected, but the restored sealed spec conflicts with main under spec/: "+conflicts)
 	}
 	main, err := f.mainSet(ctx)
 	if err != nil {
@@ -487,10 +556,6 @@ func (f *Factory) rejectAmendment(ctx context.Context, u tracker.Unit, lane amen
 	}
 	fp := lane.footprint
 	fp.Modifies = modified(main, spec)
-	commit, err := f.Repo.MainCommit(ctx)
-	if err != nil {
-		return "", err
-	}
 	reasons := []string{fmt.Sprintf("the amendment was rejected: %d objections still stand after %d rounds:", len(standing), round)}
 	for _, o := range standing {
 		reasons = append(reasons, fmt.Sprintf("- %s (member %d, %s, citing %s): %s", o.ID, o.Member, o.Kind, strings.Join(o.Citations, ", "), o.Text))

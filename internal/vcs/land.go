@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -15,9 +16,10 @@ type Message func(ctx context.Context, main, unit string) (string, error)
 // set, rebases the unit's change onto main, refuses a unit that conflicts
 // with main or changes nothing, rewrites the change as the landing identity
 // with the given message, moves main forward to it and pushes main. Main
-// only ever moves forward. If any step fails the repository is restored to
-// where it was. Landing a unit that is already on main returns the unit's
-// commit.
+// only ever moves forward. If any step fails before main is pushed the
+// repository is restored to where it was; once main is pushed, nothing
+// undoes the landing (S.vcs.11). Landing a unit that is already on main
+// returns the unit's commit.
 func (r *Repo) Land(ctx context.Context, change string, message Message) (commit string, err error) {
 	unlock, err := r.lock()
 	if err != nil {
@@ -38,7 +40,11 @@ func (r *Repo) Land(ctx context.Context, change string, message Message) (commit
 	if err != nil {
 		return "", err
 	}
-	defer func() { err = done(err) }()
+	defer func() {
+		if done != nil {
+			err = done(err)
+		}
+	}()
 
 	w, err := r.workspaceOf(ctx, change)
 	if err != nil {
@@ -100,6 +106,12 @@ func (r *Repo) Land(ctx context.Context, change string, message Message) (commit
 		if err := r.push(ctx); err != nil {
 			return "", err
 		}
+	}
+	// The landing's checkpoint ends here: main has moved and is pushed.
+	settle := done
+	done = nil
+	if err := settle(nil); err != nil {
+		return "", err
 	}
 	if err := r.exportGit(ctx); err != nil {
 		return "", err
@@ -165,6 +177,38 @@ func (r *Repo) detachHead(ctx context.Context) error {
 // workspace's files, so they can be resolved there. It reports whether the
 // change conflicts.
 func (r *Repo) Rebase(ctx context.Context, change string) (bool, error) {
+	return r.rebase(ctx, change, true, r.mainRevset(), true)
+}
+
+// Follow rebases a unit's change onto main as this repository has it,
+// without fetching, and updates its workspace to the rebased files. The
+// change keeps its ID and any conflict with main stays in it. It reports
+// whether the change conflicts.
+func (r *Repo) Follow(ctx context.Context, change string) (bool, error) {
+	return r.rebase(ctx, change, false, r.mainRevset(), true)
+}
+
+// FollowClean rebases a unit's change onto main as Follow does, but only
+// when the rebased change would hold no conflict. Otherwise it leaves the
+// change and its workspace as they were. It reports whether the rebase would
+// conflict and so was not made.
+func (r *Repo) FollowClean(ctx context.Context, change string) (bool, error) {
+	return r.rebase(ctx, change, false, r.mainRevset(), false)
+}
+
+// RebaseOnto rebases a unit's change onto commit, as Follow does onto main,
+// and updates its workspace to the rebased files. It reports whether the
+// change conflicts.
+func (r *Repo) RebaseOnto(ctx context.Context, change, commit string) (bool, error) {
+	return r.rebase(ctx, change, false, commit, true)
+}
+
+// rebase rebases a unit's change onto dest under a checkpoint of its own, so
+// a rebase that fails or is interrupted is restored and nothing else is.
+// Unless keep is set, a rebase that would conflict is not made: a copy of
+// the change is rebased first, and the change is left alone when the copy
+// conflicts.
+func (r *Repo) rebase(ctx context.Context, change string, fetch bool, dest string, keep bool) (conflicted bool, err error) {
 	unlock, err := r.lock()
 	if err != nil {
 		return false, err
@@ -177,14 +221,99 @@ func (r *Repo) Rebase(ctx context.Context, change string) (bool, error) {
 	if err := r.importGit(ctx); err != nil {
 		return false, err
 	}
-	if r.opts.Remote != "" {
+	if fetch && r.opts.Remote != "" {
 		if _, err := r.jj(ctx, "git", "fetch", "--remote", r.opts.Remote); err != nil {
 			return false, err
 		}
 	}
-	if _, err := r.run(ctx, w.dir, shedIdentity, "rebase", "-s", "@", "-d", r.mainRevset()); err != nil {
+	done, err := r.checkpoint(ctx, "rebase "+change)
+	if err != nil {
 		return false, err
 	}
-	conflicted, err := r.log(ctx, changeRevset(change)+" & conflicts()", "change_id")
-	return conflicted != "", err
+	defer func() { err = done(err) }()
+	if !keep {
+		if _, err := r.run(ctx, w.dir, shedIdentity, "util", "snapshot"); err != nil {
+			return false, err
+		}
+		if conflicts, err := r.trialRebase(ctx, change, dest); err != nil || conflicts {
+			return conflicts, err
+		}
+	}
+	if _, err := r.run(ctx, w.dir, shedIdentity, "rebase", "-s", "@", "-d", dest); err != nil {
+		return false, err
+	}
+	out, err := r.log(ctx, changeRevset(change)+" & conflicts()", "change_id")
+	return out != "", err
+}
+
+// trialRebase reports whether rebasing a unit's change onto dest would
+// conflict, without rewriting the change: a scratch commit holding the
+// change's files on the change's parent is rebased instead, and abandoned.
+func (r *Repo) trialRebase(ctx context.Context, change, dest string) (bool, error) {
+	marker := "shed: trial rebase " + nonce()
+	if _, err := r.jj(ctx, "new", "--no-edit", "-m", marker, "parents("+changeRevset(change)+")"); err != nil {
+		return false, err
+	}
+	scratch, err := r.log(ctx, fmt.Sprintf("description(substring:%q)", marker), "change_id")
+	if err != nil {
+		return false, err
+	}
+	if scratch == "" || strings.Contains(scratch, "\n") {
+		return false, fmt.Errorf("rebasing unit %s: the scratch commit cannot be found", change)
+	}
+	if _, err := r.jj(ctx, "restore", "--from", changeRevset(change), "--into", changeRevset(scratch)); err != nil {
+		return false, err
+	}
+	if _, err := r.jj(ctx, "rebase", "-r", changeRevset(scratch), "-d", dest); err != nil {
+		return false, err
+	}
+	out, err := r.log(ctx, changeRevset(scratch)+" & conflicts()", "change_id")
+	if err != nil {
+		return false, err
+	}
+	if _, err := r.jj(ctx, "abandon", changeRevset(scratch)); err != nil {
+		return false, err
+	}
+	return out != "", nil
+}
+
+// Conflicted lists the files a unit's change holds that jj stores as
+// conflicted, slash-separated and relative to the workspace, after
+// snapshotting its workspace.
+func (r *Repo) Conflicted(ctx context.Context, change string) ([]string, error) {
+	unlock, err := r.lock()
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	w, err := r.workspaceOf(ctx, change)
+	if err != nil {
+		return nil, err
+	}
+	out, err := r.run(ctx, w.dir, shedIdentity, "file", "list", "-r", "@", "-T", `if(conflict, path ++ "\n", "")`)
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, line := range strings.Split(out, "\n") {
+		if line != "" {
+			files = append(files, filepath.ToSlash(line))
+		}
+	}
+	return files, nil
+}
+
+// Behind reports whether a unit's change does not descend from main.
+func (r *Repo) Behind(ctx context.Context, change string) (bool, error) {
+	if _, err := r.Commit(ctx, change); err != nil {
+		return false, err
+	}
+	out, err := r.log(ctx, fmt.Sprintf("%s & ~(%s::)", changeRevset(change), r.mainRevset()), "change_id")
+	return out != "", err
+}
+
+// Descends reports whether a unit's change is a descendant of commit.
+func (r *Repo) Descends(ctx context.Context, change, commit string) (bool, error) {
+	out, err := r.log(ctx, fmt.Sprintf("%s & %s::", changeRevset(change), commit), "change_id")
+	return out != "", err
 }

@@ -17,6 +17,7 @@ stays out of version control; the repository's `.gitignore` lists `.shed/`.
 | `sessions/<id>/` | One directory per agent session: `bundle.md`, `transcript.jsonl`, `outcome.json` and `result.json`. |
 | `config.toml` | Operator settings. |
 | `workspaces/` | A jj workspace per unit in flight. See [version control](vcs.md). |
+| `conflicts/<change>.json` | Per unit, each file shed wrote conflict markers into and the marker lines it wrote. See [version control](vcs.md#unresolved-conflicts). |
 | `lock` | Taken while a shed process changes the tracker. |
 
 Every change is appended to the event log and synced before it reaches the

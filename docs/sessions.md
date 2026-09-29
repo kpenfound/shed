@@ -51,12 +51,15 @@ never used.
 Before each session shed writes its bundle: the unit, the charter, the
 footprint, the spec changes, the sealed spec, the horizon clauses advanced,
 the proofs of the footprint's clauses, the debate record, the owner's
-answers to the unit, oldest first, and the notices pending for the role. A mechanic's bundle after a reseal out of the
-amendment lane also gives the amendment's diff, or, when the amendment was
-rejected, says the sealed spec stands as written and gives the objections
-that stood at the cap. Notices count as delivered once a session starts.
-Bundles come from a context provider; the default one uses only the
-documents, the tracker and the debate record.
+answers to the unit, oldest first, and the notices pending for the role. A
+mechanic's bundle after a reseal out of the amendment lane also gives the
+amendment's diff, or, when the amendment was rejected, says the sealed spec
+stands as written and gives the objections that stood at the cap. A
+mechanic's bundle for a unit whose change holds an unresolved conflict names
+each file holding one and says to resolve it against the sealed spec before
+any other work. Notices count as delivered once a session starts. Bundles
+come from a context provider; the default one uses only the documents, the
+tracker and the debate record.
 
 Each role has a system prompt: a part every role shares, then its own. Write
 a file of the same name under `prompts/` in the state directory to replace

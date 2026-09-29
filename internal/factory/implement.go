@@ -111,6 +111,11 @@ func (f *Factory) Implement(ctx context.Context, change string) (Outcome, error)
 		if failures >= maxStepFailures {
 			return f.reopen(u, unit.Mechanic, fmt.Sprintf("the %s step failed %d times", step.Name, failures), false)
 		}
+		conflicts, err := f.conflictSection(ctx, u.Change)
+		if err != nil {
+			return "", err
+		}
+		extra := append(slices.Clone(amended), conflicts...)
 		res, err := f.session(ctx, work{
 			Unit: u, Role: unit.Mechanic, Prompt: roles.Mechanic, Step: step.Name, Writable: true,
 			Task:     fmt.Sprintf("Work on the %s step of %q.", step.Name, u.Title),
@@ -118,7 +123,7 @@ func (f *Factory) Implement(ctx context.Context, change string) (Outcome, error)
 			Outcomes: []string{outcomeDone, outcomeReopen, outcomeAmend},
 			Check:    amendCheck(u.Footprint),
 			StepDone: outcomeDone,
-			Extra:    append(slices.Clone(amended), bundle.Section{Title: "Step", Body: formulaText(formula, step.Name, u.Steps)}),
+			Extra:    append(extra, bundle.Section{Title: "Step", Body: formulaText(formula, step.Name, u.Steps)}),
 		})
 		if err != nil {
 			return "", err
@@ -253,7 +258,8 @@ func (f *Factory) reopen(u tracker.Unit, actor unit.Actor, reason string, amendm
 }
 
 // Verify verifies an implemented unit. The unit's documents must pass the
-// checks of shed check, its horizon changes may only mark clauses it
+// checks of shed check, no file on its change may hold an unresolved
+// conflict (S.vcs.12), its horizon changes may only mark clauses it
 // advances as realised, and every proof of its footprint, or every proof
 // when the project asks, must pass. A committee member who did not work on
 // the unit then reviews it. A unit that passes is queued; one that fails
@@ -348,6 +354,13 @@ func (f *Factory) checkUnit(ctx context.Context, u tracker.Unit) ([]string, erro
 	defer os.RemoveAll(view)
 	var out []string
 	add := func(p clause.Problem) { out = append(out, "- "+p.String()) }
+	conflicted, _, err := f.unresolved(ctx, u.Change)
+	if err != nil {
+		return nil, err
+	}
+	for _, name := range conflicted {
+		out = append(out, fmt.Sprintf("- %s holds an unresolved conflict with main; resolve it against the sealed spec", name))
+	}
 
 	head, problems := docs.Load(revision.Worktree(view))
 	for _, p := range problems {
@@ -470,7 +483,8 @@ func markedRealised(before, after string) bool {
 // Land lands a queued unit. The unit is first rebased onto main with any
 // conflicts kept in its files, and a wheelbuilder resolves them against the
 // sealed spec; if they cannot be resolved the unit reopens. A unit that
-// changes nothing reopens.
+// changes nothing reopens. Once it lands, every other unit in flight is
+// rebased onto the new main (S.vcs.10).
 func (f *Factory) Land(ctx context.Context, change string) (Outcome, error) {
 	u, err := f.Tracker.Unit(change)
 	if err != nil {
@@ -506,6 +520,7 @@ func (f *Factory) Land(ctx context.Context, change string) (Outcome, error) {
 	_, err = landing.Land(ctx, f.Tracker, f.Repo, u.Change, unit.Wheelbuilder)
 	switch {
 	case err == nil:
+		_ = f.sweep(ctx, u.Change)
 		return Landed, nil
 	case errors.Is(err, vcs.ErrConflict):
 		return f.reopen(u, unit.Wheelbuilder, "conflicts with main remain after resolution", false)
