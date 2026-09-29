@@ -32,8 +32,8 @@ func (t *Tracker) Contested() ([]ContestedUnit, int64, error) {
 		return nil, 0, err
 	}
 	// With no inbox recorded, every contested unit is new.
-	since := int64(-1)
-	if err := tx.QueryRow(`SELECT value FROM meta WHERE key = 'inbox_seq'`).Scan(&since); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	since, err := inboxSeq(tx)
+	if err != nil {
 		return nil, 0, err
 	}
 	rows, err := tx.Query(`SELECT change, contested_seq, contested_reason FROM units WHERE state = ? ORDER BY contested_seq`, unit.Contested)
@@ -63,6 +63,66 @@ func (t *Tracker) Contested() ([]ContestedUnit, int64, error) {
 		out[i].Unit = u
 	}
 	return out, seq, nil
+}
+
+// RejectedUnit is a unit archived on the rejected shelf.
+type RejectedUnit struct {
+	Unit
+	// New is set when the unit was archived after the latest event the
+	// last recorded inbox read, or when no inbox has been recorded.
+	New bool
+}
+
+// Rejected returns every unit on the rejected shelf in the order they were
+// archived, each marked new or not against the last recorded inbox.
+func (t *Tracker) Rejected() ([]RejectedUnit, error) {
+	tx, err := t.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	since, err := inboxSeq(tx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(`SELECT change, archived_seq FROM units WHERE state = ? AND shelf = ? ORDER BY archived_seq`, unit.Archived, unit.Rejected)
+	if err != nil {
+		return nil, err
+	}
+	var out []RejectedUnit
+	for rows.Next() {
+		var r RejectedUnit
+		var archivedSeq int64
+		if err := rows.Scan(&r.Change, &archivedSeq); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		r.New = archivedSeq > since
+		out = append(out, r)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		u, err := loadUnit(tx, out[i].Change)
+		if err != nil {
+			return nil, err
+		}
+		out[i].Unit = u
+	}
+	return out, nil
+}
+
+// inboxSeq returns the sequence number of the latest event the last
+// recorded inbox read, or -1 when no inbox has been recorded, so every
+// event is after it.
+func inboxSeq(tx *sql.Tx) (int64, error) {
+	since := int64(-1)
+	if err := tx.QueryRow(`SELECT value FROM meta WHERE key = 'inbox_seq'`).Scan(&since); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return 0, err
+	}
+	return since, nil
 }
 
 // InboxCommit returns the main commit the last recorded inbox read, or ""

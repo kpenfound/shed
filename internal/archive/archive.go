@@ -103,6 +103,31 @@ func Read(root string) ([]Entry, error) {
 	return out, nil
 }
 
+// Change returns the change an entry archives, named by its path.
+func (e Entry) Change() string {
+	return strings.TrimSuffix(path.Base(e.Path), ".md")
+}
+
+// Citations returns the IDs the citations line of an entry's header holds,
+// as written.
+func (e Entry) Citations() []string {
+	for _, line := range strings.Split(e.Text, "\n") {
+		if strings.HasPrefix(line, "## ") {
+			break
+		}
+		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "- Citations:"); ok {
+			var out []string
+			for _, c := range strings.Split(rest, ",") {
+				if c = strings.TrimSpace(c); c != "" {
+					out = append(out, c)
+				}
+			}
+			return out
+		}
+	}
+	return nil
+}
+
 // Shelf renders the entries on one shelf for a bundle.
 func Shelf(entries []Entry, shelf unit.Shelf) string {
 	var b strings.Builder

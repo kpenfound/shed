@@ -58,3 +58,19 @@
   increase, or has a charter ID that is not a clause of the charter on main,
   as a retired ID is not; a refused answer records nothing and moves
   nothing.
+- **S.owner.9** (H.owner.1) `shed inbox` then lists charter questions: each
+  clause of the charter on main that the entries of at least two units on
+  the rejected shelf cite as violated, counted across the whole shelf
+  whenever those units were archived. Questions are listed in charter
+  order, each with its clause ID and, in the order they were archived, the
+  short change ID and title of every such unit. An entry cites a clause
+  when one of its citations is that clause's ID, with or without a
+  revision; a unit whose entry cites a clause more than once counts once.
+  Citations of other kinds, such as spec or horizon IDs, and charter IDs
+  that are not clauses of the charter on main, as a retired ID is not,
+  raise no question. A question is marked new when at least one of its
+  units' moves to archived has a higher event sequence number than the one
+  stored by the previous recorded `shed inbox` (S.owner.7), and every
+  question is new when no `shed inbox` has been recorded. `-peek` lists and
+  marks the same questions. Listing a question moves no unit and holds back
+  no session or proposal.

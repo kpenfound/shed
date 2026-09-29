@@ -129,6 +129,24 @@ commit. A clause counts as changed when its tag list differs, or when its
 text differs once runs of whitespace are collapsed to one space, so
 rewrapping a clause is not a change (S.owner.2).
 
+Last it lists charter questions: the charter clauses that keep sinking
+proposals. A clause of the charter on main is a question when the entries of
+at least two units on the rejected shelf cite it as violated, counted across
+the whole shelf however long ago those units were archived. Questions come in
+charter order, each with its clause ID and then, in the order they were
+archived, the short change ID and title of every unit whose entry cites it.
+A citation counts for its clause with or without a revision, so `C3@HEAD~1`
+counts toward C3, and a unit whose entry cites a clause more than once counts
+once. Spec and horizon citations raise no question, and neither do charter
+IDs that are not clauses of the charter on main, such as retired ones.
+
+A question is marked `new` when at least one of its units was archived after
+the previous recorded `shed inbox`, by the same event sequence number that
+marks contested units. When no inbox has been recorded, every question is
+new. Reading the inbox does not reset the count: a question stays listed for
+as long as its units stay on the shelf, and it loses its mark once the owner
+has seen all of them (S.owner.9).
+
 ```
 Contested units:
   qpvuntsm  new  bounces 4  Say goodbye: bounced 4 times, over the threshold of 3
@@ -136,6 +154,14 @@ Contested units:
 Horizon changes since main at 3f2a9c1d7e4b:
   changed  H.greet.2  near
   added    H.greet.4  eventual
+
+Charter questions:
+  C6          new
+    zkxolmrw  Host a web dashboard
+    ynqtprsv  Sync units to GitHub issues
+  C12
+    wlsmvkto  Edit the spec on main from the sweeper
+    rpoznkqx  Land spec fixes without a unit
 ```
 
 Every `shed inbox` records the main commit it read, and the event sequence
@@ -145,11 +171,13 @@ first inbox has no earlier commit and lists no horizon changes. If the
 recorded commit is not an ancestor of main, for example after the remote was
 re-cloned, the inbox says so and lists no horizon changes, and the commit it
 records becomes the new starting point. `shed inbox -peek` lists the same
-entries, marks new units against the previous recorded inbox just as a
-recording read does, and records nothing (S.owner.3, S.owner.7).
+entries, marks new units and questions against the previous recorded inbox
+just as a recording read does, and records nothing (S.owner.3, S.owner.7,
+S.owner.9).
 
 Reading the inbox never moves a unit and never starts or stops a stage. The
-factory does not wait for it.
+factory does not wait for it, and listing a charter question holds back no
+session or proposal.
 
 ## Answering contested units
 
@@ -197,7 +225,7 @@ answer records nothing and moves nothing (S.owner.6).
 | Command | Does |
 | --- | --- |
 | `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost and title, then the notices waiting for the owner. |
-| `shed inbox [-peek]` | Lists contested units, marking those new since the last inbox, and the horizon changes on main since the last inbox. `-peek` records nothing. |
+| `shed inbox [-peek]` | Lists contested units, the horizon changes on main and the charter questions from repeated rejections, marking what is new since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
 | `shed answer <unit> retry\|defer\|reject <reason>` | Answers a contested unit: moves it back to `proposed`, or defers or rejects it to the archive. |
 | `shed unit move <unit> <state> <reason>` | Moves a unit by hand to `implementing`, `verifying` or `queued`. |
