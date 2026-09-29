@@ -189,6 +189,16 @@ func Trace(s *Set) []TraceEntry {
 	return out
 }
 
+// tier returns a horizon clause's tier, or "" if it has none.
+func tier(c clause.Clause) string {
+	for _, t := range c.Tags {
+		if slices.Contains(Tiers, t) {
+			return t
+		}
+	}
+	return ""
+}
+
 // Gap returns the horizon clauses that are not realised.
 func Gap(s *Set) []TraceEntry {
 	var out []TraceEntry

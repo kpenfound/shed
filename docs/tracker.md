@@ -103,11 +103,46 @@ A unit may depend only on spec clauses that are on main or that it modifies
 itself. Depending on a clause another in-flight unit is adding is refused.
 Wait for that unit to land, or merge the two units.
 
+## The owner inbox
+
+`shed inbox` gathers what is waiting for the owner. It lists every contested
+unit in the order the units became contested, each with its short change ID,
+bounce count, title and the reason it was contested. A unit that has left
+`contested` drops off the list (S.owner.1).
+
+Then it lists the horizon clauses added, changed or removed on main since
+the main commit the previous `shed inbox` read. They come in document order,
+each with its ID and tier. A removed clause shows its tier at that earlier
+commit. A clause counts as changed when its tag list differs, or when its
+text differs once runs of whitespace are collapsed to one space, so
+rewrapping a clause is not a change (S.owner.2).
+
+```
+Contested units:
+  qpvuntsm  bounces 4  Say goodbye: bounced 4 times, over the threshold of 3
+
+Horizon changes since main at 3f2a9c1d7e4b:
+  changed  H.greet.2  near
+  added    H.greet.4  eventual
+```
+
+Every `shed inbox` records the main commit it read in the event log, so
+`shed tracker rebuild` keeps it and the next inbox starts from there. The
+first inbox has no earlier commit and lists no horizon changes. If the
+recorded commit is not an ancestor of main, for example after the remote was
+re-cloned, the inbox says so and lists no horizon changes, and the commit it
+records becomes the new starting point. `shed inbox -peek` lists the same
+entries and records nothing (S.owner.3).
+
+Reading the inbox never moves a unit and never starts or stops a stage. The
+factory does not wait for it.
+
 ## Commands
 
 | Command | Does |
 | --- | --- |
 | `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost and title, then the notices waiting for the owner. |
+| `shed inbox [-peek]` | Lists contested units and the horizon changes on main since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
 | `shed unit move <unit> <state> <reason>` | Moves a unit by hand to `implementing`, `verifying` or `queued`, or from `contested` back to `proposed`. |
 | `shed unit reopen [-amendment] <unit> <reason>` | Sends a unit back to the shed. |

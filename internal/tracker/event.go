@@ -32,6 +32,7 @@ const (
 	ObjectionRaised = "debate.objection"
 	ObjectionClosed = "debate.withdrawn"
 	ObjectionAnswer = "debate.answer"
+	InboxRead       = "inbox.read"
 )
 
 // Event is one line of the event log. The log is the tracker's source of
@@ -57,7 +58,8 @@ type Event struct {
 	Shelf unit.Shelf `json:"shelf,omitempty"`
 	// Seal is set when a unit is sealed.
 	Seal *Seal `json:"seal,omitempty"`
-	// Commit is the commit on main a unit landed as.
+	// Commit is the commit on main a unit landed as, or the main commit an
+	// inbox read.
 	Commit    string     `json:"commit,omitempty"`
 	Footprint *Footprint `json:"footprint,omitempty"`
 	// Actual and Drift are set when a unit lands: its actual footprint and

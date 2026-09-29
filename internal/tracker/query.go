@@ -363,6 +363,8 @@ func Describe(e Event) string {
 		fmt.Fprintf(&b, "objection %s withdrawn", e.Objection.ID)
 	case ObjectionAnswer:
 		fmt.Fprintf(&b, "objection %s answered: %s", e.Objection.ID, e.Objection.Text)
+	case InboxRead:
+		fmt.Fprintf(&b, "inbox read at main %s", shortHash(e.Commit))
 	default:
 		b.WriteString(e.Kind)
 	}

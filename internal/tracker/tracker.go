@@ -102,6 +102,8 @@ CREATE TABLE IF NOT EXISTS units (
 	landed TEXT NOT NULL DEFAULT '',
 	actual INTEGER NOT NULL DEFAULT 0,
 	round INTEGER NOT NULL DEFAULT 0,
+	contested_seq INTEGER NOT NULL DEFAULT 0,
+	contested_reason TEXT NOT NULL DEFAULT '',
 	opened_seq INTEGER NOT NULL,
 	opened_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
@@ -171,7 +173,7 @@ var tables = []string{"units", "seals", "footprints", "actual_footprints", "sess
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 6
+const schemaVersion = 7
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -350,6 +352,11 @@ func apply(tx *sql.Tx, e Event) error {
 				return err
 			}
 		}
+		if e.To == unit.Contested {
+			if err := exec(`UPDATE units SET contested_seq = ?, contested_reason = ? WHERE change = ?`, e.Seq, e.Reason, e.Unit); err != nil {
+				return err
+			}
+		}
 		if e.Seal != nil {
 			if err := exec(`INSERT OR REPLACE INTO seals (change, main, commit_id, sealed_at) VALUES (?, ?, ?, ?)`,
 				e.Unit, e.Seal.Main, e.Seal.Commit, at); err != nil {
@@ -410,6 +417,8 @@ func apply(tx *sql.Tx, e Event) error {
 		return exec(`UPDATE objections SET withdrawn = ? WHERE id = ?`, e.Reason, e.Objection.ID)
 	case ObjectionAnswer:
 		return exec(`UPDATE objections SET answer = ? WHERE id = ?`, e.Objection.Text, e.Objection.ID)
+	case InboxRead:
+		return exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('inbox', ?)`, e.Commit)
 	}
 	return fmt.Errorf("unknown event kind %q", e.Kind)
 }

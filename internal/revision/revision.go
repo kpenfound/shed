@@ -148,3 +148,19 @@ func run(dir string, args ...string) ([]byte, error) {
 	}
 	return out, nil
 }
+
+// IsAncestor reports whether commit is an ancestor of rev, or rev itself. A
+// commit the repository does not hold is no ancestor.
+func IsAncestor(root, commit, rev string) (bool, error) {
+	if _, err := run(root, "cat-file", "-e", commit+"^{commit}"); err != nil {
+		return false, nil
+	}
+	cmd := exec.Command("git", "merge-base", "--is-ancestor", commit, rev)
+	cmd.Dir = root
+	err := cmd.Run()
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && exit.ExitCode() == 1 {
+		return false, nil
+	}
+	return err == nil, err
+}

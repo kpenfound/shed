@@ -74,6 +74,7 @@ Documents:
 
 Units:
   status                                  list units and what waits for the owner
+  inbox [-peek]                           list contested units and horizon changes since the last inbox
   unit open <title>                       make a change for a unit and open it in proposed
   unit move <unit> <state> <reason>       move a unit to another state
   unit reopen [-amendment] <unit> <reason> send a unit back to the shed
@@ -155,6 +156,8 @@ func RunWith(ctx context.Context, args []string, stdout, stderr io.Writer, runne
 		return e.prove(rest)
 	case "status":
 		return e.status(rest)
+	case "inbox":
+		return e.inbox(rest)
 	case "unit":
 		return e.unit(rest)
 	case "land":

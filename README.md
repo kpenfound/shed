@@ -199,6 +199,7 @@ shed run <unit>                    # debate, implement, verify, land
 | `shed show <citation>...` | Prints the clauses citations name, at any revision. |
 | `shed diff <from> [<to>]` | Lists spec clauses added, changed and removed between revisions. |
 | `shed status` | Lists units, what waits for the owner, and whether the factory is paused. |
+| `shed inbox [-peek]` | Lists contested units and the horizon changes since you last looked. |
 | `shed unit open\|declare\|move\|reopen\|log\|path` | Drives units by hand. |
 | `shed debate\|land\|run <unit>` | Runs one stage of a unit, or all of them. |
 | `shed serve [-once]` | Runs the factory. |
@@ -211,10 +212,12 @@ Shed builds itself, one unit at a time. It checks and traces its documents,
 tracks units through their states, keeps each unit on a jj change, runs
 agents in Docker Sandboxes, debates, implements, verifies and lands units,
 proposes from the gap, and serves all of it on its own under a budget.
+`shed inbox` lists contested units and horizon changes for the owner.
 
 Still to come, as the [horizon](horizon.md) describes: many units in flight at
-once with reconciliation, a frame builder that sharpens the horizon, an owner
-inbox, a sweeper that patrols main for spec violations, `shed init`, and
+once with reconciliation, a frame builder that sharpens the horizon, charter
+questions and sampled amendments in the owner inbox with answers from the
+CLI, a sweeper that patrols main for spec violations, `shed init`, and
 adopting existing codebases. Until the frame builder exists, the owner moves
 distant horizon clauses to soon by editing the horizon.
 
@@ -226,7 +229,7 @@ distant horizon clauses to soon by editing the horizon.
 | [Clauses, citations and proofs](docs/clauses.md) | The document format. |
 | [The life of a unit, and autopilot](docs/autopilot.md) | Debate, implementation, verification, landing and `shed serve`. |
 | [Sessions](docs/sessions.md) | The sandbox, the tools and the bundles agents get. |
-| [Units and the tracker](docs/tracker.md) | Unit states, the state directory and operator settings. |
+| [Units and the tracker](docs/tracker.md) | Unit states, the owner inbox, the state directory and operator settings. |
 | [Version control](docs/vcs.md) | The jj repository, unit workspaces and landing. |
 | [Releasing](docs/releasing.md) | Cutting a release. |
 | [AGENTS.md](AGENTS.md) | Working on shed itself. |

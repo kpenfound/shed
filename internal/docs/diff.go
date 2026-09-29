@@ -59,3 +59,54 @@ func specByID(s *Set) map[clause.ID]clause.Clause {
 	}
 	return out
 }
+
+// HorizonChange is a horizon clause added, changed or removed between two
+// revisions, with its tier: the tier at the later revision, or at the
+// earlier one for a removed clause.
+type HorizonChange struct {
+	ID   clause.ID
+	Tier string
+	// Change is "added", "changed" or "removed".
+	Change string
+}
+
+// DiffHorizon lists the horizon clauses that differ between two sets, in
+// document order. Removed clauses sit where they stood in the earlier set.
+// A clause changes when its tag list or its text changes; whitespace does
+// not count.
+func DiffHorizon(from, to *Set) []HorizonChange {
+	old := from.Clauses(clause.Horizon)
+	oldAt := map[clause.ID]int{}
+	for i, c := range old {
+		oldAt[c.ID] = i
+	}
+	cur := map[clause.ID]bool{}
+	for _, c := range to.Clauses(clause.Horizon) {
+		cur[c.ID] = true
+	}
+	var out []HorizonChange
+	next := 0
+	removedBefore := func(end int) {
+		for ; next < end; next++ {
+			if c := old[next]; !cur[c.ID] {
+				out = append(out, HorizonChange{ID: c.ID, Tier: tier(c), Change: "removed"})
+			}
+		}
+	}
+	for _, c := range to.Clauses(clause.Horizon) {
+		i, ok := oldAt[c.ID]
+		switch {
+		case !ok:
+			out = append(out, HorizonChange{ID: c.ID, Tier: tier(c), Change: "added"})
+			continue
+		case i >= next:
+			removedBefore(i)
+			next = i + 1
+		}
+		if o := old[i]; o.Text != c.Text || !slices.Equal(o.Tags, c.Tags) {
+			out = append(out, HorizonChange{ID: c.ID, Tier: tier(c), Change: "changed"})
+		}
+	}
+	removedBefore(len(old))
+	return out
+}
