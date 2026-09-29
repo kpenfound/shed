@@ -11,8 +11,8 @@ The sandbox sees only what the session is granted:
 
 - its working directory: a plain copy of the unit's files made for the
   session. It is read-write, since sbx needs a writable primary workspace,
-  but shed captures it onto the unit only for the painter, mechanic and
-  wheelbuilder; what a committee member writes there is thrown away;
+  but shed captures it onto the unit only for the painter, mechanic,
+  wheelbuilder and frame builder; what a committee member writes there is thrown away;
 - its session directory, where shed writes `bundle.md` and core writes the
   transcript and result;
 - any extra mounts the operator adds to the role's profile.
@@ -59,7 +59,10 @@ amendment's diff, or, when the amendment was rejected, says the sealed spec
 stands as written and gives the objections that stood at the cap. A
 mechanic's bundle for a unit whose change holds an unresolved conflict names
 each file holding one and says to resolve it against the sealed spec before
-any other work. Notices count as delivered once a session starts, except in
+any other work. The frame builder works on no unit: its bundle holds
+the charter, the horizon, the clause to frame with the clauses that refine it
+and the spec clauses that advance it, and the units in flight with their
+footprints. Notices count as delivered once a session starts, except in
 a wheelbuilder's horizon review, whose bundle shows them without delivering
 them. Bundles
 come from a context provider; the default one uses only the documents, the
@@ -68,8 +71,8 @@ tracker and the debate record.
 Each role has a system prompt: a part every role shares, then its own. Write
 a file of the same name under `prompts/` in the state directory to replace
 one: `common.md`, `painter.md`, `painter-reply.md`, `committee.md`,
-`committee-review.md`, `mechanic.md`, `wheelbuilder.md` or
-`wheelbuilder-review.md`.
+`committee-review.md`, `mechanic.md`, `wheelbuilder.md`,
+`wheelbuilder-review.md` or `frame-builder.md`.
 
 ## Failures and cost
 

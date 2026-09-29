@@ -376,7 +376,8 @@ func checkFootprint(tx *sql.Tx, change string, fp Footprint, onMain func(clause.
 	return nil
 }
 
-// StartSession records a session on a unit and creates its directory.
+// StartSession records a session on a unit and creates its directory. A
+// session on no unit, such as the frame builder's, has an empty change.
 func (t *Tracker) StartSession(change string, role unit.Actor, step string, pid int) (Session, error) {
 	if !isRole(role) {
 		return Session{}, fmt.Errorf("%q is not a role that runs sessions", role)
@@ -385,12 +386,14 @@ func (t *Tracker) StartSession(change string, role unit.Actor, step string, pid 
 		return Session{}, errors.New("a session needs a step")
 	}
 	events, err := t.write(func(tx *sql.Tx) ([]Event, error) {
-		state, err := stateOf(tx, change)
-		if err != nil {
-			return nil, err
-		}
-		if state.Terminal() {
-			return nil, fmt.Errorf("unit %s is %s", unit.Short(change), state)
+		if change != "" {
+			state, err := stateOf(tx, change)
+			if err != nil {
+				return nil, err
+			}
+			if state.Terminal() {
+				return nil, fmt.Errorf("unit %s is %s", unit.Short(change), state)
+			}
 		}
 		return []Event{{Kind: SessionStarted, Unit: change, Actor: role,
 			Session: &SessionEv{Role: role, Step: step, PID: pid}}}, nil

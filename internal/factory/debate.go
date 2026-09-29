@@ -56,6 +56,9 @@ func (f *Factory) Declare(ctx context.Context, change, title string, depends, ad
 	if err != nil {
 		return err
 	}
+	if u.OpenedBy == unit.FrameBuilder {
+		return fmt.Errorf("unit %s records a framing: its change modifies no spec clause, so it cannot be declared", unit.Short(u.Change))
+	}
 	if title != "" && title != u.Title {
 		if err := f.Tracker.Retitle(u.Change, title, actor); err != nil {
 			return err

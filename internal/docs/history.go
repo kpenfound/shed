@@ -119,3 +119,20 @@ func moved(head, work map[clause.ID]clause.Clause) []clause.Problem {
 	}
 	return problems
 }
+
+// Held returns every clause ID the documents held at rev or at any commit
+// before it: the IDs a new clause may never take (S.doc.6).
+func Held(root, rev string) (map[clause.ID]bool, error) {
+	commits, err := revision.Log(root, rev, CharterPath, SpecDir, HorizonPath)
+	if err != nil {
+		return nil, err
+	}
+	held := map[clause.ID]bool{}
+	for _, commit := range append(commits, rev) {
+		s, _ := Load(revision.Git{Root: root, Rev: commit})
+		for id := range s.byID {
+			held[id] = true
+		}
+	}
+	return held, nil
+}

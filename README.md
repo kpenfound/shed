@@ -64,6 +64,7 @@ Each role is an agent session, run by a small, deterministic Go scheduler.
 
 | Role | Does |
 | --- | --- |
+| Frame builder | Breaks a distant or eventual horizon clause into near and soon clauses that refine it, when you run `shed frame`. |
 | Painter | Reads the gap and proposes the next small increment as a spec diff. |
 | Committee | Debates each proposal in parallel rounds, citing clause IDs. A charter objection is a veto: the proposal is rejected. A proposal that does not move toward the horizon is deferred. Later, a committee member who did not build the unit reviews its code. |
 | Mechanic | Implements a sealed unit step by step: proofs first, then code, then docs. |
@@ -204,6 +205,7 @@ shed run <unit>                    # debate, implement, verify, land
 | `shed answer <clause> keep <reason>` | Answers a charter question by keeping the clause as it stands. |
 | `shed unit open\|declare\|move\|reopen\|log\|path` | Drives units by hand. |
 | `shed debate\|land\|run <unit>` | Runs one stage of a unit, or all of them. |
+| `shed frame <clause>`, `shed frame -discard <unit>` | Breaks a distant or eventual horizon clause into near and soon clauses that refine it, recorded on a unit for you to read, or discards such a unit. |
 | `shed serve [-once]` | Runs the factory. |
 | `shed config` | Prints the operator settings in effect. |
 | `shed doctor` | Checks that everything running the factory needs is in place. |
@@ -218,12 +220,14 @@ proposes from the gap, and serves all of it on its own under a budget.
 from repeated rejections and sampled horizon amendments for the owner. A distant or eventual horizon amendment waits
 for the owner, and so does a soon one the committee splits over. `shed answer` retries, defers, rejects or approves a contested
 unit, and keeps a charter clause to answer its question.
+`shed frame` breaks a distant or eventual horizon clause into near and soon
+clauses that refine it.
 
 Still to come, as the [horizon](horizon.md) describes: many units in flight at
-once with reconciliation, a frame builder that sharpens the horizon, a sweeper that
-patrols main for spec violations, `shed init`, and adopting existing
-codebases. Until the frame builder exists, the owner moves
-distant horizon clauses to soon by editing the horizon.
+once with reconciliation, framings that go through the shed and land, a
+sweeper that patrols main for spec violations, `shed init`, and adopting
+existing codebases. For now a framing stays on its unit for the owner to
+read; the owner brings its clauses to main by editing the horizon.
 
 ## Documentation
 

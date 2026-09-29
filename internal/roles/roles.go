@@ -23,13 +23,14 @@ const (
 	CommitteeReview = "committee-review"
 	Mechanic        = "mechanic"
 	Wheelbuilder    = "wheelbuilder"
+	FrameBuilder    = "frame-builder"
 	// WheelbuilderReview reviews a unit against changed horizon clauses.
 	WheelbuilderReview = "wheelbuilder-review"
 	common             = "common"
 )
 
 // Names lists every prompt a role runs with.
-var Names = []string{Painter, PainterReply, Committee, CommitteeReview, Mechanic, Wheelbuilder, WheelbuilderReview}
+var Names = []string{Painter, PainterReply, Committee, CommitteeReview, Mechanic, Wheelbuilder, WheelbuilderReview, FrameBuilder}
 
 // OverrideDir is the directory under the state directory whose files
 // replace the shipped prompts.

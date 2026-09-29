@@ -125,7 +125,13 @@ func Resolve(root, rev string) (string, error) {
 // History lists, oldest first, the commits reachable from HEAD that touched
 // any of the paths.
 func History(root string, paths ...string) ([]string, error) {
-	args := append([]string{"log", "--format=%H", "--reverse", "HEAD", "--"}, paths...)
+	return Log(root, "HEAD", paths...)
+}
+
+// Log lists, oldest first, the commits reachable from rev that touched any
+// of the paths.
+func Log(root, rev string, paths ...string) ([]string, error) {
+	args := append([]string{"log", "--format=%H", "--reverse", rev, "--"}, paths...)
 	out, err := run(root, args...)
 	if err != nil {
 		return nil, err

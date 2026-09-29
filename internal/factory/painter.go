@@ -62,7 +62,8 @@ func (f *Factory) PainterDue(ctx context.Context, now time.Time) (bool, error) {
 
 // PainterWait says why the painter may not propose now, or returns "" when
 // it may: fewer than painter.max_proposed units are proposed, it is not
-// backing off, and the gap it may work on is not empty.
+// backing off, and the gap it may work on is not empty. A framing opened by
+// shed frame does not count as a proposal (S.frame.3).
 func (f *Factory) PainterWait(ctx context.Context, now time.Time) (string, error) {
 	units, err := f.Tracker.Units()
 	if err != nil {
@@ -70,7 +71,7 @@ func (f *Factory) PainterWait(ctx context.Context, now time.Time) (string, error
 	}
 	proposed := 0
 	for _, u := range units {
-		if u.State == unit.Proposed {
+		if u.State == unit.Proposed && u.OpenedBy != unit.FrameBuilder {
 			proposed++
 		}
 	}

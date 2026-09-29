@@ -100,11 +100,11 @@ conflict with main depends on how far the unit has come:
 - A proposed or contested unit keeps the rebase, conflicts and all. The
   conflict stays stored in the change's files, and the painter's next session
   sees it and resolves it before the committee debates the text.
-- A unit past its seal (sealed, implementing, verifying or queued) keeps the
-  rebase only if the rebased change holds no conflict in any file. Otherwise
+- A unit past its seal (sealed, implementing, verifying or queued), or a
+  proposed unit that `shed frame` opened, keeps the rebase only if the rebased change holds no conflict in any file. Otherwise
   shed undoes that unit's rebase and leaves its change and workspace as they
   were, so no mechanic, verifier or gate meets a conflict a landing brought
-  in. The unit takes main's changes when a later landing rebases it cleanly,
+  in, and a framing never holds a conflict no session would resolve. The unit takes main's changes when a later landing rebases it cleanly,
   or at its own landing, where the wheelbuilder resolves conflicts against
   the sealed spec.
 

@@ -265,3 +265,24 @@ func (r *Repo) Restore(ctx context.Context, change, commit string, paths ...stri
 	}
 	return r.Commit(ctx, change)
 }
+
+// Changed lists the files a unit's change adds, changes or removes against
+// its parent, slash-separated and relative to the repository root, and
+// returns the parent commit.
+func (r *Repo) Changed(ctx context.Context, change string) ([]string, string, error) {
+	parent, err := r.log(ctx, changeRevset(change)+"-", "commit_id")
+	if err != nil {
+		return nil, "", err
+	}
+	out, err := r.jj(ctx, "diff", "--name-only", "-r", changeRevset(change))
+	if err != nil {
+		return nil, "", err
+	}
+	var files []string
+	for _, line := range strings.Split(out, "\n") {
+		if line != "" {
+			files = append(files, filepath.ToSlash(line))
+		}
+	}
+	return files, parent, nil
+}

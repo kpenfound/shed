@@ -353,7 +353,7 @@ func (f *Factory) explainIdle(ctx context.Context, now time.Time, w io.Writer) {
 	units, err := f.Tracker.Units()
 	if err == nil {
 		for _, u := range units {
-			if u.State == unit.Proposed && len(u.Footprint.Advances) == 0 {
+			if u.State == unit.Proposed && len(u.Footprint.Advances) == 0 && u.OpenedBy != unit.FrameBuilder {
 				fmt.Fprintf(w, "  %s is a draft: declare the horizon clauses it advances with shed unit declare\n", unit.Short(u.Change))
 			}
 			if u.State == unit.Contested {

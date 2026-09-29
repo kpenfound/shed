@@ -290,6 +290,9 @@ sessions end and are captured. See [version control](vcs.md).
 | shed | debate | a proposal declares a horizon clause and fewer than `concurrency.in_flight` units are sealed through queued; one debate at a time |
 | painter | a proposal | the gap is not empty, fewer than `painter.max_proposed` units are proposed, and the painter is not backing off |
 
+Units opened by `shed frame` never count toward `painter.max_proposed`, and
+`shed serve -once` does not report them as drafts waiting to be declared.
+
 Each pass starts work downstream first, so work in flight finishes before new
 work starts: horizon reviews, landing, verification, implementation, debate,
 then proposals. Controllers start stages in the background and never wait on
@@ -310,8 +313,54 @@ The painter works on the gap: near and soon horizon clauses that are not
 realised and that no unit in flight advances. Each gap clause comes with the
 spec clauses already advancing it and, if it refines another clause, that
 clause's ID and tier. It sees the deferred and rejected shelves and the units
-in flight. Distant clauses need promoting to soon, by editing the horizon,
-before the painter proposes against them.
+in flight. Distant and eventual clauses need
+breaking into near or soon clauses, by editing the horizon, before the
+painter proposes against them. `shed frame` drafts that breakdown.
+
+## Framing the horizon
+
+`shed frame <clause>` runs one frame builder session on a horizon clause of
+main that is distant or eventual and not realised. It refuses any other
+clause, and an ID that is not in the horizon, before starting a session. The
+session works in a writable copy of main's files. Its bundle holds the
+charter, the horizon, the clause to frame with the clauses that already
+refine it and the spec clauses that advance it, and the units in flight with
+their footprints. It ends with `framed` or `nothing`.
+
+When the session reports `framed`, shed checks its copy against main:
+
+- `horizon.md` is the only file changed, and the only change to it is added
+  clauses;
+- at least one clause is added;
+- each added clause is tagged `near` or `soon`, is not realised, carries
+  `refines` naming the framed clause, and has an ID that no clause on main
+  holds or has held.
+
+When the check passes, shed opens a unit on main whose change holds the
+session's `horizon.md` and nothing else, titled after the framed clause, and
+prints its short change ID and each added clause with its tier:
+
+```
+$ shed frame H.greet.3
+opened qpvuntsm in proposed, framing H.greet.3
+  H.greet.4	near
+  H.greet.5	soon
+```
+
+When the check fails, shed lists every change that breaks it. When the
+session reports `nothing` or ends without an outcome, shed says so. Either
+way it keeps nothing and opens no unit.
+
+The unit is a draft that is never debated, and since it modifies no spec
+clause it cannot be declared. It stays proposed as a record of the framing
+for the owner to read: nothing seals or lands it. Read it with
+`shed unit path <unit>`, and copy the clauses you want into the horizon.
+Crash recovery never archives it. Rebasing it onto a new main, after a
+landing or by the recovery sweep, keeps the rebase only if it leaves no
+conflict, as for a unit past its seal (see
+[keeping units on main](vcs.md#keeping-units-on-main)). `shed frame -discard <unit>` archives a
+proposed unit that `shed frame` opened, as deferred with no archive entry,
+and discards its change; it refuses any other unit.
 
 The in-flight cap defaults to one, so only one unit is ever between sealed
 and landed and nothing needs reconciling.

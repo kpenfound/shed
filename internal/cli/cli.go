@@ -89,6 +89,8 @@ Units:
   land <unit>                             land a queued unit on main
   run <unit>                              take a unit through the shed to main
   serve [-once]                           run the factory: propose, debate, implement, verify, land
+  frame <clause>                          break a distant or eventual horizon clause into near and soon clauses
+  frame -discard <unit>                   discard a framing that shed frame opened
 
 State:
   config             print the operator settings in effect
@@ -173,6 +175,8 @@ func RunWith(ctx context.Context, args []string, stdout, stderr io.Writer, runne
 		return e.runUnit(rest)
 	case "serve":
 		return e.serve(rest)
+	case "frame":
+		return e.frame(rest)
 	case "config":
 		return e.config(rest)
 	case "tracker":

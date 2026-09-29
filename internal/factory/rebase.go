@@ -71,8 +71,9 @@ func (f *Factory) lacksLanding(ctx context.Context, change string) (bool, error)
 // except one, leaving any unit with a session running to be rebased once
 // its sessions end (S.vcs.10, S.vcs.11). A rebase that conflicts or fails
 // stops nothing: a proposed or contested unit keeps conflicts in its change,
-// a unit past its seal has a conflicting rebase undone, and a failed rebase
-// is restored; either is tried again by the next sweep.
+// a unit past its seal or opened by shed frame has a conflicting rebase
+// undone, and a failed rebase is restored; either is tried again by the
+// next sweep.
 func (f *Factory) sweep(ctx context.Context, except string) error {
 	units, err := f.Tracker.Units()
 	if err != nil {
@@ -111,9 +112,13 @@ func (f *Factory) follow(ctx context.Context, change string) {
 	if err != nil {
 		return
 	}
-	switch u.State {
-	case unit.Sealed, unit.Implementing, unit.Verifying, unit.Queued:
+	switch {
+	case u.State == unit.Sealed, u.State == unit.Implementing, u.State == unit.Verifying, u.State == unit.Queued:
 		// Past its seal, a unit keeps only a rebase that holds no conflict.
+		_, _ = f.Repo.FollowClean(ctx, change)
+	case u.OpenedBy == unit.FrameBuilder:
+		// No session resolves a framing's conflicts, so it too keeps only a
+		// clean rebase (S.frame.3).
 		_, _ = f.Repo.FollowClean(ctx, change)
 	default:
 		_, _ = f.Repo.Follow(ctx, change)

@@ -57,7 +57,8 @@ a `refines` tag:
 
 `shed check` refuses a `refines` tag on a distant or eventual clause, a second
 `refines` tag, and one naming anything other than a distant or eventual clause
-in the horizon.
+in the horizon. `shed frame <clause>` has a frame builder draft refining
+clauses for a distant or eventual clause.
 
 In a git repository, a new near or soon clause must carry a `refines` tag.
 `shed check` refuses a working tree that leaves a near or soon clause without
