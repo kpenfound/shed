@@ -426,7 +426,7 @@ func apply(tx *sql.Tx, e Event) error {
 		return exec(`UPDATE notices SET delivered_at = ? WHERE id = ?`, at, e.Notice.ID)
 	case UnitBounced:
 		return exec(`UPDATE units SET bounces = bounces + 1, round = 0, reason = ?, updated_at = ? WHERE change = ?`, e.Reason, at, e.Unit)
-	case UnitEntangled:
+	case UnitEntangled, Consensus:
 		return nil
 	case UnitRetitled:
 		return exec(`UPDATE units SET title = ?, updated_at = ? WHERE change = ?`, e.Title, at, e.Unit)

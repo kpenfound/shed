@@ -77,15 +77,16 @@
   objection, rejects the amendment, in place of the bounce of S.shed.6 and the
   deferral of S.shed.4; a charter objection standing still rejects the
   proposal under S.shed.3. Rejecting the amendment archives nothing and keeps
-  the unit's change. Shed makes the files under `spec/` on the unit's change
-  exactly those of the unit's commit recorded at the last seal (S.shed.8)
-  rebased onto the main commit the change is based on: each takes its
-  content there, any file under `spec/` absent there is removed, and every
-  other file on the change is left as it is. Clauses that main added, changed
-  or removed after that seal therefore stay as main has them, and a conflict
-  between main and the sealed spec is stored in the files as under S.vcs.10.
+  the unit's change. Shed makes the files under `spec/` and the file
+  `horizon.md` on the unit's change exactly those of the unit's commit
+  recorded at the last seal (S.shed.8) rebased onto the main commit the
+  change is based on: each takes its content there, any file under `spec/`
+  absent there is removed, and every other file on the change is left as it
+  is. Clauses that main added, changed or removed after that seal therefore
+  stay as main has them, and a conflict between main and the sealed spec or
+  horizon is stored in the files as under S.vcs.10.
   It records the standing objections as the reason and seals the unit as
-  under S.shed.8. If a restored file under `spec/` holds a conflict, or
+  under S.shed.8. If a restored file holds a conflict, or
   sealing's rebase fails or conflicts under `spec/` (S.vcs.10), the unit is
   not sealed: it keeps the restored files and bounces to its painter as
   S.vcs.10 says, naming those conflicts or the failure, and stays in the
@@ -108,3 +109,40 @@
   counts as changed when its tag list differs or its text differs once runs
   of whitespace are collapsed to one space. The entry of a proposal that
   changes no horizon clause lists no horizon changes.
+- **S.shed.16** (H.hz.1) When a debate round ends with no objection
+  standing and no clause outside the scope under S.shed.12, shed takes the
+  tier of the proposal's horizon amendment before the unit is sealed and
+  before S.serve.7 can hold its seal back. The tier is the one `shed diff`
+  gives under S.diff.4 between the latest main commit the unit's change
+  descends from and the unit's change. When that tier is distant or
+  eventual, the unit is neither sealed nor held: it moves to contested with
+  shed as actor and a reason naming the tier and, in document order, each
+  horizon clause counted at that tier. This move counts no bounce. A
+  proposal with no tier, or a near or soon tier, is sealed or held as
+  before. A painter session on a unit that S.serve.7 holds back after such
+  a round, such as one resolving conflicts a landing stored in its files
+  under S.vcs.10, ends the hold: the unit stays proposed, counts no bounce,
+  and its next debate starts afresh from round one, so the tier is taken
+  again before it is sealed. A held seal released with no painter session
+  run on the unit since its round ended takes no tier again, because its
+  change then holds only what that round saw, rebased. A unit bounced under
+  S.shed.12 takes no tier. The seal of S.shed.14 takes no tier, and a
+  painter session does not end its wait, because it restores the horizon of
+  the last seal whatever a painter wrote meanwhile. The seal of S.shed.17
+  takes no tier.
+- **S.shed.17** (H.hz.1) `shed answer <unit> approve <reason>` moves a
+  contested unit whose latest move to contested was made under S.shed.16 to
+  proposed, with the owner as actor and the reason as the move's reason. Its
+  next debate runs no round and seals it as under S.shed.8, without the
+  check of S.shed.16; while S.serve.7 holds sealing back it waits in proposed
+  like a proposal that reached consensus. A unit in the amendment lane
+  (S.shed.11) stays in it until that seal, which is a seal out of the
+  amendment lane under S.shed.13. A bounce before that seal ends the
+  approval, and so does a painter session on the unit before that seal,
+  such as one resolving conflicts a landing stored in its files under
+  S.vcs.10; the painter session counts no bounce. Once the approval ends,
+  the unit's later debates run as for any proposal, starting afresh from
+  round one, so S.shed.16 takes the tier of its horizon amendment as the
+  painter left it. Shed
+  refuses `approve` for a unit whose latest move to contested was not made
+  under S.shed.16.

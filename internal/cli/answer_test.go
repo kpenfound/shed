@@ -204,6 +204,10 @@ func TestAnswerRefusals(t *testing.T) {
 		{"answer", contested, "retry", "  "},
 		{"answer", contested, "defer", "", " "},
 		{"answer", contested, "reject", " "},
+		{"answer", proposed, "approve", "go", "ahead"},
+		{"answer", sealed, "approve", "go", "ahead"},
+		{"answer", contested, "approve", "go", "ahead"},
+		{"answer", contested, "approve", " "},
 		{"answer", contested},
 	} {
 		if _, stderr, code := run(t, r.Dir, args...); code == OK || stderr == "" {
@@ -221,6 +225,74 @@ func TestAnswerRefusals(t *testing.T) {
 		if u := unitNow(t, r, change); u.State != want {
 			t.Errorf("unit %s is %s after refused answers, want %s", unit.Short(change), u.State, want)
 		}
+	}
+}
+
+//shed:proves S.shed.17 S.owner.6
+func TestAnswerApprove(t *testing.T) {
+	r := testrepo.Colocated(t)
+	state := filepath.Join(r.Dir, DefaultStateDir)
+	bounced := contestedUnit(t, r, "Say goodbye")
+
+	// A unit whose horizon amendment is eventual goes to the owner.
+	change := openUnit(t, r.Dir, "Wave goodbye")
+	dir := strings.TrimSpace(mustRun(t, r.Dir, "unit", "path", change))
+	spec := testrepo.Spec + "- **S.core.2** (H.greet.2) Running the tool with --bye waves goodbye.\n"
+	horizon := strings.Replace(testrepo.Horizon, "within C2.\n", "within C2.\n- **H.greet.4** (eventual) The tool waves.\n", 1)
+	for name, content := range map[string]string{"spec/core.md": spec, "horizon.md": horizon} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustRun(t, r.Dir, "unit", "declare", "-depends", "S.core.1", "-advances", "H.greet.2", change)
+	var bundles []string
+	debate := func() string {
+		t.Helper()
+		var out, errOut bytes.Buffer
+		if code := RunWith(context.Background(), []string{"-C", r.Dir, "debate", change}, &out, &errOut, listener{&bundles}); code != OK {
+			t.Fatalf("debate = %d, %q, %q", code, out.String(), errOut.String())
+		}
+		return out.String()
+	}
+	debate()
+	if u := unitNow(t, r, change); u.State != unit.Contested || u.Bounces != 0 {
+		t.Fatalf("after the debate: %s with %d bounces, want contested with none", u.State, u.Bounces)
+	}
+
+	// Approving a unit contested by its bounces is refused and records
+	// nothing.
+	log := filepath.Join(state, tracker.LogFile)
+	before, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, stderr, code := run(t, r.Dir, "answer", bounced, "approve", "go", "ahead"); code == OK || stderr == "" {
+		t.Errorf("approving a unit contested by its bounces = %d, %q; want it refused", code, stderr)
+	}
+	if after, _ := os.ReadFile(log); !bytes.Equal(before, after) {
+		t.Errorf("a refused approval recorded events:\n%s", after[len(before):])
+	}
+
+	// The owner approves the amendment, and its next debate seals it with
+	// no round.
+	if _, stderr, code := run(t, r.Dir, "answer", change, "approve", "the", "tool", "will", "wave"); code != OK {
+		t.Fatalf("answer approve = %d, %q", code, stderr)
+	}
+	if u := unitNow(t, r, change); u.State != unit.Proposed || u.Bounces != 0 {
+		t.Errorf("after the approval: %s with %d bounces, want proposed with none", u.State, u.Bounces)
+	}
+	if ev := lastMove(t, r, change); ev.From != unit.Contested || ev.To != unit.Proposed || ev.Actor != unit.Owner || ev.Reason != "the tool will wave" {
+		t.Errorf("the approval's move = %+v", ev)
+	}
+	sessions := len(bundles)
+	if out := debate(); out != unit.Short(change)+" sealed\n" {
+		t.Errorf("the approved unit's debate printed %q", out)
+	}
+	if n := len(bundles) - sessions; n != 0 {
+		t.Errorf("the approved unit's debate ran %d sessions", n)
+	}
+	if u := unitNow(t, r, change); u.State != unit.Sealed {
+		t.Errorf("the approved unit is %s, want sealed", u.State)
 	}
 }
 

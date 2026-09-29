@@ -130,8 +130,21 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 	if _, _, err := f.refreshFootprint(ctx, u); err != nil {
 		return f.bounce(u, err.Error())
 	}
+	events, err := f.Tracker.Events(u.Change)
+	if err != nil {
+		return "", err
+	}
+	start := u.Round
+	switch pendingSeal(events) {
+	case approvedSeal:
+		return f.seal(ctx, u, "the owner approved its horizon amendment")
+	case heldSeal:
+		return f.seal(ctx, u, fmt.Sprintf("no objection stands after round %d", u.Round))
+	case endedSeal:
+		start = 0
+	}
 	max := lane.cap
-	for round := u.Round; ; {
+	for round := start; ; {
 		if round < max {
 			if why, err := f.resolve(ctx, u, lane); err != nil || why != "" {
 				if err != nil {
@@ -167,7 +180,20 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 					return f.bounce(u, "the amendment changes clauses outside its sealed scope: "+strings.Join(out, ", "))
 				}
 			}
-			return f.seal(ctx, u, round)
+			if tier, why, err := f.farTier(ctx, u.Change); err != nil || tier != "" {
+				if err != nil {
+					return "", err
+				}
+				if err := f.Tracker.ContestTier(u.Change, tier, why); err != nil {
+					return "", err
+				}
+				return Contested, nil
+			}
+			out, err := f.seal(ctx, u, fmt.Sprintf("no objection stands after round %d", round))
+			if err == nil && out == Waiting {
+				err = f.Tracker.HoldSeal(u.Change, round)
+			}
+			return out, err
 		}
 		if round >= max {
 			if lane.in() {
@@ -442,10 +468,81 @@ func (f *Factory) resolve(ctx context.Context, u tracker.Unit, lane amendment) (
 	return "conflicts under spec/ remain after the painter's session: " + conflicts, nil
 }
 
-// seal seals a unit that reached consensus, against main as it is now. Its
-// change is first rebased onto that main commit, and a rebase that fails or
+// A proposal's next debate seals it with no round when the owner approved
+// its horizon amendment (S.shed.17) or its last round ended with no
+// objection standing while the cap on units in flight held its seal back
+// (S.serve.7). A painter session since then ends the approval or the hold,
+// and the next debate starts afresh from round one with no bounce
+// (S.shed.16).
+const (
+	noPendingSeal = iota
+	approvedSeal
+	heldSeal
+	endedSeal
+)
+
+// pendingSeal reads from a unit's events, oldest first, whether its next
+// debate seals it with no round. A round, a bounce or any other move since
+// the approval or the held seal ends it with no pending seal; a painter
+// session since then ends it afresh.
+func pendingSeal(events []tracker.Event) int {
+	painted := false
+	pending := func(kind int) int {
+		if painted {
+			return endedSeal
+		}
+		return kind
+	}
+	for i := len(events) - 1; i >= 0; i-- {
+		switch e := events[i]; e.Kind {
+		case tracker.SessionStarted:
+			if e.Session != nil && e.Session.Role == unit.Painter {
+				painted = true
+			}
+		case tracker.Consensus:
+			return pending(heldSeal)
+		case tracker.RoundStarted, tracker.UnitBounced:
+			return noPendingSeal
+		case tracker.UnitMoved:
+			if e.Approved {
+				return pending(approvedSeal)
+			}
+			return noPendingSeal
+		}
+	}
+	return noPendingSeal
+}
+
+// farTier takes the tier of a proposal's horizon amendment against the
+// latest main commit its change descends from, as shed diff gives it
+// (S.diff.4). A distant or eventual tier waits for the owner (S.shed.16):
+// farTier returns it with the reason naming it and each horizon clause
+// counted at it, in document order. It returns "" for any other tier.
+func (f *Factory) farTier(ctx context.Context, change string) (string, string, error) {
+	base, err := f.Repo.Base(ctx, change)
+	if err != nil {
+		return "", "", err
+	}
+	from, _ := docs.Load(revision.Git{Root: f.Root, Rev: base})
+	head, err := f.headSet(ctx, change)
+	if err != nil {
+		return "", "", err
+	}
+	d := docs.DiffHorizonAmendment(from, head)
+	if d.Tier != "distant" && d.Tier != "eventual" {
+		return "", "", nil
+	}
+	var named []string
+	for _, id := range d.CountedAt(d.Tier) {
+		named = append(named, id.String())
+	}
+	return d.Tier, fmt.Sprintf("the horizon amendment is %s tier, so it waits for the owner: %s", d.Tier, strings.Join(named, ", ")), nil
+}
+
+// seal seals a unit, against main as it is now, with a reason. Its change
+// is first rebased onto that main commit, and a rebase that fails or
 // conflicts under spec/ bounces the unit instead (S.vcs.10).
-func (f *Factory) seal(ctx context.Context, u tracker.Unit, round int) (Outcome, error) {
+func (f *Factory) seal(ctx context.Context, u tracker.Unit, reason string) (Outcome, error) {
 	if full, err := f.inFlightFull(u.Change); err != nil || full {
 		return Waiting, err
 	}
@@ -467,8 +564,7 @@ func (f *Factory) seal(ctx context.Context, u tracker.Unit, round int) (Outcome,
 	if err != nil {
 		return "", err
 	}
-	if err := f.Tracker.Seal(u.Change, commit, head, fp, unit.Committee,
-		fmt.Sprintf("no objection stands after round %d", round), onMain(main)); err != nil {
+	if err := f.Tracker.Seal(u.Change, commit, head, fp, unit.Committee, reason, onMain(main)); err != nil {
 		return f.bounce(u, err.Error())
 	}
 	if err := f.entangle(ctx, u.Change, main); err != nil {
@@ -516,10 +612,10 @@ func (f *Factory) entangle(ctx context.Context, change string, main *docs.Set) e
 // rejectAmendment rejects an amendment whose debate reached its cap with
 // objections standing, none of them a charter objection (S.shed.14): the
 // unit's change is rebased onto main as sealing does (S.vcs.10), the files
-// under spec/ on it become those of its commit at the last seal rebased onto
-// that main commit, and the unit is sealed again with the standing
-// objections as the reason. A rebase that fails, or a restored file under
-// spec/ that holds a conflict, bounces the unit instead, and it stays in the
+// under spec/ and horizon.md on it become those of its commit at the last
+// seal rebased onto that main commit, and the unit is sealed again with the
+// standing objections as the reason. A rebase that fails, or a restored file
+// that holds a conflict, bounces the unit instead, and it stays in the
 // amendment lane. While the cap on units in flight holds sealing back,
 // nothing is restored and the unit waits in the amendment lane.
 func (f *Factory) rejectAmendment(ctx context.Context, u tracker.Unit, lane amendment, standing []tracker.Objection, round int) (Outcome, error) {
@@ -536,15 +632,15 @@ func (f *Factory) rejectAmendment(ctx context.Context, u tracker.Unit, lane amen
 	if _, err := f.Repo.RebaseOnto(ctx, u.Change, commit); err != nil {
 		return f.bounce(u, fmt.Sprintf("sealing could not rebase the change onto main %s: %v", commit, err))
 	}
-	head, err := f.Repo.Restore(ctx, u.Change, lane.commit, "spec")
+	head, err := f.Repo.Restore(ctx, u.Change, lane.commit, "spec", docs.HorizonPath)
 	if err != nil {
 		return "", err
 	}
-	if conflicts, err := f.specConflicted(ctx, u.Change); err != nil || conflicts != "" {
+	if conflicts, err := f.conflictedIn(ctx, u.Change, "spec/", docs.HorizonPath); err != nil || conflicts != "" {
 		if err != nil {
 			return "", err
 		}
-		return f.bounce(u, "the amendment was rejected, but the restored sealed spec conflicts with main under spec/: "+conflicts)
+		return f.bounce(u, "the amendment was rejected, but the restored sealed spec or horizon conflicts with main: "+conflicts)
 	}
 	main, err := f.mainSet(ctx)
 	if err != nil {

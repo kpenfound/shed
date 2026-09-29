@@ -383,7 +383,12 @@ func (f *Factory) checkUnit(ctx context.Context, u tracker.Unit) ([]string, erro
 	if err != nil {
 		return nil, err
 	}
-	for _, p := range horizonChanges(main, head, u.Footprint.Advances) {
+	var sealed, sealedMain *docs.Set
+	if u.Seal != nil && u.Seal.Commit != "" {
+		sealed, _ = docs.Load(revision.Git{Root: f.Root, Rev: u.Seal.Commit})
+		sealedMain, _ = docs.Load(revision.Git{Root: f.Root, Rev: u.Seal.Main})
+	}
+	for _, p := range horizonChanges(main, head, sealed, sealedMain, u.Footprint.Advances) {
 		out = append(out, "- "+p)
 	}
 
@@ -432,40 +437,67 @@ func (f *Factory) checkUnit(ctx context.Context, u tracker.Unit) ([]string, erro
 	return out, nil
 }
 
-// horizonChanges checks that a unit changes the horizon only by marking
-// clauses it advances as realised.
-func horizonChanges(main, head *docs.Set, advances []string) []string {
+// horizonChanges checks that a unit changes the horizon only as sealed or
+// by marking clauses it advances as realised (S.verify.1). A clause that
+// differs from main passes when it is as on the unit's sealed commit and
+// differed there from the sealed main commit, or when it is as on main or
+// on the sealed commit apart from gaining realised and the unit advances
+// it. sealed and sealedMain are nil for a unit whose seal records no
+// commit.
+func horizonChanges(main, head, sealed, sealedMain *docs.Set, advances []string) []string {
+	before, after := horizonTexts(main), horizonTexts(head)
+	atSeal, atSealMain := horizonTexts(sealed), horizonTexts(sealedMain)
+	ids := map[string]bool{}
+	for id := range before {
+		ids[id] = true
+	}
+	for id := range after {
+		ids[id] = true
+	}
 	var out []string
-	before := map[string]clauseText{}
-	for _, c := range main.Clauses(clause.Horizon) {
-		before[c.ID.String()] = textOf(c)
-	}
-	for _, c := range main.Clauses(clause.Milestone) {
-		before[c.ID.String()] = textOf(c)
-	}
-	after := map[string]clauseText{}
-	for _, kind := range []clause.Kind{clause.Horizon, clause.Milestone} {
-		for _, c := range head.Clauses(kind) {
-			id := c.ID.String()
-			after[id] = textOf(c)
-			old, ok := before[id]
-			switch {
-			case !ok:
-				out = append(out, fmt.Sprintf("the unit adds %s to the horizon; units only mark clauses realised", id))
-			case old == after[id]:
-			case old.text != after[id].text || !markedRealised(old.tags, after[id].tags):
-				out = append(out, fmt.Sprintf("the unit changes %s in the horizon; units only mark clauses they advance realised", id))
-			case !slices.Contains(advances, id):
-				out = append(out, fmt.Sprintf("the unit marks %s realised but does not advance it", id))
+	for id := range ids {
+		now, has := after[id]
+		old, had := before[id]
+		if has == had && now == old {
+			continue
+		}
+		if s, ok := atSeal[id]; ok == has && s == now && sealed != nil {
+			if m, mok := atSealMain[id]; mok != ok || m != s {
+				continue
 			}
 		}
-	}
-	for id := range before {
-		if _, ok := after[id]; !ok {
-			out = append(out, fmt.Sprintf("the unit removes %s from the horizon", id))
+		realised := has && (had && old.text == now.text && markedRealised(old.tags, now.tags))
+		if s, ok := atSeal[id]; has && ok && s.text == now.text && markedRealised(s.tags, now.tags) {
+			realised = true
+		}
+		switch {
+		case realised && slices.Contains(advances, id):
+		case realised:
+			out = append(out, fmt.Sprintf("the unit marks %s realised but does not advance it", id))
+		case !had && has:
+			out = append(out, fmt.Sprintf("the unit adds %s to the horizon; units only mark clauses realised or keep the sealed horizon", id))
+		case had && !has:
+			out = append(out, fmt.Sprintf("the unit removes %s from the horizon; units only mark clauses realised or keep the sealed horizon", id))
+		default:
+			out = append(out, fmt.Sprintf("the unit changes %s in the horizon; units only mark clauses they advance realised or keep the sealed horizon", id))
 		}
 	}
 	slices.Sort(out)
+	return out
+}
+
+// horizonTexts maps each horizon and milestone clause of a set to its text
+// and tags. A nil set has none.
+func horizonTexts(set *docs.Set) map[string]clauseText {
+	out := map[string]clauseText{}
+	if set == nil {
+		return out
+	}
+	for _, kind := range []clause.Kind{clause.Horizon, clause.Milestone} {
+		for _, c := range set.Clauses(kind) {
+			out[c.ID.String()] = textOf(c)
+		}
+	}
 	return out
 }
 

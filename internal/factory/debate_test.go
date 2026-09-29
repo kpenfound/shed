@@ -588,3 +588,317 @@ func TestAmendmentLaneKeepsToTheSealedScope(t *testing.T) {
 		t.Errorf("the amendment's seal = %+v, want main %s", u.Seal, main)
 	}
 }
+
+// proposeHorizon proposes the goodbye clause with the given horizon on the
+// unit's change.
+func proposeHorizon(t *testing.T, f *Factory, horizon string) string {
+	t.Helper()
+	change := propose(t, f)
+	if horizon != "" {
+		dir, err := f.Repo.Workspace(ctx, change)
+		must(t, err)
+		write(t, dir, "horizon.md", horizon)
+	}
+	return change
+}
+
+// lastMoveOf is a unit's latest move.
+func lastMoveOf(t *testing.T, f *Factory, change string) tracker.Event {
+	t.Helper()
+	events, err := f.Tracker.Events(change)
+	must(t, err)
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i].Kind == tracker.UnitMoved {
+			return events[i]
+		}
+	}
+	t.Fatal("the unit has never moved")
+	return tracker.Event{}
+}
+
+// Horizons a proposal may carry, one per tier of amendment.
+var (
+	nearHorizon    = strings.Replace(testHorizon, "within C2.\n", "within C2.\n- **H.greet.4** (near) The tool bows.\n", 1)
+	soonHorizon    = strings.Replace(testHorizon, "(soon) The tool says goodbye.", "(soon) The tool says goodbye politely.", 1)
+	distantHorizon = strings.Replace(testHorizon, "greets in any language", "greets in every language", 1)
+	// eventualHorizon also changes a soon clause, and lists H.greet.5
+	// before H.greet.4.
+	eventualHorizon = strings.Replace(soonHorizon, "within C2.\n",
+		"within C2.\n- **H.greet.5** (eventual) The tool sings.\n- **H.greet.4** (eventual) The tool waves.\n", 1)
+)
+
+//shed:proves S.shed.16
+func TestDistantAmendmentsWaitForTheOwner(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[concurrency]\nin_flight = 1\n[shed]\nbounce_threshold = 10\n")
+	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
+	fake.on(unit.Painter, "reply", func(session.Turn) session.Result { return done("replied") })
+
+	// A soon-tier amendment seals on consensus and fills the cap on units
+	// in flight.
+	soon := proposeHorizon(t, f, soonHorizon)
+	if out, err := f.Debate(ctx, soon); err != nil || out != Sealed {
+		t.Fatalf("a soon-tier amendment = %s, %v", out, err)
+	}
+	// A proposal proposed now, with no horizon change, is debated after
+	// main changes the horizon.
+	behind := propose(t, f)
+
+	// contested checks that a unit moved to contested with shed as actor,
+	// counting no bounce, naming the tier and the clauses in order.
+	contested := func(change, tier string, named []string, unnamed ...string) {
+		t.Helper()
+		u, err := f.Tracker.Unit(change)
+		must(t, err)
+		if u.State != unit.Contested || u.Bounces != 0 || u.Seal != nil {
+			t.Errorf("unit = %+v, want contested with no bounce and no seal", u)
+		}
+		ev := lastMoveOf(t, f, change)
+		if ev.From != unit.Proposed || ev.To != unit.Contested || ev.Actor != unit.Shed || ev.Bounce {
+			t.Errorf("the move = %+v, want shed moving it from proposed to contested", ev)
+		}
+		if !strings.Contains(ev.Reason, tier) {
+			t.Errorf("the reason does not name the tier %s: %q", tier, ev.Reason)
+		}
+		last := -1
+		for _, id := range named {
+			i := strings.Index(ev.Reason, id)
+			if i < 0 {
+				t.Errorf("the reason does not name %s: %q", id, ev.Reason)
+				continue
+			}
+			if i < last {
+				t.Errorf("the reason names %s out of document order: %q", id, ev.Reason)
+			}
+			last = i
+		}
+		for _, id := range unnamed {
+			if strings.Contains(ev.Reason, id) {
+				t.Errorf("the reason names %s, which is not counted at %s: %q", id, tier, ev.Reason)
+			}
+		}
+	}
+
+	// An eventual-tier amendment is neither sealed nor held back by the
+	// full cap: it goes to the owner.
+	committee := len(fake.ran(unit.Committee))
+	eventual := proposeHorizon(t, f, eventualHorizon)
+	out, err := f.Debate(ctx, eventual)
+	must(t, err)
+	if out != Contested {
+		t.Fatalf("an eventual-tier amendment = %s", out)
+	}
+	if n := len(fake.ran(unit.Committee)) - committee; n != 3 {
+		t.Errorf("%d committee sessions, want 3 members for 1 round", n)
+	}
+	contested(eventual, "eventual", []string{"H.greet.5", "H.greet.4"}, "H.greet.2", "H.greet.3")
+
+	// So is a distant-tier amendment.
+	distant := proposeHorizon(t, f, distantHorizon)
+	if out, err := f.Debate(ctx, distant); err != nil || out != Contested {
+		t.Fatalf("a distant-tier amendment = %s, %v", out, err)
+	}
+	contested(distant, "distant", []string{"H.greet.3"}, "H.greet.2")
+
+	// A near-tier amendment is held back as before.
+	near := proposeHorizon(t, f, nearHorizon)
+	if out, err := f.Debate(ctx, near); err != nil || out != Waiting {
+		t.Fatalf("a near-tier amendment under a full cap = %s, %v", out, err)
+	}
+	if u, _ := f.Tracker.Unit(near); u.State != unit.Proposed || u.Bounces != 0 {
+		t.Errorf("the held unit = %+v", u)
+	}
+
+	// Main moves a clause to the eventual tier. The tier is taken against
+	// the main commit a proposal descends from, so the proposal behind
+	// main, which changes no horizon clause, seals.
+	landOther(t, f, "Hum", map[string]string{
+		"horizon.md": strings.Replace(testHorizon, "(soon, realised) The tool says hello.", "(eventual, realised) The tool hums hello.", 1)})
+	must(t, f.Tracker.Reopen(soon, unit.Wheelbuilder, "the proof is weak", false))
+	if out, err := f.Debate(ctx, behind); err != nil || out != Sealed {
+		u, _ := f.Tracker.Unit(behind)
+		t.Fatalf("a proposal with no horizon change behind main = %s, %v: %s", out, err, u.Reason)
+	}
+
+	// The held seal is released with no further round.
+	must(t, f.Tracker.Reopen(behind, unit.Wheelbuilder, "the proof is weak", false))
+	committee = len(fake.ran(unit.Committee))
+	if out, err := f.Debate(ctx, near); err != nil || out != Sealed {
+		t.Fatalf("the released seal = %s, %v", out, err)
+	}
+	if n := len(fake.ran(unit.Committee)) - committee; n != 0 {
+		t.Errorf("the released seal ran %d committee sessions", n)
+	}
+
+	// In the amendment lane, a unit bounced for a clause outside its scope
+	// takes no tier.
+	must(t, f.Tracker.Reopen(near, unit.Wheelbuilder, "the proof is weak", false))
+	sealedUnit := proposeHorizon(t, f, "")
+	if out, err := f.Debate(ctx, sealedUnit); err != nil || out != Sealed {
+		t.Fatalf("debate = %s, %v", out, err)
+	}
+	must(t, f.Tracker.Reopen(sealedUnit, unit.Mechanic, "the mechanic requested an amendment:\nS.core.2 should say more.", true))
+	dir, err := f.Repo.Workspace(ctx, sealedUnit)
+	must(t, err)
+	amended := strings.Replace(goodbyeSpec, "prints goodbye.", "prints the word goodbye.", 1)
+	write(t, dir, "spec/core.md", amended+"- **S.core.4** (H.greet.3) Running the tool with --hola prints hola.\n")
+	write(t, dir, "horizon.md", eventualHorizon)
+	out, err = f.Debate(ctx, sealedUnit)
+	must(t, err)
+	if u, _ := f.Tracker.Unit(sealedUnit); out != Bounced || !strings.Contains(u.Reason, "S.core.4") {
+		t.Fatalf("an amendment outside its scope = %s: %+v", out, u)
+	}
+
+	// Within its scope, an eventual-tier amendment goes to the owner.
+	write(t, dir, "spec/core.md", amended)
+	if out, err := f.Debate(ctx, sealedUnit); err != nil || out != Contested {
+		t.Fatalf("an eventual-tier amendment in the amendment lane = %s, %v", out, err)
+	}
+	if ev := lastMoveOf(t, f, sealedUnit); ev.Actor != unit.Shed || ev.To != unit.Contested || !strings.Contains(ev.Reason, "eventual") {
+		t.Errorf("the move = %+v", ev)
+	}
+}
+
+//shed:proves S.shed.17
+func TestApprovedAmendmentSeals(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[concurrency]\nin_flight = 1\n[shed]\nbounce_threshold = 10\n")
+	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
+	fake.on(unit.Painter, "reply", func(session.Turn) session.Result { return done("replied") })
+
+	change := proposeHorizon(t, f, eventualHorizon)
+	if out, err := f.Debate(ctx, change); err != nil || out != Contested {
+		t.Fatalf("an eventual-tier amendment = %s, %v", out, err)
+	}
+
+	// The owner approves: the unit moves to proposed with the owner as
+	// actor and the reason as the move's reason.
+	const why = "Singing and waving are where the tool is going."
+	must(t, f.Tracker.Approve(change, why))
+	u, err := f.Tracker.Unit(change)
+	must(t, err)
+	if u.State != unit.Proposed || u.Bounces != 0 {
+		t.Errorf("after the approval = %+v", u)
+	}
+	if ev := lastMoveOf(t, f, change); ev.From != unit.Contested || ev.To != unit.Proposed || ev.Actor != unit.Owner || ev.Reason != why {
+		t.Errorf("the approval's move = %+v", ev)
+	}
+	if err := f.Tracker.Approve(change, why); err == nil {
+		t.Error("approved a unit that is not contested")
+	}
+
+	// While the cap holds sealing back, the approved unit waits in proposed
+	// and its debate runs no round.
+	other := propose(t, f)
+	if out, err := f.Debate(ctx, other); err != nil || out != Sealed {
+		t.Fatalf("the other unit's debate = %s, %v", out, err)
+	}
+	committee, painter := len(fake.ran(unit.Committee)), len(fake.ran(unit.Painter))
+	if out, err := f.Debate(ctx, change); err != nil || out != Waiting {
+		t.Fatalf("an approved unit under a full cap = %s, %v", out, err)
+	}
+	if u, _ := f.Tracker.Unit(change); u.State != unit.Proposed {
+		t.Errorf("the waiting unit is %s", u.State)
+	}
+
+	// Once the cap frees, its debate runs no round and seals it, without
+	// taking its tier.
+	must(t, f.Tracker.Reopen(other, unit.Wheelbuilder, "the proof is weak", false))
+	if out, err := f.Debate(ctx, change); err != nil || out != Sealed {
+		u, _ := f.Tracker.Unit(change)
+		t.Fatalf("an approved unit = %s, %v: %+v", out, err, u)
+	}
+	if n := len(fake.ran(unit.Committee)) - committee; n != 0 {
+		t.Errorf("the approved unit's debates ran %d committee sessions", n)
+	}
+	if n := len(fake.ran(unit.Painter)) - painter; n != 0 {
+		t.Errorf("the approved unit's debates ran %d painter sessions", n)
+	}
+	main, err := f.Repo.MainCommit(ctx)
+	must(t, err)
+	commit, err := f.Repo.Commit(ctx, change)
+	must(t, err)
+	u, err = f.Tracker.Unit(change)
+	must(t, err)
+	if u.State != unit.Sealed || u.Seal == nil || u.Seal.Main != main || u.Seal.Commit != commit {
+		t.Errorf("unit = %+v, want a seal at main %s and unit commit %s", u, main, commit)
+	}
+	if got := r.Git("show", commit+":horizon.md"); !strings.Contains(got, "H.greet.4") || !strings.Contains(got, "H.greet.5") {
+		t.Errorf("the sealed horizon lacks the approved clauses:\n%s", got)
+	}
+
+	// A bounce before the seal ends the approval: the next debate runs its
+	// rounds and takes the tier again.
+	again := proposeHorizon(t, f, distantHorizon)
+	if out, err := f.Debate(ctx, again); err != nil || out != Contested {
+		t.Fatalf("a distant-tier amendment = %s, %v", out, err)
+	}
+	must(t, f.Tracker.Approve(again, why))
+	must(t, f.Tracker.Bounce(again, unit.Committee, "sealing could not rebase the change"))
+	committee = len(fake.ran(unit.Committee))
+	if out, err := f.Debate(ctx, again); err != nil || out != Contested {
+		t.Fatalf("an approved unit after a bounce = %s, %v", out, err)
+	}
+	if n := len(fake.ran(unit.Committee)) - committee; n != 3 {
+		t.Errorf("%d committee sessions after the bounce, want 3 members for 1 round", n)
+	}
+	if ev := lastMoveOf(t, f, again); ev.Actor != unit.Shed || ev.To != unit.Contested {
+		t.Errorf("the move after the bounce = %+v", ev)
+	}
+
+	// A unit in the amendment lane goes to the owner for its tier, stays in
+	// the lane when approved, and leaves it at the approved seal, which the
+	// mechanic is told is a seal after an amendment.
+	must(t, f.Tracker.Reopen(change, unit.Mechanic, "the mechanic requested an amendment:\nS.core.2 should say more.", true))
+	dir, err := f.Repo.Workspace(ctx, change)
+	must(t, err)
+	write(t, dir, "spec/core.md", strings.Replace(goodbyeSpec, "prints goodbye.", "prints the word goodbye.", 1))
+	if out, err := f.Debate(ctx, change); err != nil || out != Contested {
+		t.Fatalf("an eventual-tier amendment in the amendment lane = %s, %v", out, err)
+	}
+	must(t, f.Tracker.Approve(change, why))
+	if lane, _ := f.lane(change); lane == nil {
+		t.Error("the approved unit left the amendment lane before its seal")
+	}
+	committee = len(fake.ran(unit.Committee))
+	if out, err := f.Debate(ctx, change); err != nil || out != Sealed {
+		t.Fatalf("an approved unit in the amendment lane = %s, %v", out, err)
+	}
+	if n := len(fake.ran(unit.Committee)) - committee; n != 0 {
+		t.Errorf("the approved unit's debate ran %d committee sessions", n)
+	}
+	if lane, _ := f.lane(change); lane != nil {
+		t.Error("the approved seal kept the unit in the amendment lane")
+	}
+	var bundles []string
+	for _, s := range []string{"proofs", "implement", "docs"} {
+		fake.on(unit.Mechanic, s, func(turn session.Turn) session.Result {
+			bundles = append(bundles, turn.Bundle)
+			return done("done")
+		})
+	}
+	if out, err := f.Implement(ctx, change); err != nil || out != Implemented {
+		t.Fatalf("implement = %s, %v", out, err)
+	}
+	for _, b := range bundles {
+		if !strings.Contains(amendmentSection(b), "S.core.2") {
+			t.Errorf("the bundle after the approved seal does not give the amendment:\n%s", b)
+		}
+	}
+
+	// Shed refuses to approve a unit contested other than for its tier.
+	f2 := open(t, project(t), newFake(t), "[shed]\nbounce_threshold = 0\n")
+	contestedByBounce := propose(t, f2)
+	must(t, f2.Tracker.Bounce(contestedByBounce, unit.Committee, "objections stand"))
+	if u, _ := f2.Tracker.Unit(contestedByBounce); u.State != unit.Contested {
+		t.Fatalf("unit = %+v, want contested", u)
+	}
+	if err := f2.Tracker.Approve(contestedByBounce, why); err == nil {
+		t.Error("approved a unit contested by its bounces")
+	}
+	if u, _ := f2.Tracker.Unit(contestedByBounce); u.State != unit.Contested {
+		t.Errorf("a refused approval moved the unit to %s", u.State)
+	}
+}

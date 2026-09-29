@@ -381,7 +381,7 @@ func (e env) unitMove(args []string) int {
 // contested refuses a hand command on a contested unit: the owner takes a
 // unit out of contested only with shed answer.
 func (e env) contested(u tracker.Unit) int {
-	return e.misuse("unit %s is contested; answer it with shed answer %s retry|defer|reject <reason>", unit.Short(u.Change), unit.Short(u.Change))
+	return e.misuse("unit %s is contested; answer it with shed answer %s retry|defer|reject|approve <reason>", unit.Short(u.Change), unit.Short(u.Change))
 }
 
 func (e env) unitReopen(args []string) int {

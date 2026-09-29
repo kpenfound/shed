@@ -53,6 +53,36 @@ bounces back to its painter and counts a bounce. Unless that bounce leaves
 it past `shed.bounce_threshold` bounces, when it is contested and waits for
 the owner's `shed answer`, it stays proposed and debates afresh next time.
 
+A proposal's horizon amendment is tiered before it is sealed. When a round
+ends with no objection standing, and no clause outside the scope of an
+amendment (below), shed takes the tier `shed diff` gives between the latest
+main commit the unit's change descends from and the change. It does so
+before the in-flight cap can hold the seal back. A distant or eventual tier
+always waits for the owner: the unit is neither sealed nor held but moves to
+contested, with shed as actor and a reason naming the tier and each horizon
+clause counted at it, in document order. This counts no bounce. A proposal
+with no tier, or a near or soon tier, is sealed or held as before. A held
+seal released with no painter session run on the unit since its round ended
+is not tiered again, since its change holds only what that round saw,
+rebased. A painter session on a held unit, such as one resolving conflicts
+a landing stored in its files, ends the hold: the unit stays proposed,
+counts no bounce, and its next debate starts afresh from round one, so the
+tier is taken again before it is sealed. A unit bounced for changing a
+clause outside an amendment's scope is not tiered (S.shed.16).
+
+The owner lets such an amendment through with
+`shed answer <unit> approve <reason>`, which moves the unit back to proposed.
+Its next debate runs no round and seals it, without tiering it again; while
+the in-flight cap holds sealing back it waits in proposed like any proposal
+that reached consensus. A unit in the amendment lane stays there until that
+seal, which counts as a seal out of the lane. A bounce before the seal ends
+the approval, and so does a painter session on the unit, such as one
+resolving conflicts a landing stored in its files; that session counts no
+bounce. Once the approval ends, the unit's later debates run as for any
+proposal, starting afresh from round one, so the horizon amendment is
+tiered again as the painter left it. Shed refuses `approve` for a unit that
+was contested for any other reason (S.shed.17).
+
 A unit whose latest reopen requested an amendment is debated in the
 amendment lane. Every rule above holds, but the round cap is
 `shed.amendment_rounds` instead of `shed.max_rounds`, and each member's
@@ -74,16 +104,19 @@ At the amendment lane's cap, standing objections reject the amendment rather
 than bounce or defer the unit, as long as none of them is a charter
 objection. A charter objection still rejects the whole proposal, which is
 archived. A rejected amendment archives nothing and keeps the unit's change.
-Shed makes the files under `spec/` exactly those of the unit's commit
-recorded at its last seal, rebased onto the main commit the change is based
-on. Any spec file absent there is removed and every other file is left
-alone. Clauses that main added, changed or removed after the seal stay as
-main has them, and a conflict between main and the sealed spec is stored in
-the files. It then seals the unit again, with the standing objections as the
-reason. If a restored file under `spec/` holds a conflict, or sealing's
-rebase fails or conflicts under `spec/`, the unit is not sealed: it keeps
-the restored files, bounces to its painter as any seal does, and stays in
-the amendment lane. The restore and the seal happen together. While the
+Shed makes the files under `spec/` and the file `horizon.md` exactly those
+of the unit's commit recorded at its last seal, rebased onto the main commit
+the change is based on. Any spec file absent there is removed and every
+other file is left alone. Clauses that main added, changed or removed after
+the seal stay as main has them, and a conflict between main and the sealed
+spec or horizon is stored in the files. It then seals the unit again, with
+the standing objections as the reason. This seal is not tiered, since the
+horizon it restores was tiered or approved at the last seal, and a painter
+session does not end its wait, since the restore overwrites whatever the
+painter wrote to the horizon meanwhile. If a restored file holds a conflict,
+or sealing's rebase fails or conflicts under `spec/`, the unit is not
+sealed: it keeps the restored files, bounces to its painter as any seal
+does, and stays in the amendment lane. The restore and the seal happen together. While the
 in-flight cap holds sealing back, nothing is restored and the unit waits in
 proposed in the amendment lane. Its debate does not start afresh, so the
 next one runs no further round and rejects the amendment again. Once sealed,
@@ -141,14 +174,21 @@ reopen counts an amendment as well as a bounce, and the unit's next bundle
 says that the mechanic requested an amendment and gives its note in full.
 
 A mechanic may mark the horizon clauses the unit advances as realised, by
-adding `realised` to their tags. Nothing else in the horizon may change.
+adding `realised` to their tags. Nothing else in the horizon may change: the
+horizon amendment the unit carries is the one it was sealed with.
 
 ## Verification
 
 Verification first checks the unit mechanically: its change holds no
-unresolved conflict, its documents pass `shed check`, its horizon changes only mark clauses it advances, and the
-proofs of its footprint pass. With `verify.all_proofs = true` in `shed.toml`
-every proof must pass. Then a committee member who did not work on the unit
+unresolved conflict, its documents pass `shed check`, it changes the
+horizon only as sealed or by marking clauses it advances as realised, and
+the proofs of its footprint pass. With `verify.all_proofs = true` in
+`shed.toml` every proof must pass. A horizon clause whose text or tags on the
+unit's change differ from main's, a clause missing from one counting as
+different, passes only when it is as on the unit's commit recorded at its
+latest seal and differed there from the main commit recorded in that seal,
+or when it is as on main or on that sealed commit apart from gaining
+`realised` on a clause the unit advances (S.verify.1). Then a committee member who did not work on the unit
 reviews it against the sealed spec and the charter, without keeping any
 change, recording
 findings with `finding`. A unit that fails goes back to implementing with a

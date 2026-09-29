@@ -165,6 +165,13 @@ func (f *Factory) unresolved(ctx context.Context, change string) ([]string, mark
 // an unresolved conflict (S.vcs.12) and each clause ID inside a conflicted
 // region, or returns "" when no file under spec/ holds one.
 func (f *Factory) specConflicted(ctx context.Context, change string) (string, error) {
+	return f.conflictedIn(ctx, change, "spec/")
+}
+
+// conflictedIn is specConflicted over the files under the directories and
+// the files paths names: a path ending in a slash names every file under
+// it, and any other path names one file.
+func (f *Factory) conflictedIn(ctx context.Context, change string, paths ...string) (string, error) {
 	files, rec, err := f.unresolved(ctx, change)
 	if err != nil {
 		return "", err
@@ -175,7 +182,9 @@ func (f *Factory) specConflicted(ctx context.Context, change string) (string, er
 	}
 	var found []string
 	for _, name := range files {
-		if !strings.HasPrefix(name, "spec/") {
+		if !slices.ContainsFunc(paths, func(p string) bool {
+			return name == p || strings.HasSuffix(p, "/") && strings.HasPrefix(name, p)
+		}) {
 			continue
 		}
 		src, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(name)))

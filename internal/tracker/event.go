@@ -29,6 +29,9 @@ const (
 	UnitRetitled    = "unit.retitled"
 	UnitEntangled   = "unit.entangled"
 	RoundStarted    = "debate.round"
+	// Consensus records that a debate round ended with no objection
+	// standing while the cap on units in flight held the seal back.
+	Consensus       = "debate.consensus"
 	ObjectionRaised = "debate.objection"
 	ObjectionClosed = "debate.withdrawn"
 	ObjectionAnswer = "debate.answer"
@@ -55,6 +58,12 @@ type Event struct {
 	Amendment bool `json:"amendment,omitempty"`
 	// Rejected is set on a seal that rejected a requested amendment.
 	Rejected bool `json:"rejected,omitempty"`
+	// Tier is set on a move to contested for a distant or eventual horizon
+	// amendment (S.shed.16): the amendment's tier.
+	Tier string `json:"tier,omitempty"`
+	// Approved is set on the owner's move out of contested that approves
+	// a distant or eventual horizon amendment (S.shed.17).
+	Approved bool `json:"approved,omitempty"`
 	// Shelf is set when a unit is archived.
 	Shelf unit.Shelf `json:"shelf,omitempty"`
 	// Seal is set when a unit is sealed.

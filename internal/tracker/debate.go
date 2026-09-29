@@ -188,6 +188,44 @@ func (t *Tracker) Bounce(change string, actor unit.Actor, reason string) error {
 	return err
 }
 
+// ContestTier moves a proposed unit whose horizon amendment is distant or
+// eventual to contested for the owner, with shed as actor, and counts no
+// bounce (S.shed.16). The owner is notified.
+func (t *Tracker) ContestTier(change, tier, reason string) error {
+	if strings.TrimSpace(tier) == "" {
+		return errors.New("contesting a horizon amendment needs its tier")
+	}
+	if strings.TrimSpace(reason) == "" {
+		return errors.New("a move needs a reason")
+	}
+	_, err := t.write(func(tx *sql.Tx) ([]Event, error) {
+		if err := requireState(tx, change, unit.Proposed); err != nil {
+			return nil, err
+		}
+		return []Event{
+			{Kind: UnitMoved, Unit: change, Actor: unit.Shed, From: unit.Proposed, To: unit.Contested, Tier: tier, Reason: reason},
+			{Kind: NoticeAdded, Unit: change, Actor: unit.Shed, Notice: &NoticeEv{
+				Audience: string(unit.Owner), Kind: "contested",
+				Body: fmt.Sprintf("Unit %s is contested: %s.", unit.Short(change), reason),
+			}},
+		}, nil
+	})
+	return err
+}
+
+// HoldSeal records that a proposed unit's debate ended a round with no
+// objection standing while its seal is held back, so its next debate runs
+// no further round.
+func (t *Tracker) HoldSeal(change string, round int) error {
+	_, err := t.write(func(tx *sql.Tx) ([]Event, error) {
+		if err := requireState(tx, change, unit.Proposed); err != nil {
+			return nil, err
+		}
+		return []Event{{Kind: Consensus, Unit: change, Actor: unit.Shed, Round: round}}, nil
+	})
+	return err
+}
+
 // Retitle changes a unit's title.
 func (t *Tracker) Retitle(change, title string, actor unit.Actor) error {
 	if strings.TrimSpace(title) == "" {

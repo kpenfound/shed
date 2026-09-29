@@ -153,6 +153,22 @@ type HorizonDiff struct {
 	// Tier is the highest tier among the clauses the amendment counts, or
 	// empty when it counts none (S.diff.4).
 	Tier string
+	// Counted is every tier each listed clause counts at, in document
+	// order: the order of the second revision's horizon, then the first's
+	// for clauses it removes.
+	Counted []TieredHorizonChange
+}
+
+// CountedAt lists the clauses the amendment counts at a tier, in document
+// order.
+func (d HorizonDiff) CountedAt(tier string) []clause.ID {
+	var out []clause.ID
+	for _, c := range d.Counted {
+		if c.Tier == tier && !slices.Contains(out, c.ID) {
+			out = append(out, c.ID)
+		}
+	}
+	return out
 }
 
 // DiffHorizonAmendment compares the horizon clauses of two sets. A clause changes when
@@ -168,9 +184,14 @@ func DiffHorizonAmendment(from, to *Set) HorizonDiff {
 	var d HorizonDiff
 	old := horizonByID(from)
 	cur := horizonByID(to)
+	counts := map[clause.ID][]string{}
+	var id clause.ID
 	count := func(tier string) {
 		if tierRank(tier) > tierRank(d.Tier) {
 			d.Tier = tier
+		}
+		if tier != "" && !slices.Contains(counts[id], tier) {
+			counts[id] = append(counts[id], tier)
 		}
 	}
 	countParents := func(o, c *TraceEntry) {
@@ -191,7 +212,7 @@ func DiffHorizonAmendment(from, to *Set) HorizonDiff {
 			count(parent.Tier)
 		}
 	}
-	for _, id := range slices.SortedFunc(maps.Keys(cur), clause.Compare) {
+	for _, id = range slices.SortedFunc(maps.Keys(cur), clause.Compare) {
 		c := cur[id]
 		o, ok := old[id]
 		switch {
@@ -211,12 +232,20 @@ func DiffHorizonAmendment(from, to *Set) HorizonDiff {
 			countParents(&o, &c)
 		}
 	}
-	for _, id := range slices.SortedFunc(maps.Keys(old), clause.Compare) {
+	for _, id = range slices.SortedFunc(maps.Keys(old), clause.Compare) {
 		if _, ok := cur[id]; !ok {
 			o := old[id]
 			d.Removed = append(d.Removed, TieredHorizonChange{id, o.Tier})
 			count(o.Tier)
 			countParents(&o, nil)
+		}
+	}
+	for _, s := range []*Set{to, from} {
+		for _, e := range Trace(s) {
+			for _, tier := range counts[e.Clause.ID] {
+				d.Counted = append(d.Counted, TieredHorizonChange{e.Clause.ID, tier})
+			}
+			delete(counts, e.Clause.ID)
 		}
 	}
 	return d

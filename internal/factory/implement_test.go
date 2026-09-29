@@ -418,13 +418,14 @@ func TestRejectedAmendmentKeepsTheSealedSpec(t *testing.T) {
 		t.Fatalf("the other unit's debate = %s, %v", out, err)
 	}
 
-	// The amendment changes the goodbye clause, adds a spec file and
-	// changes a file outside spec/.
+	// The amendment changes the goodbye clause, adds a spec file, adds an
+	// eventual clause to the horizon and changes a file outside spec/.
 	dir, err := f.Repo.Workspace(ctx, change)
 	must(t, err)
 	amended := strings.Replace(goodbyeSpec, "prints goodbye.", "prints goodbye on standard output.", 1)
 	write(t, dir, "spec/core.md", amended)
 	write(t, dir, "spec/wave.md", "# Wave\n\n- **S.wave.1** (H.greet.3) Running the tool with --wave waves.\n")
+	write(t, dir, "horizon.md", strings.Replace(testHorizon, "within C2.\n", "within C2.\n- **H.greet.4** (eventual) The tool waves.\n", 1))
 	write(t, dir, "NOTES.md", "Goodbye goes to standard output.\n")
 
 	const text = "Standard output is not the tool's concern."
@@ -540,6 +541,10 @@ func TestRejectedAmendmentKeepsTheSealedSpec(t *testing.T) {
 	if got := r.Git("show", commit+":NOTES.md"); got != "Goodbye goes to standard output." {
 		t.Errorf("a file outside spec/ changed: %q", got)
 	}
+	// The horizon is the sealed horizon, and its seal took no tier.
+	if got, want := r.Git("show", commit+":horizon.md"), r.Git("show", seal+":horizon.md"); got != want {
+		t.Errorf("horizon.md on the change:\n%s\nwant it as sealed:\n%s", got, want)
+	}
 
 	// Every mechanic session of the next implementation is told the
 	// amendment was rejected and the objections that stood.
@@ -654,6 +659,71 @@ func TestRejectedAmendmentBouncesOnASpecConflict(t *testing.T) {
 	}
 }
 
+//shed:proves S.shed.14
+func TestRejectedAmendmentBouncesOnAHorizonConflict(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[shed]\nmax_rounds = 3\namendment_rounds = 1\nbounce_threshold = 10\n")
+	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
+
+	// The unit seals a change to a soon clause.
+	change := propose(t, f)
+	dir, err := f.Repo.Workspace(ctx, change)
+	must(t, err)
+	write(t, dir, "horizon.md", strings.Replace(testHorizon, "says goodbye.", "says goodbye politely.", 1))
+	if out, err := f.Debate(ctx, change); err != nil || out != Sealed {
+		t.Fatalf("debate = %s, %v", out, err)
+	}
+	must(t, f.Tracker.Reopen(change, unit.Mechanic, "the mechanic requested an amendment:\nS.core.2 should say more.", true))
+	write(t, dir, "spec/core.md", strings.Replace(goodbyeSpec, "prints goodbye.", "prints goodbye on standard output.", 1))
+
+	// Main changes the same clause another way.
+	main := landOther(t, f, "Shout", map[string]string{
+		"horizon.md": strings.Replace(testHorizon, "says goodbye.", "says goodbye loudly.", 1)})
+
+	fake.on(unit.Committee, "debate", func(turn session.Turn) session.Result {
+		if member(turn) == 1 {
+			_, err := call(t, turn, "object", map[string]any{"kind": "spec", "citations": []string{"S.core.2"}, "text": "Standard output is not the tool's concern."})
+			must(t, err)
+			return done("objecting")
+		}
+		return done("clean")
+	})
+	fake.on(unit.Painter, "reply", func(session.Turn) session.Result { return done("replied") })
+
+	// The restored horizon conflicts with main, so the unit is not sealed:
+	// it keeps the restored files and bounces, naming the conflict, and
+	// stays in the amendment lane.
+	out, err := f.Debate(ctx, change)
+	must(t, err)
+	if out != Bounced {
+		t.Fatalf("a rejected amendment whose restored horizon conflicts = %s", out)
+	}
+	u, err := f.Tracker.Unit(change)
+	must(t, err)
+	if u.State != unit.Proposed || u.Bounces != 2 || !strings.Contains(u.Reason, "horizon.md") {
+		t.Errorf("unit = %+v, want proposed with a second bounce naming horizon.md", u)
+	}
+	if lane, _ := f.lane(change); lane == nil {
+		t.Error("the bounced unit left the amendment lane")
+	}
+	if got := parent(t, f, r, change); got != main {
+		t.Errorf("the change sits on %s, want main %s", got, main)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "horizon.md"))
+	must(t, err)
+	for _, want := range []string{"<<<<<<<", "says goodbye politely.", "says goodbye loudly."} {
+		if !strings.Contains(string(got), want) {
+			t.Errorf("the restored horizon.md lacks %q:\n%s", want, got)
+		}
+	}
+	spec, err := os.ReadFile(filepath.Join(dir, "spec", "core.md"))
+	must(t, err)
+	if strings.Contains(string(spec), "standard output") {
+		t.Errorf("the rejected amendment's text stayed in spec/core.md:\n%s", spec)
+	}
+}
+
 //shed:proves S.verify.1 S.verify.4
 func TestVerifyChecksProofsFirst(t *testing.T) {
 	r := project(t)
@@ -752,18 +822,43 @@ func TestReviewerDecides(t *testing.T) {
 
 //shed:proves S.verify.1
 func TestVerifyGuardsTheHorizon(t *testing.T) {
+	// The sealed horizon rewords the goodbye clause, which the unit
+	// advances, and adds a near clause.
+	sealedHorizon := strings.Replace(strings.Replace(testHorizon, "(soon) The tool says goodbye.", "(soon) The tool says goodbye and waves.", 1),
+		"within C2.\n", "within C2.\n- **H.greet.4** (near) The tool bows.\n", 1)
+	// Main rewords the distant clause after the seal.
+	mainHorizon := strings.Replace(testHorizon, "greets in any language", "greets in every language", 1)
 	for _, tc := range []struct {
-		name, horizon, want string
+		name, sealed, main, horizon, want string
 	}{
-		{"marks an advanced clause", strings.Replace(testHorizon, "(soon) The tool says goodbye.", "(soon, realised) The tool says goodbye.", 1), ""},
-		{"marks another clause", strings.Replace(testHorizon, "(distant) The tool greets", "(distant, realised) The tool greets", 1), "marks H.greet.3 realised but does not advance it"},
-		{"rewords a clause", strings.Replace(testHorizon, "says goodbye.", "waves goodbye.", 1), "changes H.greet.2 in the horizon"},
+		{"marks an advanced clause", "", "", strings.Replace(testHorizon, "(soon) The tool says goodbye.", "(soon, realised) The tool says goodbye.", 1), ""},
+		{"marks another clause", "", "", strings.Replace(testHorizon, "(distant) The tool greets", "(distant, realised) The tool greets", 1), "marks H.greet.3 realised but does not advance it"},
+		{"rewords a clause", "", "", strings.Replace(testHorizon, "says goodbye.", "waves goodbye.", 1), "H.greet.2"},
+		{"keeps the sealed horizon", sealedHorizon, "", sealedHorizon, ""},
+		{"marks a sealed clause it advances", sealedHorizon, "", strings.Replace(sealedHorizon, "(soon) The tool says goodbye and waves.", "(soon, realised) The tool says goodbye and waves.", 1), ""},
+		{"rewords a sealed clause", sealedHorizon, "", strings.Replace(sealedHorizon, "The tool bows.", "The tool bows low.", 1), "H.greet.4"},
+		{"adds a clause after the seal", sealedHorizon, "", strings.Replace(sealedHorizon, "The tool bows.\n", "The tool bows.\n- **H.greet.5** (near) The tool nods.\n", 1), "H.greet.5"},
+		{"removes a clause after the seal", sealedHorizon, "", strings.Replace(sealedHorizon, "- **H.greet.3** (distant) The tool greets in any language, within C2.\n", "", 1), "H.greet.3"},
+		{"keeps main's change", "", mainHorizon, mainHorizon, ""},
+		{"reverts main's change", "", mainHorizon, testHorizon, "H.greet.3"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := project(t)
 			fake := newFake(t)
 			f := open(t, r, fake, "")
-			change := sealed(t, f, fake)
+			change := proposeHorizon(t, f, tc.sealed)
+			fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
+			if out, err := f.Debate(ctx, change); err != nil || out != Sealed {
+				t.Fatalf("debate = %s, %v", out, err)
+			}
+			if tc.main != "" {
+				landOther(t, f, "Every language", map[string]string{"horizon.md": tc.main})
+				must(t, f.Close())
+				var err error
+				f, err = Open(ctx, r.Dir, f.State, fake)
+				must(t, err)
+				t.Cleanup(func() { f.Close() })
+			}
 			mechanic(t, fake)
 			fake.on(unit.Mechanic, "docs", func(turn session.Turn) session.Result {
 				write(t, turn.Dir, "horizon.md", tc.horizon)

@@ -200,7 +200,7 @@ shed run <unit>                    # debate, implement, verify, land
 | `shed diff <from> [<to>]` | Lists spec and horizon clauses added, changed and removed between revisions, and the horizon amendment's tier. |
 | `shed status` | Lists units, what waits for the owner, and whether the factory is paused. |
 | `shed inbox [-peek]` | Lists contested units, the horizon changes, the charter clauses that keep getting proposals rejected, and sampled horizon amendments, marking what is new since you last looked. |
-| `shed answer <unit> retry\|defer\|reject <reason>` | Answers a contested unit: retry it in the shed, or defer or reject it to the archive. |
+| `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: retry it in the shed, defer or reject it to the archive, or approve its distant or eventual horizon amendment. |
 | `shed answer <clause> keep <reason>` | Answers a charter question by keeping the clause as it stands. |
 | `shed unit open\|declare\|move\|reopen\|log\|path` | Drives units by hand. |
 | `shed debate\|land\|run <unit>` | Runs one stage of a unit, or all of them. |
@@ -215,8 +215,9 @@ tracks units through their states, keeps each unit on a jj change, runs
 agents in Docker Sandboxes, debates, implements, verifies and lands units,
 proposes from the gap, and serves all of it on its own under a budget.
 `shed inbox` lists contested units, horizon changes, charter questions
-from repeated rejections and sampled horizon amendments for the owner. `shed answer` retries, defers or
-rejects a contested unit, and keeps a charter clause to answer its question.
+from repeated rejections and sampled horizon amendments for the owner. A distant or eventual horizon amendment waits
+for the owner. `shed answer` retries, defers, rejects or approves a contested
+unit, and keeps a charter clause to answer its question.
 
 Still to come, as the [horizon](horizon.md) describes: many units in flight at
 once with reconciliation, a frame builder that sharpens the horizon, a sweeper that

@@ -200,13 +200,14 @@ func (r *Repo) Snapshot(ctx context.Context, change string) (string, error) {
 	return r.Commit(ctx, change)
 }
 
-// Restore makes the files under dir on a unit's change exactly those of
-// commit rebased onto the commit the change is based on: each takes its
-// content there, and files under dir absent there are removed. Every other
-// file is left as it is. Where main changed a file since commit's parent,
-// main's change stays, and a clash between the two is stored in the file as
-// a conflict. It returns the change's new commit.
-func (r *Repo) Restore(ctx context.Context, change, commit, dir string) (_ string, err error) {
+// Restore makes the files at paths on a unit's change, each a directory or
+// a file relative to the repository root, exactly those of commit rebased
+// onto the commit the change is based on: each takes its content there, and
+// files at paths absent there are removed. Every other file is left as it
+// is. Where main changed a file since commit's parent, main's change stays,
+// and a clash between the two is stored in the file as a conflict. It
+// returns the change's new commit.
+func (r *Repo) Restore(ctx context.Context, change, commit string, paths ...string) (_ string, err error) {
 	unlock, err := r.lock()
 	if err != nil {
 		return "", err
@@ -252,7 +253,11 @@ func (r *Repo) Restore(ctx context.Context, change, commit, dir string) (_ strin
 	if _, err := r.jj(ctx, "rebase", "-r", changeRevset(id), "-d", base); err != nil {
 		return "", err
 	}
-	if _, err := r.run(ctx, w.dir, shedIdentity, "restore", "--from", changeRevset(id), fmt.Sprintf("root:%q", dir)); err != nil {
+	args := []string{"restore", "--from", changeRevset(id)}
+	for _, p := range paths {
+		args = append(args, fmt.Sprintf("root:%q", p))
+	}
+	if _, err := r.run(ctx, w.dir, shedIdentity, args...); err != nil {
 		return "", err
 	}
 	if _, err := r.jj(ctx, "abandon", changeRevset(id)); err != nil {

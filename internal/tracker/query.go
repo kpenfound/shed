@@ -324,6 +324,9 @@ func Describe(e Event) string {
 		if e.Amendment {
 			b.WriteString(" (amendment)")
 		}
+		if e.Tier != "" {
+			fmt.Fprintf(&b, " (%s horizon amendment)", e.Tier)
+		}
 		if e.Shelf != "" {
 			fmt.Fprintf(&b, " on the %s shelf", e.Shelf)
 		}
@@ -357,6 +360,8 @@ func Describe(e Event) string {
 		fmt.Fprintf(&b, "entangled with unit %s on %s", unit.Short(e.Entangled.Unit), strings.Join(e.Entangled.Clauses, ", "))
 	case RoundStarted:
 		fmt.Fprintf(&b, "debate round %d", e.Round)
+	case Consensus:
+		fmt.Fprintf(&b, "no objection stands after round %d; the seal waits", e.Round)
 	case ObjectionRaised:
 		fmt.Fprintf(&b, "member %d objected (%s, citing %s): %s", e.Objection.Member, e.Objection.Kind, strings.Join(e.Objection.Citations, ", "), e.Objection.Text)
 	case ObjectionClosed:

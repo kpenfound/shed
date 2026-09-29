@@ -75,8 +75,8 @@ Documents:
 Units:
   status                                  list units and what waits for the owner
   inbox [-peek]                           list contested units and horizon changes since the last inbox
-  answer <unit> retry|defer|reject <reason>
-                                          answer a contested unit: retry, defer or reject it
+  answer <unit> retry|defer|reject|approve <reason>
+                                          answer a contested unit: retry, defer, reject or approve it
   answer <clause> keep <reason>           answer a charter question by keeping the clause
   unit open <title>                       make a change for a unit and open it in proposed
   unit move <unit> <state> <reason>       move a unit to another state

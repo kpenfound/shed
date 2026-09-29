@@ -46,9 +46,11 @@ proposed -> sealed -> implementing -> verifying -> queued -> landed
   requests an amendment also counts an amendment.
 - Any bounce that leaves a unit's bounce count above the operator's
   `bounce_threshold`, whether a reopen or a proposal bounced back to its
-  painter, moves it on to `contested`. Shed leaves a notice for the owner
-  and keeps working on other units. A unit leaves `contested` only on the
-  owner's answer: back to `proposed`, or to the deferred shelf.
+  painter, moves it on to `contested`. So does a debate that reaches
+  consensus on a distant or eventual horizon amendment, without counting a
+  bounce. Shed leaves a notice for the owner and keeps working on other
+  units. A unit leaves `contested` only on the owner's answer: back to
+  `proposed`, or to the deferred or rejected shelf.
 - `landed` and `archived` are terminal. An archived unit rests on the
   `rejected` or `deferred` shelf.
 
@@ -221,6 +223,7 @@ it:
 shed answer qpvuntsm retry the painter has the missing clause now
 shed answer qpvuntsm defer revisit once the sweeper exists
 shed answer qpvuntsm reject edits main directly, against C12 (C2 to C4)
+shed answer qpvuntsm approve the new distant clause matches where shed is going
 ```
 
 - `retry` moves the unit to `proposed`, with the owner as actor and the
@@ -234,6 +237,12 @@ shed answer qpvuntsm reject edits main directly, against C12 (C2 to C4)
   archived, with the owner as actor and the reason as the move's reason. The
   entry cites as violated every charter clause the reason names, in the
   order they first appear and without repeats (S.owner.8).
+- `approve` moves a unit that shed contested because its horizon amendment
+  is distant or eventual tier (S.shed.16) back to `proposed`, with the owner
+  as actor and the reason as the move's reason. Its next debate runs no
+  round and seals it; a bounce before that seal ends the approval. Shed
+  refuses `approve` for a unit contested for any other reason (S.shed.17).
+  See [autopilot](autopilot.md#debate).
 
 A reject's reason names charter clauses through its ID-shaped tokens, read
 whole as citations anywhere in the text. `C12` names C12 and not C1, `XC1`
@@ -252,8 +261,8 @@ deferred or rejected unit's archive entry holds them too.
 `shed answer` reads its first argument as a charter clause when it is a
 charter citation such as `C3` or `C3@HEAD~1`, and as a unit otherwise. Shed
 refuses an answer to a unit that is not contested, an answer to a unit that
-is not `retry`, `defer` or `reject`, and an answer with an empty reason. A
-refused answer records nothing and moves nothing (S.owner.6).
+is not `retry`, `defer`, `reject` or `approve`, and an answer with an empty
+reason. A refused answer records nothing and moves nothing (S.owner.6).
 
 ## Answering charter questions
 
@@ -284,7 +293,7 @@ answer with an empty reason. A refused answer records nothing (S.owner.10).
 | `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost and title, then the notices waiting for the owner. |
 | `shed inbox [-peek]` | Lists contested units, the horizon changes on main, the charter questions from repeated rejections and the sampled horizon amendments, marking what is new since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
-| `shed answer <unit> retry\|defer\|reject <reason>` | Answers a contested unit: moves it back to `proposed`, or defers or rejects it to the archive. |
+| `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: moves it back to `proposed`, defers or rejects it to the archive, or approves its distant or eventual horizon amendment. |
 | `shed answer <clause> keep <reason>` | Answers a charter question by keeping the clause, clearing the question until two more rejections cite it. |
 | `shed unit move <unit> <state> <reason>` | Moves a unit by hand to `implementing`, `verifying` or `queued`. |
 | `shed unit reopen [-amendment] <unit> <reason>` | Sends a unit back to the shed. |

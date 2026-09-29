@@ -31,8 +31,9 @@
   charter clause when it parses as a charter citation under S.cite.1, with
   or without a revision, and as a unit otherwise; an answer to a clause is
   governed by S.owner.10. Shed refuses an answer to a unit that is not
-  contested, with a kind other than `retry`, `defer` or `reject`, or with
-  an empty reason. A refused answer records nothing and moves nothing.
+  contested, with a kind other than `retry`, `defer`, `reject` or
+  `approve` (S.shed.17), or with an empty reason. A refused answer records
+  nothing and moves nothing.
 - **S.owner.7** (H.owner.1) `shed inbox` marks as new each contested unit
   it lists whose latest move to contested has a higher event sequence number
   (S.track.3, S.track.4) than the one stored by the previous recorded
