@@ -46,3 +46,33 @@ func Mentioned(text string) []ID {
 	}
 	return ids
 }
+
+// Cited returns the citations a plain text makes, in order: its whole
+// ID-shaped tokens, each with any @revision, and ranges of two tokens
+// joined by "to". A token that runs on into a letter or digit is not whole
+// and cites nothing. Unlike a document's mentions, the text is not
+// Markdown, so nothing in it is skipped as code.
+func Cited(text string) []Mention {
+	var locs [][]int
+	for _, loc := range mentionPattern.FindAllStringIndex(text, -1) {
+		if loc[1] < len(text) && isWordByte(text[loc[1]]) {
+			continue
+		}
+		locs = append(locs, loc)
+	}
+	token := func(loc []int) string { return strings.TrimRight(text[loc[0]:loc[1]], ".:") }
+	var out []Mention
+	for i := 0; i < len(locs); i++ {
+		m := Mention{Token: token(locs[i])}
+		if i+1 < len(locs) && Normalize(text[locs[i][1]:locs[i+1][0]]) == "to" {
+			m.To = token(locs[i+1])
+			i++
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
+func isWordByte(b byte) bool {
+	return b == '_' || '0' <= b && b <= '9' || 'a' <= b && b <= 'z' || 'A' <= b && b <= 'Z'
+}

@@ -28,8 +28,8 @@
   actor and the reason as what would change the decision; the archive entry
   also holds the owner's answers.
 - **S.owner.6** (H.owner.1) Shed refuses a `shed answer` to a unit that is
-  not contested, with a kind other than `retry` or `defer`, or with an empty
-  reason. A refused answer records nothing and moves nothing.
+  not contested, with a kind other than `retry`, `defer` or `reject`, or with
+  an empty reason. A refused answer records nothing and moves nothing.
 - **S.owner.7** (H.owner.1) `shed inbox` marks as new each contested unit
   it lists whose latest move to contested has a higher event sequence number
   (S.track.3, S.track.4) than the one stored by the previous recorded
@@ -42,3 +42,19 @@
   after that moment is new at the next `shed inbox`. So a unit that is
   retried and becomes contested again after the previous recorded
   `shed inbox` is new again.
+- **S.owner.8** (H.owner.1) `shed answer <unit> reject <reason>` archives a
+  contested unit on the rejected shelf as under S.shed.10, with the owner as
+  actor and the reason as the move's reason. The entry cites as violated
+  every charter clause the reason names, in the order they first appear and
+  without repeats, and also holds the owner's answers. The reason names a
+  clause through its ID-shaped tokens, read whole as citations under
+  S.cite.1 anywhere in the text: `C12` names C12 and not C1, `XC1` names
+  nothing, and punctuation around a token, as in `(C3)` or `C3,`, does
+  not change it. Two charter citations joined by "to" name every clause of
+  the charter on main from the first to the second, in increasing order.
+  Tokens of other kinds, such as spec or horizon IDs, name no charter
+  clause. Shed refuses a `reject` whose reason names no charter clause, has
+  a charter citation with a revision, has a charter range whose ends do not
+  increase, or has a charter ID that is not a clause of the charter on main,
+  as a retired ID is not; a refused answer records nothing and moves
+  nothing.

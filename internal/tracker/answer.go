@@ -11,12 +11,13 @@ import (
 
 // The kinds of answer the owner gives a contested unit.
 const (
-	Retry = "retry"
-	Defer = "defer"
+	Retry  = "retry"
+	Defer  = "defer"
+	Reject = "reject"
 )
 
 // Answer is the owner's answer to a contested unit: a move out of
-// contested by the owner (S.owner.4, S.owner.5).
+// contested by the owner (S.owner.4, S.owner.5, S.owner.8).
 type Answer struct {
 	Time   time.Time
 	Kind   string
@@ -29,11 +30,11 @@ func (a Answer) String() string {
 }
 
 // CheckAnswer reports whether the owner may give a unit an answer of a
-// kind with a reason: the unit must be contested, the kind retry or defer
-// and the reason not empty (S.owner.6).
+// kind with a reason: the unit must be contested, the kind retry, defer
+// or reject and the reason not empty (S.owner.6).
 func (t *Tracker) CheckAnswer(change, kind, reason string) error {
-	if kind != Retry && kind != Defer {
-		return fmt.Errorf("an answer is %s or %s, not %q", Retry, Defer, kind)
+	if kind != Retry && kind != Defer && kind != Reject {
+		return fmt.Errorf("an answer is %s, %s or %s, not %q", Retry, Defer, Reject, kind)
 	}
 	if strings.TrimSpace(reason) == "" {
 		return errors.New("an answer needs a reason")
@@ -71,7 +72,10 @@ func (t *Tracker) Answers(change string) ([]Answer, error) {
 			continue
 		}
 		kind := Retry
-		if e.To == unit.Archived {
+		switch {
+		case e.To == unit.Archived && e.Shelf == unit.Rejected:
+			kind = Reject
+		case e.To == unit.Archived:
 			kind = Defer
 		}
 		out = append(out, Answer{Time: e.Time, Kind: kind, Reason: e.Reason})

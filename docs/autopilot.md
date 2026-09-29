@@ -89,9 +89,10 @@ Rejected and deferred proposals go to the archive: a Markdown entry under
 `archive/rejected/` or `archive/deferred/` on the `shed/archive` branch,
 which shares no history with main, so archiving never moves main. The entry
 holds the citations, the reason or what would change the decision, the spec
-changes and the debate. A contested unit the owner defers with `shed answer`
-goes to the deferred shelf the same way, and its entry also holds the
-owner's answers.
+changes and the debate. A contested unit the owner defers or rejects with
+`shed answer` goes to the deferred or rejected shelf the same way, and its
+entry also holds the owner's answers. A rejected one cites the charter
+clauses the owner's reason names.
 
 ## Implementation
 

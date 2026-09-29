@@ -158,6 +158,7 @@ it:
 ```
 shed answer qpvuntsm retry the painter has the missing clause now
 shed answer qpvuntsm defer revisit once the sweeper exists
+shed answer qpvuntsm reject edits main directly, against C12 (C2 to C4)
 ```
 
 - `retry` moves the unit to `proposed`, with the owner as actor and the
@@ -167,13 +168,27 @@ shed answer qpvuntsm defer revisit once the sweeper exists
 - `defer` archives the unit on the deferred shelf as a deferred proposal is
   archived, with the owner as actor and the reason as what would change the
   decision (S.owner.5).
+- `reject` archives the unit on the rejected shelf as a rejected proposal is
+  archived, with the owner as actor and the reason as the move's reason. The
+  entry cites as violated every charter clause the reason names, in the
+  order they first appear and without repeats (S.owner.8).
+
+A reject's reason names charter clauses through its ID-shaped tokens, read
+whole as citations anywhere in the text. `C12` names C12 and not C1, `XC1`
+names nothing, and punctuation around a token, as in `(C3)` or `C3,`, does
+not change it. Two charter citations joined by "to" name every clause of the
+charter on main from the first to the second, so `C2 to C4` names C2, C3 and
+C4. Spec and horizon IDs name no charter clause. Shed refuses a reject whose
+reason names no charter clause, has a charter citation with a revision such
+as `C3@HEAD~1`, has a charter range whose ends do not increase, or names an
+ID that is not a clause of the charter on main, such as a retired one.
 
 Every later bundle of the unit has an "Owner's answers" section listing the
 owner's answers to it, oldest first, each with its time, kind and reason. A
-deferred unit's archive entry holds them too.
+deferred or rejected unit's archive entry holds them too.
 
 Shed refuses an answer to a unit that is not contested, an answer that is
-neither `retry` nor `defer`, and an answer with an empty reason. A refused
+not `retry`, `defer` or `reject`, and an answer with an empty reason. A refused
 answer records nothing and moves nothing (S.owner.6).
 
 ## Commands
@@ -183,7 +198,7 @@ answer records nothing and moves nothing (S.owner.6).
 | `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost and title, then the notices waiting for the owner. |
 | `shed inbox [-peek]` | Lists contested units, marking those new since the last inbox, and the horizon changes on main since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
-| `shed answer <unit> retry\|defer <reason>` | Answers a contested unit: moves it back to `proposed` or defers it to the archive. |
+| `shed answer <unit> retry\|defer\|reject <reason>` | Answers a contested unit: moves it back to `proposed`, or defers or rejects it to the archive. |
 | `shed unit move <unit> <state> <reason>` | Moves a unit by hand to `implementing`, `verifying` or `queued`. |
 | `shed unit reopen [-amendment] <unit> <reason>` | Sends a unit back to the shed. |
 | `shed unit log <unit>` | Prints a unit's events. |

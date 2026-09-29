@@ -193,12 +193,16 @@ func TestAnswerRefusals(t *testing.T) {
 		{"answer", proposed, "defer", "later"},
 		{"answer", sealed, "retry", "try", "again"},
 		{"answer", sealed, "defer", "later"},
-		{"answer", contested, "reject", "off", "the", "charter"},
+		{"answer", proposed, "reject", "breaks", "C2"},
+		{"answer", sealed, "reject", "breaks", "C2"},
 		{"answer", contested, "proposed", "try", "again"},
+		{"answer", contested, "archive", "breaks", "C2"},
 		{"answer", contested, "retry"},
 		{"answer", contested, "defer"},
+		{"answer", contested, "reject"},
 		{"answer", contested, "retry", "  "},
 		{"answer", contested, "defer", "", " "},
+		{"answer", contested, "reject", " "},
 		{"answer", contested},
 	} {
 		if _, stderr, code := run(t, r.Dir, args...); code == OK || stderr == "" {
@@ -216,5 +220,120 @@ func TestAnswerRefusals(t *testing.T) {
 		if u := unitNow(t, r, change); u.State != want {
 			t.Errorf("unit %s is %s after refused answers, want %s", unit.Short(change), u.State, want)
 		}
+	}
+}
+
+// retiredCharterRepo is a colocated repository whose charter on main holds
+// C1, C2, C4 and C5: C3 was removed in an earlier commit, so its ID is
+// retired.
+func retiredCharterRepo(t *testing.T) *testrepo.Repo {
+	t.Helper()
+	testrepo.RequireJJ(t)
+	r := testrepo.Minimal(t)
+	r.Write(".gitignore", ".shed/\n")
+	r.Write("charter.md", "# Charter\n\n"+
+		"- **C1** The tool greets people.\n"+
+		"- **C2** It never shouts.\n"+
+		"- **C3** It greets in English.\n"+
+		"- **C4** It is polite.\n"+
+		"- **C5** It is brief.\n")
+	r.Init()
+	r.Commit("documents")
+	r.Write("charter.md", "# Charter\n\n"+
+		"- **C1** The tool greets people.\n"+
+		"- **C2** It never shouts.\n"+
+		"- **C4** It is polite.\n"+
+		"- **C5** It is brief.\n")
+	r.Commit("retire C3")
+	r.Remote = t.TempDir()
+	r.GitRemoteInit()
+	r.Git("remote", "add", "origin", r.Remote)
+	r.Git("push", "-q", "origin", "main")
+	r.JJ("git", "init", "--colocate")
+	return r
+}
+
+//shed:proves S.owner.8
+func TestAnswerReject(t *testing.T) {
+	r := retiredCharterRepo(t)
+	change := contestedUnit(t, r, "Say goodbye")
+	mustRun(t, r.Dir, "answer", change, "retry", "narrow", "the", "scope")
+	seal(t, filepath.Join(r.Dir, DefaultStateDir), change)
+	mustRun(t, r.Dir, "unit", "reopen", change, "still", "wrong")
+
+	reason := "Goodbye is rude (C4), against C2, C4 and C1 to C5; see S.core.1 and H.greet.2, not XC1."
+	if _, stderr, code := run(t, r.Dir, "answer", change, "reject", reason); code != OK {
+		t.Fatalf("answer reject = %d, %q", code, stderr)
+	}
+	u := unitNow(t, r, change)
+	if u.State != unit.Archived || u.Shelf != unit.Rejected {
+		t.Errorf("after a reject: %s on shelf %q, want archived on the rejected shelf", u.State, u.Shelf)
+	}
+	if ev := lastMove(t, r, change); ev.From != unit.Contested || ev.To != unit.Archived || ev.Actor != unit.Owner || ev.Reason != reason {
+		t.Errorf("the reject's move = %+v", ev)
+	}
+
+	// The entry is on the archive branch the remote holds. It cites the
+	// named clauses in order of first appearance, without repeats; the
+	// range C1 to C5 skips the retired C3, and XC1 and the spec and horizon
+	// IDs name no charter clause.
+	entry := r.GitRemote("show", vcs.ArchiveBranch+":"+archive.Path(unit.Rejected, change))
+	if !strings.Contains(entry, "- Shelf: rejected") || !strings.Contains(entry, "- Citations: C4, C2, C1, C5\n") {
+		t.Errorf("the entry does not cite C4, C2, C1, C5 as violated:\n%s", entry)
+	}
+	if !strings.Contains(entry, "S.core.2") {
+		t.Errorf("the entry lacks the proposal's spec changes:\n%s", entry)
+	}
+	if answerLine(entry, "retry", "narrow the scope") < 0 {
+		t.Errorf("the entry lacks the owner's answers:\n%s", entry)
+	}
+
+	// A single whole token with punctuation around it names its clause.
+	other := contestedUnit(t, r, "Wave")
+	mustRun(t, r.Dir, "answer", other, "reject", "XC1", "shouts", "(C2),", "see", "S.core.1")
+	entry = r.GitRemote("show", vcs.ArchiveBranch+":"+archive.Path(unit.Rejected, other))
+	if !strings.Contains(entry, "- Citations: C2\n") {
+		t.Errorf("the entry does not cite only C2:\n%s", entry)
+	}
+}
+
+//shed:proves S.owner.8
+func TestAnswerRejectRefusals(t *testing.T) {
+	r := retiredCharterRepo(t)
+	state := filepath.Join(r.Dir, DefaultStateDir)
+	change := contestedUnit(t, r, "Say goodbye")
+
+	log := filepath.Join(state, tracker.LogFile)
+	before, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, reason := range []string{
+		"off the charter",
+		"see S.core.1 and H.greet.2",
+		"XC1 is wrong",
+		"breaks C2@HEAD",
+		"breaks C1 and C2@HEAD~1",
+		"C5 to C1",
+		"C2 to C2",
+		"C1 to C6",
+		"breaks C3",
+		"breaks C2 and C3",
+		"breaks C12",
+		"breaks C6",
+	} {
+		if _, stderr, code := run(t, r.Dir, "answer", change, "reject", reason); code == OK || stderr == "" {
+			t.Errorf("reject %q = %d, %q; want it refused", reason, code, stderr)
+		}
+	}
+	after, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Errorf("refused rejects recorded events:\n%s", after[len(before):])
+	}
+	if u := unitNow(t, r, change); u.State != unit.Contested {
+		t.Errorf("unit is %s after refused rejects, want contested", u.State)
 	}
 }

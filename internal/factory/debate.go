@@ -550,6 +550,97 @@ func (f *Factory) Defer(ctx context.Context, change, reason string) error {
 	return err
 }
 
+// Reject archives a contested unit on the rejected shelf on the owner's
+// answer. The entry cites the charter clauses the reason names; a reason
+// that names none, or names one badly, is refused (S.owner.8).
+func (f *Factory) Reject(ctx context.Context, change, reason string) error {
+	if err := f.Tracker.CheckAnswer(change, tracker.Reject, reason); err != nil {
+		return err
+	}
+	u, err := f.Tracker.Unit(change)
+	if err != nil {
+		return err
+	}
+	main, err := f.mainSet(ctx)
+	if err != nil {
+		return err
+	}
+	citations, err := charterNamed(main, reason)
+	if err != nil {
+		return err
+	}
+	answer := tracker.Answer{Time: time.Now(), Kind: tracker.Reject, Reason: reason}
+	_, err = f.shelve(ctx, u, unit.Rejected, citations, reason, unit.Owner, reason, &answer)
+	return err
+}
+
+// charterNamed returns the charter clauses a reason names, in the order
+// they first appear and without repeats. A range names every clause of the
+// charter on main between its ends. It refuses a reason that names no
+// charter clause, cites the charter at a revision, has a range whose ends
+// do not increase, or names an ID that is not a clause of the charter on
+// main (S.owner.8).
+func charterNamed(main *docs.Set, reason string) ([]string, error) {
+	charter := func(token string) (clause.ID, bool, error) {
+		c, err := clause.ParseCitation(token)
+		if err != nil || c.ID.Kind != clause.Charter {
+			return clause.ID{}, false, nil
+		}
+		if c.Rev != "" {
+			return clause.ID{}, false, fmt.Errorf("%s cites the charter at a revision; a reject names clauses of the charter on main", token)
+		}
+		if _, ok := main.Lookup(c.ID); !ok {
+			return clause.ID{}, false, fmt.Errorf("%s is not a clause of the charter on main", c.ID)
+		}
+		return c.ID, true, nil
+	}
+	var named []string
+	add := func(id clause.ID) {
+		if s := id.String(); !slices.Contains(named, s) {
+			named = append(named, s)
+		}
+	}
+	for _, m := range clause.Cited(reason) {
+		from, isCharter, err := charter(m.Token)
+		if err != nil {
+			return nil, err
+		}
+		if m.To == "" {
+			if isCharter {
+				add(from)
+			}
+			continue
+		}
+		to, toCharter, err := charter(m.To)
+		if err != nil {
+			return nil, err
+		}
+		if !isCharter || !toCharter {
+			// Only two charter citations make a charter range; either
+			// end on its own may still name a clause.
+			if isCharter {
+				add(from)
+			}
+			if toCharter {
+				add(to)
+			}
+			continue
+		}
+		if to.N <= from.N {
+			return nil, fmt.Errorf("the range %s to %s does not increase", from, to)
+		}
+		series := main.Series(from, to)
+		slices.SortFunc(series, func(a, b clause.Clause) int { return clause.Compare(a.ID, b.ID) })
+		for _, c := range series {
+			add(c.ID)
+		}
+	}
+	if len(named) == 0 {
+		return nil, errors.New("a reject names the charter clauses the unit violates, and this reason names none")
+	}
+	return named, nil
+}
+
 // shelve puts a proposal on a shelf: it writes the archive entry, with the
 // owner's answers to the unit and the answer being given, if any, records
 // the unit as archived and discards its change.
