@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/kpenfound/busybees/core/agent"
@@ -136,11 +137,10 @@ func (f *Factory) session(ctx context.Context, w work) (session.Result, error) {
 	}
 	head, _ := docs.Load(revision.Worktree(view))
 	proofs, _, _ := proof.Discover(view)
-	pending, err := f.Tracker.Notices(w.Role, true)
+	pending, err := f.pendingNotices(w.Unit.Change, w.Role)
 	if err != nil {
 		return session.Result{}, err
 	}
-	pending = slices.DeleteFunc(pending, func(n tracker.Notice) bool { return n.Unit != w.Unit.Change })
 	record, err := f.record(w.Unit.Change)
 	if err != nil {
 		return session.Result{}, err
@@ -253,4 +253,38 @@ func nonce() string {
 	b := make([]byte, 6)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// nextSession is the audience of a notice for a unit's next session,
+// whichever role runs it.
+const nextSession = unit.Shed
+
+// pendingNotices returns the undelivered notices about a unit that a
+// session of role carries: those for the role and those for the unit's next
+// session, in the order they were added.
+func (f *Factory) pendingNotices(change string, role unit.Actor) ([]tracker.Notice, error) {
+	audiences := []unit.Actor{role}
+	if role != nextSession {
+		audiences = append(audiences, nextSession)
+	}
+	var out []tracker.Notice
+	for _, audience := range audiences {
+		ns, err := f.Tracker.Notices(audience, true)
+		if err != nil {
+			return nil, err
+		}
+		for _, n := range ns {
+			if n.Unit == change {
+				out = append(out, n)
+			}
+		}
+	}
+	slices.SortStableFunc(out, func(a, b tracker.Notice) int { return noticeSeq(a.ID) - noticeSeq(b.ID) })
+	return out, nil
+}
+
+// noticeSeq is the sequence number in a notice ID.
+func noticeSeq(id string) int {
+	n, _ := strconv.Atoi(id[min(1, len(id)):])
+	return n
 }

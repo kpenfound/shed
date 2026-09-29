@@ -483,8 +483,9 @@ func markedRealised(before, after string) bool {
 // Land lands a queued unit. The unit is first rebased onto main with any
 // conflicts kept in its files, and a wheelbuilder resolves them against the
 // sealed spec; if they cannot be resolved the unit reopens. A unit that
-// changes nothing reopens. Once it lands, every other unit in flight is
-// rebased onto the new main (S.vcs.10).
+// changes nothing reopens. Once the unit lands, every other unit in flight
+// is reconciled against the horizon changes it made and then rebased onto
+// main.
 func (f *Factory) Land(ctx context.Context, change string) (Outcome, error) {
 	u, err := f.Tracker.Unit(change)
 	if err != nil {
@@ -517,9 +518,14 @@ func (f *Factory) Land(ctx context.Context, change string) (Outcome, error) {
 			}
 		}
 	}
-	_, err = landing.Land(ctx, f.Tracker, f.Repo, u.Change, unit.Wheelbuilder)
+	commit, err := landing.Land(ctx, f.Tracker, f.Repo, u.Change, unit.Wheelbuilder)
 	switch {
 	case err == nil:
+		// Reconcile before the sweep, so a reopened unit is rebased as a
+		// proposed unit (S.queue.4).
+		if err := f.reconcileHorizon(u.Change, commit); err != nil {
+			return "", fmt.Errorf("unit %s landed as %s but reconciling other units failed: %w", unit.Short(u.Change), commit, err)
+		}
 		_ = f.sweep(ctx, u.Change)
 		return Landed, nil
 	case errors.Is(err, vcs.ErrConflict):

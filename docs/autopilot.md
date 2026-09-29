@@ -162,13 +162,29 @@ wheelbuilder session resolves them against the sealed spec. Then the unit
 lands as one commit, as [version control](vcs.md) describes. A unit whose
 conflicts cannot be resolved, or that changes nothing, reopens.
 
-After each landing, shed rebases every other unit that is neither landed nor
-archived onto the new main, leaving its state alone. A proposed or contested
-unit keeps any conflict stored in its files for its painter to resolve. A
-unit past its seal keeps the rebase only if it is free of conflicts;
-otherwise shed undoes it, and the unit takes main's changes later. A unit
-with a session running is rebased once its sessions end and are captured.
-See [version control](vcs.md).
+After a landing, shed compares the horizon on the landed commit with the
+horizon on its parent. A clause counts as changed when its tags differ or its
+text differs once runs of whitespace are collapsed, as `shed inbox` counts it.
+Shed then checks every other unit that is sealed, implementing, verifying or
+queued against the horizon clauses its footprint recorded at its last seal:
+
+- A unit advancing a clause the landing removed reopens, with shed as actor
+  and a reason naming the landed unit and each removed clause. The reopen
+  counts a bounce, as any reopen does.
+- A unit advancing a clause the landing changed, and none it removed, gets
+  one notice. The notice names the landed unit by its short change ID and
+  gives each changed clause, in the order of the old horizon, with its tags
+  and text before and after. It arrives in the unit's next bundle, shows in
+  `shed unit log`, and does not move the unit.
+- Any other unit is left alone, and nothing is recorded for it.
+
+Then shed rebases every other unit that is neither landed nor archived onto
+the new main, leaving its state alone. A proposed or contested unit,
+including one the horizon check just reopened, keeps any conflict stored in
+its files for its painter to resolve. A unit past its seal keeps the rebase
+only if it is free of conflicts; otherwise shed undoes it, and the unit takes
+main's changes later. A unit with a session running is rebased once its
+sessions end and are captured. See [version control](vcs.md).
 
 ## Autopilot
 

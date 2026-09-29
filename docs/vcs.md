@@ -65,6 +65,11 @@ unit's change.
 7. Remove the unit's workspace and record the unit as landed, with its
    commit and its actual footprint, and report how that footprint drifted
    from the sealed one. See [the tracker](tracker.md#footprints-and-seals).
+8. Reconcile the other units in flight against the horizon changes the
+   landing made: a unit advancing a removed clause reopens, and one advancing
+   a changed clause gets a notice. See [autopilot](autopilot.md#landing).
+   This happens before the other units are rebased onto the new main, so a
+   unit reopened here is rebased as a proposed unit.
 
 A unit lands as one commit, so `git log main` reads as the spec changelog:
 

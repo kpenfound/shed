@@ -51,7 +51,9 @@ never used.
 Before each session shed writes its bundle: the unit, the charter, the
 footprint, the spec changes, the sealed spec, the horizon clauses advanced,
 the proofs of the footprint's clauses, the debate record, the owner's
-answers to the unit, oldest first, and the notices pending for the role. A
+answers to the unit, oldest first, and the notices pending for the role or
+for whichever session on the unit comes next, such as a notice that a
+landing changed a horizon clause the unit advances. A
 mechanic's bundle after a reseal out of the amendment lane also gives the
 amendment's diff, or, when the amendment was rejected, says the sealed spec
 stands as written and gives the objections that stood at the cap. A

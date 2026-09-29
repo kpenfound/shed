@@ -290,7 +290,7 @@ answer with an empty reason. A refused answer records nothing (S.owner.10).
 | `shed unit reopen [-amendment] <unit> <reason>` | Sends a unit back to the shed. |
 | `shed unit log <unit>` | Prints a unit's events. |
 | `shed unit path <unit>` | Prints the directory of the unit's workspace. |
-| `shed land <unit>` | Lands a queued unit on main and reports its footprint drift. See [version control](vcs.md). |
+| `shed land <unit>` | Lands a queued unit on main, reports its footprint drift and reconciles the other units in flight against the horizon changes it made. See [version control](vcs.md) and [autopilot](autopilot.md#landing). |
 | `shed tracker rebuild` | Rebuilds the database from the event log. |
 | `shed config` | Prints the operator settings in effect. |
 
