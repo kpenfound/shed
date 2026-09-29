@@ -68,7 +68,8 @@ unit's change.
    from the sealed one. See [the tracker](tracker.md#footprints-and-seals).
 8. Reconcile the other units in flight against the horizon changes the
    landing made: a unit advancing a removed clause reopens, and one advancing
-   a changed clause gets a notice. A notice that gives a change in a
+   a changed clause, or a clause a new `refines` tag now refines, gets a
+   notice. A notice that gives a change in a
    clause's text also marks the unit for horizon review. See
    [autopilot](autopilot.md#landing).
    This happens before the other units are rebased onto the new main, so a

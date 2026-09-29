@@ -27,6 +27,19 @@ func refinesTarget(tag string) (string, bool) {
 	return strings.TrimSpace(rest), true
 }
 
+// RefinesOf returns the IDs the refines tags of a clause name, in tag order.
+func RefinesOf(c clause.Clause) []clause.ID {
+	var out []clause.ID
+	for _, t := range c.Tags {
+		if target, ok := refinesTarget(t); ok {
+			if id, err := clause.ParseID(target); err == nil {
+				out = append(out, id)
+			}
+		}
+	}
+	return out
+}
+
 // parentTier reports whether a tier is one a refines tag may name.
 func parentTier(tier string) bool {
 	return tier == "distant" || tier == "eventual"

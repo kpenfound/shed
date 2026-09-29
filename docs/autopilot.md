@@ -233,6 +233,13 @@ queued against the horizon clauses its footprint recorded at its last seal:
   gives each changed clause, in the order of the old horizon, with its tags
   and text before and after. It arrives in the unit's next bundle, shows in
   `shed unit log`, and does not move the unit.
+- A unit advancing a clause that the landed horizon now refines, through a
+  `refines` tag the old horizon did not give that clause, gets the same one
+  notice. After any changed clauses, and in the order of the new horizon, the
+  notice gives each such refining clause with its tags and text, marked as
+  gained, and names the clause it refines. A unit whose notice gives only
+  gained clauses keeps its state and its seal and is not marked for horizon
+  review. A unit reopened for a removed clause gets no notice.
 - Any other unit is left alone, and nothing is recorded for it.
 
 A notice that gives a clause whose text changed, once runs of whitespace are

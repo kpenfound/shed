@@ -3,6 +3,7 @@ package factory
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -347,5 +348,142 @@ func TestHorizonNoticesReachTheUnitsNextSession(t *testing.T) {
 		if turn.Unit == reopened {
 			t.Errorf("the reopened unit ran a wheelbuilder session: %s", turn.Step)
 		}
+	}
+}
+
+//shed:proves S.queue.6 S.queue.3
+func TestLandingNoticesRefiningClauses(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[concurrency]\nin_flight = 0\n")
+
+	threes := advancing(t, f, "Threes", unit.Implementing, "H.greet.3")
+	twos := advancing(t, f, "Twos", unit.Sealed, "H.greet.2")
+	both := advancing(t, f, "Both", unit.Queued, "H.greet.1", "H.greet.3")
+	proposed, err := f.Repo.NewUnit(ctx, "Proposed")
+	must(t, err)
+	must(t, f.Tracker.OpenUnit(proposed, "Proposed", unit.Painter))
+	must(t, f.Tracker.SetFootprint(proposed, tracker.Footprint{Advances: []string{"H.greet.3"}}, unit.Painter, "declared", nil))
+
+	watched := []string{threes, twos, both, proposed}
+	before := map[string]tracker.Unit{}
+	counts := map[string]int{}
+	mark := func() {
+		for _, c := range watched {
+			before[c], _ = f.Tracker.Unit(c)
+			counts[c] = eventCount(t, f, c)
+		}
+	}
+	// notice returns the one notice a unit got from the landing, checking
+	// that it names the landed unit, shows in the unit log, and that the
+	// unit kept its state and seal and is not marked for horizon review.
+	notice := func(c, short string) string {
+		t.Helper()
+		events := eventsSince(t, f, c, counts[c])
+		notices := noticesIn(events)
+		if len(notices) != 1 || len(events) != 1 {
+			t.Fatalf("unit %s got events %+v, want one notice", unit.Short(c), events)
+		}
+		body := notices[0].Notice.Body
+		if !strings.Contains(body, short) {
+			t.Errorf("notice for %s does not name the landed unit %s:\n%s", unit.Short(c), short, body)
+		}
+		if !strings.Contains(tracker.Describe(notices[0]), body) {
+			t.Errorf("the unit log does not show the notice: %s", tracker.Describe(notices[0]))
+		}
+		after, _ := f.Tracker.Unit(c)
+		if after.State != before[c].State || after.Bounces != before[c].Bounces || !reflect.DeepEqual(after.Seal, before[c].Seal) {
+			t.Errorf("unit %s moved from %s to %s with %d bounces, or lost its seal", unit.Short(c), before[c].State, after.State, after.Bounces)
+		}
+		if after.Review {
+			t.Errorf("unit %s is marked for horizon review by a tag change or gained clause", unit.Short(c))
+		}
+		return body
+	}
+	lacks := func(c, body string, unwanted ...string) {
+		t.Helper()
+		for _, w := range unwanted {
+			if strings.Contains(body, w) {
+				t.Errorf("notice for %s has %q:\n%s", unit.Short(c), w, body)
+			}
+		}
+	}
+	has := func(c, body string, want ...string) {
+		t.Helper()
+		for _, w := range want {
+			if !strings.Contains(body, w) {
+				t.Errorf("notice for %s lacks %q:\n%s", unit.Short(c), w, body)
+			}
+		}
+	}
+	mark()
+
+	// The first landing retags H.greet.1, gives H.greet.2 a refines tag
+	// naming H.greet.3, and adds H.greet.4 and H.greet.5, which also
+	// refines H.greet.3.
+	first := strings.NewReplacer(
+		"(soon, realised) The tool says hello.", "(near, realised) The tool says hello.",
+		"(soon) The tool says goodbye.", "(soon, refines H.greet.3) The tool says goodbye.",
+		"\n## Milestones", "- **H.greet.4** (eventual) The tool sings.\n- **H.greet.5** (soon, refines H.greet.3) The tool says hola.\n\n## Milestones",
+	).Replace(testHorizon)
+	short := unit.Short(landHorizon(t, f, first))
+
+	// A unit whose only entries are gained clauses gets one notice giving
+	// each, in the order of the landed horizon, with its tags and text.
+	body := notice(threes, short)
+	has(threes, body, "gained", "H.greet.2", "The tool says goodbye.", "H.greet.5", "The tool says hola.", "soon, refines H.greet.3")
+	lacks(threes, body, "H.greet.1", "H.greet.4")
+	if strings.Index(body, "H.greet.2") > strings.Index(body, "H.greet.5") {
+		t.Errorf("notice lists H.greet.5 before H.greet.2:\n%s", body)
+	}
+
+	// Gained clauses follow any changed ones.
+	body = notice(both, short)
+	has(both, body, "gained", "H.greet.1", "soon, realised", "near, realised", "H.greet.2", "H.greet.5", "The tool says hola.")
+	lacks(both, body, "H.greet.4")
+	if strings.Index(body, "H.greet.1") > strings.Index(body, "gained") {
+		t.Errorf("notice gives a gained clause before the changed H.greet.1:\n%s", body)
+	}
+
+	// A unit advancing the clause that gained a refines tag sees it only as
+	// changed: nothing refines H.greet.2.
+	body = notice(twos, short)
+	has(twos, body, "H.greet.2", "(soon)", "soon, refines H.greet.3")
+	lacks(twos, body, "gained", "H.greet.5")
+
+	if got := eventsSince(t, f, proposed, counts[proposed]); len(got) != 0 {
+		t.Errorf("the proposed unit got events %+v", got)
+	}
+
+	// A unit advancing H.greet.3 and H.greet.4 is sealed on the new main.
+	gone := advancing(t, f, "Gone", unit.Implementing, "H.greet.3", "H.greet.4")
+	watched = append(watched, gone)
+	mark()
+
+	// The second landing removes H.greet.4, rewords H.greet.5, which keeps
+	// its refines tag, and adds H.greet.6 refining H.greet.3.
+	second := strings.NewReplacer(
+		"- **H.greet.4** (eventual) The tool sings.\n", "",
+		"The tool says hola.", "The tool says hola, amigo.\n- **H.greet.6** (soon, refines H.greet.3) The tool says ciao.",
+	).Replace(first)
+	short = unit.Short(landHorizon(t, f, second))
+
+	// Only the clause that newly refines H.greet.3 counts as gained.
+	body = notice(threes, short)
+	has(threes, body, "gained", "H.greet.6", "soon, refines H.greet.3", "The tool says ciao.")
+	lacks(threes, body, "H.greet.2", "H.greet.5", "H.greet.4")
+	body = notice(both, short)
+	has(both, body, "gained", "H.greet.6", "The tool says ciao.")
+	lacks(both, body, "H.greet.1", "H.greet.2", "H.greet.5")
+	if got := eventsSince(t, f, twos, counts[twos]); len(got) != 0 {
+		t.Errorf("the unit advancing H.greet.2 got events %+v", got)
+	}
+
+	// A unit that reopens for the landing gets no notice for it.
+	if u, _ := f.Tracker.Unit(gone); u.State != unit.Proposed || u.Bounces != 1 {
+		t.Errorf("unit advancing the removed H.greet.4 is %s with %d bounces, want proposed with 1", u.State, u.Bounces)
+	}
+	if n := noticesIn(eventsSince(t, f, gone, counts[gone])); len(n) != 0 {
+		t.Errorf("the reopened unit got notices %+v", n)
 	}
 }

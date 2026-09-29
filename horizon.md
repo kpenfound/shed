@@ -233,7 +233,7 @@ distant and get promoted as the soon tier drains.
   diff and which proofs are suspect. A unit whose dependency changed text goes
   to the wheelbuilder, which reopens it with a written conflict if the meaning
   changed and otherwise re-seals it with a notice.
-- **H.queue.5** (soon) The same three outcomes apply when the horizon
+- **H.queue.5** (soon, realised) The same three outcomes apply when the horizon
   changes, using horizon footprints.
 
 ## Scheduling

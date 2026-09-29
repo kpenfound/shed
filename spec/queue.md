@@ -12,8 +12,9 @@
   changed as under S.owner.2. For every other unit that is sealed,
   implementing, verifying or queued, it takes the horizon clauses recorded
   in the footprint at that unit's last seal. A unit none of whose horizon
-  clauses the landing changed or removed is left as it is, and no event is
-  recorded for it. A unit with one or more changed clauses gets one notice
+  clauses the landing changed or removed, and that gains no refining clause
+  under S.queue.6, is left as it is, and no event is recorded for it. A
+  unit with one or more changed clauses gets one notice
   naming the landed unit by its short change ID and giving, for each such
   clause in the order of the parent's horizon, its ID and its tag list and
   text before and after. The notice is in the unit's next bundle as under
@@ -44,3 +45,15 @@
   mark. The mark also clears when the unit leaves sealed, implementing,
   verifying and queued. A session that reports neither outcome leaves the
   mark for a later stage.
+- **S.queue.6** (H.queue.5) After a landing, a unit covered by S.queue.3
+  also counts as affected when the horizon gained a clause refining one of
+  its recorded horizon clauses: a clause on the landed commit whose
+  `refines` tag (S.horizon.6) names that recorded clause, and which on the
+  parent was absent or carried no `refines` tag naming it. Its notice under
+  S.queue.3 then also gives, after any changed clauses and in the order of
+  the landed commit's horizon, each such refining clause's ID, tag list and
+  text, marked as gained, and names the recorded clause it refines. A unit
+  whose only entries are gained clauses still gets that one notice, is not
+  marked for horizon review under S.queue.5 because of them, keeps its state
+  and its seal, and moves nothing. A unit that reopens under S.queue.4 for
+  the same landing gets no notice.
