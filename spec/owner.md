@@ -27,8 +27,11 @@
   contested unit on the deferred shelf as under S.shed.10, with the owner as
   actor and the reason as what would change the decision; the archive entry
   also holds the owner's answers.
-- **S.owner.6** (H.owner.1) Shed refuses a `shed answer` to a unit that is
-  not contested, with a kind other than `retry`, `defer` or `reject`, or with
+- **S.owner.6** (H.owner.1) `shed answer` reads its first argument as a
+  charter clause when it parses as a charter citation under S.cite.1, with
+  or without a revision, and as a unit otherwise; an answer to a clause is
+  governed by S.owner.10. Shed refuses an answer to a unit that is not
+  contested, with a kind other than `retry`, `defer` or `reject`, or with
   an empty reason. A refused answer records nothing and moves nothing.
 - **S.owner.7** (H.owner.1) `shed inbox` marks as new each contested unit
   it lists whose latest move to contested has a higher event sequence number
@@ -60,17 +63,32 @@
   nothing.
 - **S.owner.9** (H.owner.1) `shed inbox` then lists charter questions: each
   clause of the charter on main that the entries of at least two units on
-  the rejected shelf cite as violated, counted across the whole shelf
-  whenever those units were archived. Questions are listed in charter
-  order, each with its clause ID and, in the order they were archived, the
-  short change ID and title of every such unit. An entry cites a clause
-  when one of its citations is that clause's ID, with or without a
-  revision; a unit whose entry cites a clause more than once counts once.
+  the rejected shelf cite as violated. For each clause shed counts only
+  the units whose move to archived has a higher event sequence number than
+  the one recorded by the clause's latest keep (S.owner.10), or the whole
+  shelf when the clause has never been kept. Questions are listed in
+  charter order, each with its clause ID and, in the order they were
+  archived, the short change ID and title of every counted unit. An entry
+  cites a clause when one of its citations is that clause's ID, with or
+  without a revision; a unit whose entry cites a clause more than once counts once.
   Citations of other kinds, such as spec or horizon IDs, and charter IDs
   that are not clauses of the charter on main, as a retired ID is not,
   raise no question. A question is marked new when at least one of its
-  units' moves to archived has a higher event sequence number than the one
-  stored by the previous recorded `shed inbox` (S.owner.7), and every
+  counted units' moves to archived has a higher event sequence number than
+  the one stored by the previous recorded `shed inbox` (S.owner.7), and every
   question is new when no `shed inbox` has been recorded. `-peek` lists and
   marks the same questions. Listing a question moves no unit and holds back
   no session or proposal.
+- **S.owner.10** (H.owner.1) `shed answer <clause> keep <reason>`, where
+  `<clause>` is a charter clause ID, answers the charter question raised for
+  that clause (S.owner.9) by keeping the clause as it stands. It records in
+  the event log, with the owner as actor and the reason as the event's
+  reason, the clause ID and the sequence number of the latest tracker event
+  before the answer, so `shed tracker rebuild` keeps it. Under S.owner.9
+  the question then leaves the inbox and is raised again only when at
+  least two units archived after that keep cite the clause. Questions for
+  other clauses are unaffected. Shed refuses an answer to a clause whose
+  kind is not `keep`, whose clause is not a clause of the charter on main
+  or carries a revision, whose clause has no question listed for it at
+  that moment, or whose reason is empty; a refused answer records nothing.
+  A keep moves no unit and changes no archive entry.

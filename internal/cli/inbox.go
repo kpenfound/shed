@@ -134,18 +134,20 @@ func shortCommit(c string) string {
 // units on the rejected shelf cite as violated.
 type charterQuestion struct {
 	Clause clause.ID
-	// Units are the rejected units citing the clause, in the order they
-	// were archived.
+	// Units are the counted rejected units citing the clause, in the order
+	// they were archived.
 	Units []tracker.RejectedUnit
 	// New is set when any of the units was archived since the last
 	// recorded inbox.
 	New bool
 }
 
-// charterQuestions returns the charter questions the whole rejected shelf
+// charterQuestions returns the charter questions the rejected shelf
 // raises, in charter order (S.owner.9). An entry cites a clause of the
 // charter on main through its ID, at a revision or not; other citations
-// raise no question, and a unit counts once per clause.
+// raise no question, and a unit counts once per clause. For a clause the
+// owner has kept, only units archived after its latest keep count
+// (S.owner.10).
 func charterQuestions(root, main string, t *tracker.Tracker) ([]charterQuestion, error) {
 	rejected, err := t.Rejected()
 	if err != nil {
@@ -168,6 +170,10 @@ func charterQuestions(root, main string, t *tracker.Tracker) ([]charterQuestion,
 	if set == nil || set.Charter == nil {
 		return nil, nil
 	}
+	kept, err := t.Kept()
+	if err != nil {
+		return nil, err
+	}
 	citing := map[clause.ID][]tracker.RejectedUnit{}
 	for _, u := range rejected {
 		cited := map[clause.ID]bool{}
@@ -177,6 +183,9 @@ func charterQuestions(root, main string, t *tracker.Tracker) ([]charterQuestion,
 				continue
 			}
 			if _, ok := set.Lookup(c.ID); !ok {
+				continue
+			}
+			if since, ok := kept[c.ID.String()]; ok && u.ArchivedSeq <= since {
 				continue
 			}
 			cited[c.ID] = true

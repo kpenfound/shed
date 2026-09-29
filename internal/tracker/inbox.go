@@ -68,6 +68,8 @@ func (t *Tracker) Contested() ([]ContestedUnit, int64, error) {
 // RejectedUnit is a unit archived on the rejected shelf.
 type RejectedUnit struct {
 	Unit
+	// ArchivedSeq is the sequence number of the unit's move to archived.
+	ArchivedSeq int64
 	// New is set when the unit was archived after the latest event the
 	// last recorded inbox read, or when no inbox has been recorded.
 	New bool
@@ -92,12 +94,11 @@ func (t *Tracker) Rejected() ([]RejectedUnit, error) {
 	var out []RejectedUnit
 	for rows.Next() {
 		var r RejectedUnit
-		var archivedSeq int64
-		if err := rows.Scan(&r.Change, &archivedSeq); err != nil {
+		if err := rows.Scan(&r.Change, &r.ArchivedSeq); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		r.New = archivedSeq > since
+		r.New = r.ArchivedSeq > since
 		out = append(out, r)
 	}
 	rows.Close()
@@ -145,6 +146,52 @@ func (t *Tracker) RecordInbox(commit string, seq int64) error {
 	}
 	_, err := t.write(func(tx *sql.Tx) ([]Event, error) {
 		return []Event{{Kind: InboxRead, Actor: unit.Owner, Commit: commit, ReadSeq: seq}}, nil
+	})
+	return err
+}
+
+// keptKey prefixes the meta key holding, for a kept charter clause, the
+// sequence number its latest keep recorded.
+const keptKey = "kept:"
+
+// Kept returns, for each charter clause the owner has kept, the sequence
+// number of the latest event before its latest keep (S.owner.10).
+func (t *Tracker) Kept() (map[string]int64, error) {
+	rows, err := t.db.Query(`SELECT key, value FROM meta WHERE key LIKE ?`, keptKey+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int64{}
+	for rows.Next() {
+		var key string
+		var seq int64
+		if err := rows.Scan(&key, &seq); err != nil {
+			return nil, err
+		}
+		out[strings.TrimPrefix(key, keptKey)] = seq
+	}
+	return out, rows.Err()
+}
+
+// Keep records the owner keeping a charter clause as it stands, with a
+// reason and the sequence number of the latest event before the keep, so
+// the clause's charter question counts only units archived after it
+// (S.owner.9, S.owner.10). It moves no unit. The caller checks that the
+// clause has a question listed.
+func (t *Tracker) Keep(clause, reason string) error {
+	if strings.TrimSpace(clause) == "" {
+		return errors.New("a keep needs a charter clause")
+	}
+	if strings.TrimSpace(reason) == "" {
+		return errors.New("an answer needs a reason")
+	}
+	_, err := t.write(func(tx *sql.Tx) ([]Event, error) {
+		seq, err := metaInt(tx, "seq")
+		if err != nil {
+			return nil, err
+		}
+		return []Event{{Kind: ClauseKept, Actor: unit.Owner, Reason: reason, Clause: clause, ReadSeq: seq}}, nil
 	})
 	return err
 }

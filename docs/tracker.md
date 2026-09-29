@@ -131,21 +131,23 @@ rewrapping a clause is not a change (S.owner.2).
 
 Last it lists charter questions: the charter clauses that keep sinking
 proposals. A clause of the charter on main is a question when the entries of
-at least two units on the rejected shelf cite it as violated, counted across
-the whole shelf however long ago those units were archived. Questions come in
-charter order, each with its clause ID and then, in the order they were
-archived, the short change ID and title of every unit whose entry cites it.
+at least two units on the rejected shelf cite it as violated. Shed counts,
+for each clause, only the units archived after the owner last kept that
+clause with `shed answer` (see below), by event sequence number, or the
+whole shelf when the clause has never been kept. Questions come in charter
+order, each with its clause ID and then, in the order they were archived,
+the short change ID and title of every counted unit whose entry cites it.
 A citation counts for its clause with or without a revision, so `C3@HEAD~1`
 counts toward C3, and a unit whose entry cites a clause more than once counts
 once. Spec and horizon citations raise no question, and neither do charter
 IDs that are not clauses of the charter on main, such as retired ones.
 
-A question is marked `new` when at least one of its units was archived after
-the previous recorded `shed inbox`, by the same event sequence number that
-marks contested units. When no inbox has been recorded, every question is
-new. Reading the inbox does not reset the count: a question stays listed for
-as long as its units stay on the shelf, and it loses its mark once the owner
-has seen all of them (S.owner.9).
+A question is marked `new` when at least one of its counted units was
+archived after the previous recorded `shed inbox`, by the same event sequence
+number that marks contested units. When no inbox has been recorded, every
+question is new. Reading the inbox does not reset the count: a question stays
+listed until the owner keeps its clause, and it loses its mark once the owner
+has seen all of its units (S.owner.9).
 
 ```
 Contested units:
@@ -216,9 +218,33 @@ Every later bundle of the unit has an "Owner's answers" section listing the
 owner's answers to it, oldest first, each with its time, kind and reason. A
 deferred or rejected unit's archive entry holds them too.
 
-Shed refuses an answer to a unit that is not contested, an answer that is
-not `retry`, `defer` or `reject`, and an answer with an empty reason. A refused
-answer records nothing and moves nothing (S.owner.6).
+`shed answer` reads its first argument as a charter clause when it is a
+charter citation such as `C3` or `C3@HEAD~1`, and as a unit otherwise. Shed
+refuses an answer to a unit that is not contested, an answer to a unit that
+is not `retry`, `defer` or `reject`, and an answer with an empty reason. A
+refused answer records nothing and moves nothing (S.owner.6).
+
+## Answering charter questions
+
+The owner answers a charter question by keeping the clause as it stands:
+
+```
+shed answer C6 keep hosting stays out; these proposals misread the charter
+```
+
+The keep is recorded in the event log with the owner as actor, the reason as
+the event's reason, the clause ID and the sequence number of the latest
+tracker event before the answer, so `shed tracker rebuild` keeps it. The
+question leaves the inbox at once. From then on the inbox counts, for that
+clause, only units archived after the keep, so the question comes back only
+when at least two newly rejected units cite the clause. Questions for other
+clauses are unaffected. A keep moves no unit and changes no archive entry
+(S.owner.9, S.owner.10).
+
+Shed refuses an answer to a clause that is not `keep`, a clause with a
+revision such as `C6@HEAD~1`, an ID that is not a clause of the charter on
+main, a clause with no charter question listed for it at that moment, and an
+answer with an empty reason. A refused answer records nothing (S.owner.10).
 
 ## Commands
 
@@ -228,6 +254,7 @@ answer records nothing and moves nothing (S.owner.6).
 | `shed inbox [-peek]` | Lists contested units, the horizon changes on main and the charter questions from repeated rejections, marking what is new since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
 | `shed answer <unit> retry\|defer\|reject <reason>` | Answers a contested unit: moves it back to `proposed`, or defers or rejects it to the archive. |
+| `shed answer <clause> keep <reason>` | Answers a charter question by keeping the clause, clearing the question until two more rejections cite it. |
 | `shed unit move <unit> <state> <reason>` | Moves a unit by hand to `implementing`, `verifying` or `queued`. |
 | `shed unit reopen [-amendment] <unit> <reason>` | Sends a unit back to the shed. |
 | `shed unit log <unit>` | Prints a unit's events. |

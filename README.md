@@ -201,6 +201,7 @@ shed run <unit>                    # debate, implement, verify, land
 | `shed status` | Lists units, what waits for the owner, and whether the factory is paused. |
 | `shed inbox [-peek]` | Lists contested units, the horizon changes, and the charter clauses that keep getting proposals rejected, marking what is new since you last looked. |
 | `shed answer <unit> retry\|defer\|reject <reason>` | Answers a contested unit: retry it in the shed, or defer or reject it to the archive. |
+| `shed answer <clause> keep <reason>` | Answers a charter question by keeping the clause as it stands. |
 | `shed unit open\|declare\|move\|reopen\|log\|path` | Drives units by hand. |
 | `shed debate\|land\|run <unit>` | Runs one stage of a unit, or all of them. |
 | `shed serve [-once]` | Runs the factory. |
@@ -214,12 +215,12 @@ tracks units through their states, keeps each unit on a jj change, runs
 agents in Docker Sandboxes, debates, implements, verifies and lands units,
 proposes from the gap, and serves all of it on its own under a budget.
 `shed inbox` lists contested units, horizon changes and charter questions
-from repeated rejections for the owner, and `shed answer` retries, defers or
-rejects a contested unit.
+from repeated rejections for the owner. `shed answer` retries, defers or
+rejects a contested unit, and keeps a charter clause to answer its question.
 
 Still to come, as the [horizon](horizon.md) describes: many units in flight at
-once with reconciliation, a frame builder that sharpens the horizon, answers
-to charter questions and sampled amendments in the owner inbox, a sweeper that
+once with reconciliation, a frame builder that sharpens the horizon, sampled
+amendments in the owner inbox, a sweeper that
 patrols main for spec violations, `shed init`, and adopting existing
 codebases. Until the frame builder exists, the owner moves
 distant horizon clauses to soon by editing the horizon.

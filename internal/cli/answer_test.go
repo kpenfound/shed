@@ -197,6 +197,7 @@ func TestAnswerRefusals(t *testing.T) {
 		{"answer", sealed, "reject", "breaks", "C2"},
 		{"answer", contested, "proposed", "try", "again"},
 		{"answer", contested, "archive", "breaks", "C2"},
+		{"answer", contested, "keep", "still", "right"},
 		{"answer", contested, "retry"},
 		{"answer", contested, "defer"},
 		{"answer", contested, "reject"},

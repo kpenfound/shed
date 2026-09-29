@@ -14,6 +14,8 @@ const (
 	Retry  = "retry"
 	Defer  = "defer"
 	Reject = "reject"
+	// Keep is the owner's answer to a charter question (S.owner.10).
+	Keep = "keep"
 )
 
 // Answer is the owner's answer to a contested unit: a move out of
