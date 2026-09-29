@@ -166,3 +166,9 @@
   objections standing rejects the amendment under S.shed.14, restoring the
   horizon of the last seal, so no split horizon amendment is accepted there
   without the owner.
+- **S.shed.19** (H.hz.3) In the reason of a move to contested under
+  S.shed.16, each horizon clause counted at the tier only because of its
+  `refines` tag (S.horizon.6, S.diff.4) is followed by each clause at whose
+  tier it counts, with that clause's ID and its tier, as `shed diff` names
+  them under S.diff.5. A clause counted at the tier by its own tier names
+  none, even when its tag also names a clause of that tier.

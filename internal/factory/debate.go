@@ -567,7 +567,9 @@ func (f *Factory) amendmentTier(ctx context.Context, change string) (docs.Horizo
 // latest main commit its change descends from, as shed diff gives it
 // (S.diff.4). A distant or eventual tier waits for the owner (S.shed.16):
 // farTier returns it with the reason naming it and each horizon clause
-// counted at it, in document order. It returns "" for any other tier.
+// counted at it, in document order. A clause counted at the tier only
+// because of its refines tag is followed by the parents shed diff names for
+// it (S.shed.19). It returns "" for any other tier.
 func (f *Factory) farTier(ctx context.Context, change string) (string, string, error) {
 	d, err := f.amendmentTier(ctx, change)
 	if err != nil {
@@ -576,11 +578,25 @@ func (f *Factory) farTier(ctx context.Context, change string) (string, string, e
 	if d.Tier != "distant" && d.Tier != "eventual" {
 		return "", "", nil
 	}
+	listed := map[clause.ID]docs.TieredHorizonChange{}
+	for _, group := range [][]docs.TieredHorizonChange{d.Added, d.Removed, d.Changed} {
+		for _, c := range group {
+			listed[c.ID] = c
+		}
+	}
 	var named []string
 	for _, id := range d.CountedAt(d.Tier) {
-		named = append(named, id.String())
+		name := id.String()
+		if c := listed[id]; c.Tier != d.Tier && len(c.Parents) > 0 {
+			var parents []string
+			for _, p := range c.Parents {
+				parents = append(parents, fmt.Sprintf("%s (%s)", p.ID, p.Tier))
+			}
+			name += " parent " + strings.Join(parents, ", ")
+		}
+		named = append(named, name)
 	}
-	return d.Tier, fmt.Sprintf("the horizon amendment is %s tier, so it waits for the owner: %s", d.Tier, strings.Join(named, ", ")), nil
+	return d.Tier, fmt.Sprintf("the horizon amendment is %s tier, so it waits for the owner: %s", d.Tier, strings.Join(named, "; ")), nil
 }
 
 // seal seals a unit, against main as it is now, with a reason. Its change

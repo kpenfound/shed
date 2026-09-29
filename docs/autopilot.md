@@ -60,7 +60,16 @@ main commit the unit's change descends from and the change. It does so
 before the in-flight cap can hold the seal back. A distant or eventual tier
 always waits for the owner: the unit is neither sealed nor held but moves to
 contested, with shed as actor and a reason naming the tier and each horizon
-clause counted at it, in document order. This counts no bounce. A proposal
+clause counted at it, in document order. A clause counted at the tier only
+because of its `refines` tag is followed by each clause at whose tier it
+counts, with that clause's ID and tier, as `shed diff` names them (S.shed.19):
+
+```
+the horizon amendment is eventual tier, so it waits for the owner: H.greet.2 parent H.greet.5 (eventual); H.greet.7
+```
+
+A clause counted at the tier by its own tier names none, even when its tag
+also names a clause of that tier. This counts no bounce. A proposal
 with no tier, or a near or soon tier, is sealed or held as before. A held
 seal released with no painter session run on the unit since its round ended
 is not tiered again, since its change holds only what that round saw,
