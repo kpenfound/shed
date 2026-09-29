@@ -131,8 +131,12 @@ func (f *Factory) session(ctx context.Context, w work) (session.Result, error) {
 	if err != nil {
 		return session.Result{}, err
 	}
+	answers, err := f.Tracker.Answers(w.Unit.Change)
+	if err != nil {
+		return session.Result{}, err
+	}
 	b, err := f.Provider.Bundle(ctx, bundle.Request{Role: w.Role, Unit: w.Unit, Main: main, Head: head,
-		Proofs: proofs, Debate: record, Notices: pending, Extra: w.Extra})
+		Proofs: proofs, Debate: record, Answers: answers, Notices: pending, Extra: w.Extra})
 	if err != nil {
 		return session.Result{}, err
 	}

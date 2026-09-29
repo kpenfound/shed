@@ -155,6 +155,33 @@ func TestUnitCommands(t *testing.T) {
 	if out := mustRun(t, r.Dir, "unit", "reopen", changeA, "wrong", "spec"); out != "reopened "+short+"; bounces 1, now proposed\n" {
 		t.Errorf("reopen = %q", out)
 	}
+
+	// The owner takes a unit out of contested only with shed answer.
+	r.Write(".shed/config.toml", "[shed]\nbounce_threshold = 0\n")
+	changeB := openUnit(t, r.Dir, "Wave")
+	seal(t, state, changeB)
+	mustRun(t, r.Dir, "unit", "reopen", changeB, "wrong", "spec")
+	for _, args := range [][]string{
+		{"unit", "move", changeB, "proposed", "by", "hand"},
+		{"unit", "move", changeB, "archived", "by", "hand"},
+		{"unit", "move", changeB, "implementing", "by", "hand"},
+		{"unit", "reopen", changeB, "try", "again"},
+	} {
+		if _, stderr, code := run(t, r.Dir, args...); code == OK {
+			t.Errorf("%v succeeded on a contested unit: %q", args, stderr)
+		}
+	}
+	for _, args := range [][]string{
+		{"unit", "move", changeB, "proposed", "by", "hand"},
+		{"unit", "reopen", changeB, "try", "again"},
+	} {
+		if _, stderr, _ := run(t, r.Dir, args...); !strings.Contains(stderr, "shed answer") {
+			t.Errorf("%v on a contested unit = %q; want it to point to shed answer", args, stderr)
+		}
+	}
+	if status := mustRun(t, r.Dir, "status"); !regexp.MustCompile(unit.Short(changeB) + `\s+contested\s+1\s`).MatchString(status) {
+		t.Errorf("hand commands moved a contested unit:\n%s", status)
+	}
 }
 
 //shed:proves S.vcs.3

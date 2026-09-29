@@ -16,14 +16,17 @@
 - **S.unit.5** (H.unit.4) A move from sealed, implementing, verifying or
   queued back to proposed is a reopen and counts a bounce. A reopen that
   requests an amendment also counts an amendment.
-- **S.unit.6** (H.unit.5) A reopen that takes a unit past the operator's
-  bounce threshold moves it on to contested and leaves a notice for the
-  owner. Other units carry on.
+- **S.unit.6** (H.unit.5) Any bounce that leaves a unit's bounce count above
+  the operator's bounce threshold, whether a reopen under S.unit.5 or a
+  proposal bounced back to its painter, moves it on to contested and leaves a
+  notice for the owner. Other units carry on.
 - **S.unit.7** (H.unit.6) A unit's footprint may depend only on spec clauses
   that are on main or that the unit itself modifies. Shed refuses a
   dependency on a clause another in-flight unit is adding, naming that unit,
   and on a clause no unit has.
 - **S.unit.8** (H.unit.2, H.unit.3) The owner drives units by hand with
   `shed unit open`, `shed unit move` and `shed unit reopen`. By hand a unit
-  moves to implementing, verifying, queued, or from contested to proposed.
-  Sealing, landing and archiving are refused.
+  moves to implementing, verifying or queued. These commands refuse
+  sealing, landing, archiving and any move out of contested; the owner
+  takes a unit out of contested only with `shed answer` (S.owner.4,
+  S.owner.5).

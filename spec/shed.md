@@ -22,8 +22,9 @@
 - **S.shed.6** (H.shed.6) When no objection stands after a round, the unit is
   sealed. The round cap is `shed.max_rounds`, and reaching it approves
   nothing: a proposal with other objections standing at the cap bounces back
-  to its painter. It stays proposed, counts a bounce, and its next debate
-  starts afresh from round one.
+  to its painter. It counts a bounce, and unless that bounce moves it to
+  contested under S.unit.6 it stays proposed and its next debate starts
+  afresh from round one.
 - **S.shed.7** (H.shed.7) A size objection says the footprint is too large and
   how to split it by clause. It stands like any other objection until its
   member withdraws it.

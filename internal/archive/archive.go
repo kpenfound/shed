@@ -41,7 +41,9 @@ type Record struct {
 	// decision.
 	Reason   string
 	Proposal string
-	Debate   string
+	// Answers are the owner's answers to the unit, one per line.
+	Answers string
+	Debate  string
 }
 
 // Format writes a record as an entry.
@@ -58,6 +60,9 @@ func Format(r Record) string {
 	fmt.Fprintf(&b, "\n## %s\n\n%s\n", label, strings.TrimSpace(r.Reason))
 	if r.Proposal != "" {
 		fmt.Fprintf(&b, "\n## Proposal\n\n%s\n", strings.TrimSpace(r.Proposal))
+	}
+	if r.Answers != "" {
+		fmt.Fprintf(&b, "\n## Owner's answers\n\n%s\n", strings.TrimSpace(r.Answers))
 	}
 	if r.Debate != "" {
 		fmt.Fprintf(&b, "\n## Debate\n\n%s\n", strings.TrimSpace(r.Debate))

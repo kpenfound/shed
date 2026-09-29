@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kpenfound/shed/internal/archive"
 	"github.com/kpenfound/shed/internal/bundle"
@@ -519,8 +520,7 @@ func (f *Factory) bounce(u tracker.Unit, reason string) (Outcome, error) {
 	return Bounced, nil
 }
 
-// archive puts a proposal on a shelf: it writes the archive entry, records
-// the unit as archived and discards its change.
+// archive puts a proposal on a shelf on the committee's decision.
 func (f *Factory) archive(ctx context.Context, u tracker.Unit, shelf unit.Shelf, because []tracker.Objection) (Outcome, error) {
 	var citations, reasons []string
 	for _, o := range because {
@@ -531,6 +531,29 @@ func (f *Factory) archive(ctx context.Context, u tracker.Unit, shelf unit.Shelf,
 		}
 		reasons = append(reasons, fmt.Sprintf("- %s (member %d): %s", o.ID, o.Member, o.Text))
 	}
+	reason := fmt.Sprintf("%s citing %s", shelf, strings.Join(citations, ", "))
+	return f.shelve(ctx, u, shelf, citations, strings.Join(reasons, "\n"), unit.Committee, reason, nil)
+}
+
+// Defer archives a contested unit on the deferred shelf on the owner's
+// answer, with the reason as what would change the decision (S.owner.5).
+func (f *Factory) Defer(ctx context.Context, change, reason string) error {
+	if err := f.Tracker.CheckAnswer(change, tracker.Defer, reason); err != nil {
+		return err
+	}
+	u, err := f.Tracker.Unit(change)
+	if err != nil {
+		return err
+	}
+	answer := tracker.Answer{Time: time.Now(), Kind: tracker.Defer, Reason: reason}
+	_, err = f.shelve(ctx, u, unit.Deferred, nil, reason, unit.Owner, reason, &answer)
+	return err
+}
+
+// shelve puts a proposal on a shelf: it writes the archive entry, with the
+// owner's answers to the unit and the answer being given, if any, records
+// the unit as archived and discards its change.
+func (f *Factory) shelve(ctx context.Context, u tracker.Unit, shelf unit.Shelf, citations []string, why string, actor unit.Actor, reason string, answer *tracker.Answer) (Outcome, error) {
 	main, err := f.mainSet(ctx)
 	if err != nil {
 		return "", err
@@ -543,16 +566,22 @@ func (f *Factory) archive(ctx context.Context, u tracker.Unit, shelf unit.Shelf,
 	if err != nil {
 		return "", err
 	}
+	answers, err := f.Tracker.Answers(u.Change)
+	if err != nil {
+		return "", err
+	}
+	if answer != nil {
+		answers = append(answers, *answer)
+	}
 	entry := archive.Format(archive.Record{
 		Title: u.Title, Change: u.Change, Shelf: shelf, Citations: citations,
-		Reason: strings.Join(reasons, "\n"), Proposal: bundle.Changes(main, head), Debate: record,
+		Reason: why, Proposal: bundle.Changes(main, head), Answers: renderAnswers(answers), Debate: record,
 	})
 	if _, err := f.Repo.WriteArchive(ctx, archive.Path(shelf, u.Change), []byte(entry),
 		fmt.Sprintf("%s: %s", shelf, u.Title)); err != nil {
 		return "", err
 	}
-	reason := fmt.Sprintf("%s citing %s", shelf, strings.Join(citations, ", "))
-	if err := f.Tracker.Archive(u.Change, shelf, unit.Committee, reason); err != nil {
+	if err := f.Tracker.Archive(u.Change, shelf, actor, reason); err != nil {
 		return "", err
 	}
 	if err := f.Repo.Discard(ctx, u.Change); err != nil {
@@ -562,6 +591,15 @@ func (f *Factory) archive(ctx context.Context, u tracker.Unit, shelf unit.Shelf,
 		return Rejected, nil
 	}
 	return Deferred, nil
+}
+
+// renderAnswers lists the owner's answers, one per line.
+func renderAnswers(answers []tracker.Answer) string {
+	var b strings.Builder
+	for _, a := range answers {
+		fmt.Fprintf(&b, "- %s\n", a)
+	}
+	return b.String()
 }
 
 func byKind(objections []tracker.Objection, kind string) []tracker.Objection {

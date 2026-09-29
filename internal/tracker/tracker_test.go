@@ -458,6 +458,22 @@ func TestContestedPastTheThreshold(t *testing.T) {
 	if u := get(t, tr, unitA); u.State != unit.Proposed || u.Bounces != 2 {
 		t.Errorf("after the owner answers: %+v", u)
 	}
+
+	// A proposal bounced back to its painter counts too, and so does any
+	// bounce of a unit already past the threshold.
+	must(t, tr.OpenUnit(unitC, "Bow", unit.Painter))
+	must(t, tr.Bounce(unitC, unit.Committee, "objections stand"))
+	if u := get(t, tr, unitC); u.State != unit.Proposed || u.Bounces != 1 {
+		t.Errorf("after one painter bounce: %+v", u)
+	}
+	must(t, tr.Bounce(unitC, unit.Committee, "objections still stand"))
+	if u := get(t, tr, unitC); u.State != unit.Contested || u.Bounces != 2 {
+		t.Errorf("after two painter bounces: %+v", u)
+	}
+	must(t, tr.Bounce(unitA, unit.Committee, "no spec clause changes"))
+	if u := get(t, tr, unitA); u.State != unit.Contested || u.Bounces != 3 {
+		t.Errorf("a bounce past the threshold: %+v", u)
+	}
 }
 
 //shed:proves S.unit.7

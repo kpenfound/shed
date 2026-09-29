@@ -43,10 +43,11 @@ proposed -> sealed -> implementing -> verifying -> queued -> landed
 - A reopen sends a unit from `sealed`, `implementing`, `verifying` or `queued`
   back to `proposed` with a reason. It counts a bounce. A reopen that
   requests an amendment also counts an amendment.
-- When a unit bounces more times than the operator's `bounce_threshold`, it
-  moves on to `contested`. Shed leaves a notice for the owner and keeps
-  working on other units. From `contested`, a unit goes back to `proposed`
-  when the owner answers, or to the archive.
+- Any bounce that leaves a unit's bounce count above the operator's
+  `bounce_threshold`, whether a reopen or a proposal bounced back to its
+  painter, moves it on to `contested`. Shed leaves a notice for the owner
+  and keeps working on other units. A unit leaves `contested` only on the
+  owner's answer: back to `proposed`, or to the deferred shelf.
 - `landed` and `archived` are terminal. An archived unit rests on the
   `rejected` or `deferred` shelf.
 
@@ -137,6 +138,32 @@ entries and records nothing (S.owner.3).
 Reading the inbox never moves a unit and never starts or stops a stage. The
 factory does not wait for it.
 
+## Answering contested units
+
+The owner takes a unit out of `contested` with `shed answer`, and only with
+it:
+
+```
+shed answer qpvuntsm retry the painter has the missing clause now
+shed answer qpvuntsm defer revisit once the sweeper exists
+```
+
+- `retry` moves the unit to `proposed`, with the owner as actor and the
+  reason as the move's reason. The unit keeps its bounce count, so it is
+  still past the threshold and its next bounce, of any kind, sends it back
+  to `contested` (S.owner.4).
+- `defer` archives the unit on the deferred shelf as a deferred proposal is
+  archived, with the owner as actor and the reason as what would change the
+  decision (S.owner.5).
+
+Every later bundle of the unit has an "Owner's answers" section listing the
+owner's answers to it, oldest first, each with its time, kind and reason. A
+deferred unit's archive entry holds them too.
+
+Shed refuses an answer to a unit that is not contested, an answer that is
+neither `retry` nor `defer`, and an answer with an empty reason. A refused
+answer records nothing and moves nothing (S.owner.6).
+
 ## Commands
 
 | Command | Does |
@@ -144,7 +171,8 @@ factory does not wait for it.
 | `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost and title, then the notices waiting for the owner. |
 | `shed inbox [-peek]` | Lists contested units and the horizon changes on main since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
-| `shed unit move <unit> <state> <reason>` | Moves a unit by hand to `implementing`, `verifying` or `queued`, or from `contested` back to `proposed`. |
+| `shed answer <unit> retry\|defer <reason>` | Answers a contested unit: moves it back to `proposed` or defers it to the archive. |
+| `shed unit move <unit> <state> <reason>` | Moves a unit by hand to `implementing`, `verifying` or `queued`. |
 | `shed unit reopen [-amendment] <unit> <reason>` | Sends a unit back to the shed. |
 | `shed unit log <unit>` | Prints a unit's events. |
 | `shed unit path <unit>` | Prints the directory of the unit's workspace. |
@@ -156,7 +184,8 @@ A unit argument is any prefix of its change ID that names one unit.
 
 Sealing, landing and archiving each produce a record of their own, so they
 cannot be done by hand with `unit move`. `shed land` is the only way a unit
-becomes landed.
+becomes landed. `shed unit open`, `move` and `reopen` never move a unit out
+of `contested`; `shed answer` does that.
 
 ## Operator settings
 

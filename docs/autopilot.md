@@ -38,9 +38,10 @@ Between rounds the painter answers each standing objection once with
 `answer`, and may revise the files. Only the member who raised an objection
 can withdraw it. With no objection standing, the unit is sealed against
 main's current commit and the commit its change points to. At `shed.max_rounds` with objections still standing,
-the proposal bounces back to its painter: it stays proposed, counts a bounce
-and debates afresh next time. Past `shed.bounce_threshold` bounces it is
-contested and waits for the owner.
+the proposal bounces back to its painter and counts a bounce. Unless that
+bounce leaves it past `shed.bounce_threshold` bounces, when it is contested
+and waits for the owner's `shed answer`, it stays proposed and debates
+afresh next time.
 
 A unit whose latest reopen requested an amendment is debated in the
 amendment lane. Every rule above holds, but the round cap is
@@ -88,7 +89,9 @@ Rejected and deferred proposals go to the archive: a Markdown entry under
 `archive/rejected/` or `archive/deferred/` on the `shed/archive` branch,
 which shares no history with main, so archiving never moves main. The entry
 holds the citations, the reason or what would change the decision, the spec
-changes and the debate.
+changes and the debate. A contested unit the owner defers with `shed answer`
+goes to the deferred shelf the same way, and its entry also holds the
+owner's answers.
 
 ## Implementation
 

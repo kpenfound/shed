@@ -54,6 +54,8 @@ type Request struct {
 	Proofs []proof.Proof
 	// Debate is the unit's debate record, rendered.
 	Debate string
+	// Answers are the owner's answers to the unit, oldest first.
+	Answers []tracker.Answer
 	// Notices are the pending notices for the role about the unit.
 	Notices []tracker.Notice
 	// Extra are sections the caller adds, such as the gap for a painter.
@@ -75,6 +77,7 @@ const (
 	HorizonSection   = "Horizon clauses advanced"
 	ProofsSection    = "Proofs"
 	DebateSection    = "Debate record"
+	AnswersSection   = "Owner's answers"
 	NoticesSection   = "Notices"
 )
 
@@ -83,7 +86,7 @@ const (
 type Files struct{}
 
 // Bundle builds the unit, charter, footprint, spec changes, sealed spec,
-// horizon, proofs, debate record and notices sections. The sweeper's bundle
+// horizon, proofs, debate record, owner's answers and notices sections. The sweeper's bundle
 // carries no debate record.
 func (Files) Bundle(_ context.Context, req Request) (Bundle, error) {
 	var b Bundle
@@ -164,6 +167,13 @@ func (Files) Bundle(_ context.Context, req Request) (Bundle, error) {
 	}
 	if req.Role != unit.Sweeper {
 		add(DebateSection, req.Debate)
+	}
+	if len(req.Answers) > 0 {
+		var s strings.Builder
+		for _, a := range req.Answers {
+			fmt.Fprintf(&s, "- %s\n", a)
+		}
+		add(AnswersSection, s.String())
 	}
 	if len(req.Notices) > 0 {
 		var s strings.Builder

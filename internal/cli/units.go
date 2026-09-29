@@ -338,7 +338,9 @@ func (e env) runUnit(args []string) int {
 
 // manualTargets are the states the owner may move a unit to by hand. Sealing,
 // landing and archiving carry records of their own and happen through the
-// shed, the merge queue and the frame builder.
+// shed, the merge queue and the frame builder. Moving to proposed is only
+// allowed as a reopen, and no hand command moves a unit out of contested
+// (S.unit.8).
 var manualTargets = []unit.State{unit.Implementing, unit.Verifying, unit.Queued, unit.Proposed}
 
 func (e env) unitMove(args []string) int {
@@ -362,6 +364,9 @@ func (e env) unitMove(args []string) int {
 		if err != nil {
 			return e.fail(err)
 		}
+		if u.State == unit.Contested {
+			return e.contested(u)
+		}
 		if unit.IsReopen(u.State, to) {
 			return e.misuse("moving a %s unit to proposed is a reopen; use unit reopen", u.State)
 		}
@@ -371,6 +376,12 @@ func (e env) unitMove(args []string) int {
 		fmt.Fprintf(e.stdout, "moved %s from %s to %s\n", unit.Short(u.Change), u.State, to)
 		return OK
 	})
+}
+
+// contested refuses a hand command on a contested unit: the owner takes a
+// unit out of contested only with shed answer.
+func (e env) contested(u tracker.Unit) int {
+	return e.misuse("unit %s is contested; answer it with shed answer %s retry|defer <reason>", unit.Short(u.Change), unit.Short(u.Change))
 }
 
 func (e env) unitReopen(args []string) int {
@@ -387,6 +398,9 @@ func (e env) unitReopen(args []string) int {
 		u, err := t.Unit(fs.Arg(0))
 		if err != nil {
 			return e.fail(err)
+		}
+		if u.State == unit.Contested {
+			return e.contested(u)
 		}
 		if err := t.Reopen(u.Change, unit.Owner, reason, *amendment); err != nil {
 			return e.fail(err)
