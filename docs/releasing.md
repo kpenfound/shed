@@ -10,7 +10,7 @@ workflow; the project's gate is `dagger check`, run by hand.
 1. Make sure `main` is the commit you want to ship and that it is green:
 
    ```sh
-   DAGGER_X_RELEASE=v1.0.0-beta.14 dagger check
+   DAGGER_X_RELEASE=v1.0.0-beta.15 dagger check
    ```
 
 2. Tag it and push the tag. The tag name is the version: it is what the

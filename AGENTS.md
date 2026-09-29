@@ -20,7 +20,7 @@
   experimental Dagger release:
 
   ```sh
-  DAGGER_X_RELEASE=v1.0.0-beta.14 dagger check
+  DAGGER_X_RELEASE=v1.0.0-beta.15 dagger check
   ```
 
 - `go run ./cmd/shed check` validates the documents and the proof mapping.
