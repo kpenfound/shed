@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/kpenfound/shed/internal/landing"
 	"github.com/kpenfound/shed/internal/session"
 	"github.com/kpenfound/shed/internal/testrepo"
 	"github.com/kpenfound/shed/internal/tracker"
@@ -663,5 +664,121 @@ func TestPainterMarkersBlockTheSeal(t *testing.T) {
 	if out, err := f.Debate(ctx, hola); err != nil || out != Sealed {
 		u, _ := f.Tracker.Unit(hola)
 		t.Fatalf("debate once the painter resolved the markers = %s, %v: %q", out, err, u.Reason)
+	}
+}
+
+// swept returns how a unit's log describes the rebases after the landing of
+// lander, failing the test if any of those events changes the unit's state.
+func swept(t *testing.T, f *Factory, change, lander string) []string {
+	t.Helper()
+	events, err := f.Tracker.Events(change)
+	must(t, err)
+	prefix := "after unit " + unit.Short(lander) + " landed: "
+	var out []string
+	for _, e := range events {
+		if outcome, ok := strings.CutPrefix(tracker.Describe(e), prefix); ok {
+			if e.Kind == tracker.UnitMoved || e.To != "" || e.Actor != unit.Shed {
+				t.Errorf("the rebase event %+v is not shed's or moves the unit", e)
+			}
+			out = append(out, outcome)
+		}
+	}
+	return out
+}
+
+//shed:proves S.vcs.15
+func TestDeferredRebaseIsLogged(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[concurrency]\nin_flight = 0\n[vcs]\nremote = \"origin\"\n")
+	fake.on(unit.Committee, "review", func(session.Turn) session.Result { return done("pass") })
+	lander := sealed(t, f, fake)
+	mechanic(t, fake)
+	must2(t, f.Implement)(lander)
+	must2(t, f.Verify)(lander)
+
+	// A unit whose mechanic is at work when the other lands.
+	busy := inFlight(t, f, fake, "nod", nil)
+	started, release := make(chan struct{}), make(chan struct{})
+	fake.on(unit.Mechanic, "proofs", func(turn session.Turn) session.Result {
+		write(t, turn.Dir, "nod.txt", "nod\n")
+		close(started)
+		<-release
+		return done("done")
+	})
+	var atImplement []string
+	fake.on(unit.Mechanic, "implement", func(session.Turn) session.Result {
+		atImplement = swept(t, f, busy, lander)
+		return done("done")
+	})
+	fake.on(unit.Mechanic, "docs", func(session.Turn) session.Result { return done("done") })
+	implemented := make(chan error, 1)
+	go func() {
+		_, err := f.Implement(ctx, busy)
+		implemented <- err
+	}()
+	<-started
+
+	out, err := f.Land(ctx, lander)
+	if err != nil || out != Landed {
+		close(release)
+		t.Fatalf("land = %s, %v", out, err)
+	}
+	if got := swept(t, f, busy, lander); !slices.Equal(got, []string{"deferred: a session is running"}) {
+		t.Errorf("the busy unit logs %q after the landing, want its deferral", got)
+	}
+	close(release)
+	must(t, <-implemented)
+
+	// Its rebase once the session was captured records the outcome, naming
+	// the landed unit.
+	want := []string{"deferred: a session is running", "rebased cleanly"}
+	if !slices.Equal(atImplement, want) {
+		t.Errorf("the busy unit logs %q before its next session, want %q", atImplement, want)
+	}
+	if got := swept(t, f, busy, lander); !slices.Equal(got, want) {
+		t.Errorf("the busy unit logs %q, want %q", got, want)
+	}
+}
+
+//shed:proves S.vcs.15
+func TestInterruptedSweepIsLogged(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[concurrency]\nin_flight = 0\n[vcs]\nremote = \"origin\"\n")
+	fake.on(unit.Committee, "review", func(session.Turn) session.Result { return done("pass") })
+	lander := sealed(t, f, fake)
+	mechanic(t, fake)
+	must2(t, f.Implement)(lander)
+	must2(t, f.Verify)(lander)
+
+	// A unit apart from the landing and one past its seal that clashes with
+	// it.
+	idle := inFlight(t, f, fake, "wave", map[string]string{"wave.txt": "wave\n"})
+	clash := inFlight(t, f, fake, "hola", map[string]string{"bye.go": "package greet\n\n// Bye says adios.\nfunc Bye() string { return \"adios\" }\n"})
+
+	// The landing is recorded and shed stops before the sweep.
+	_, err := landing.Land(ctx, f.Tracker, f.Repo, lander, unit.Wheelbuilder)
+	must(t, err)
+	for _, change := range []string{idle, clash} {
+		if got := swept(t, f, change, lander); len(got) != 0 {
+			t.Errorf("unit %s logs %q before the sweep ran", unit.Short(change), got)
+		}
+	}
+	must(t, f.Close())
+
+	next, err := Open(ctx, r.Dir, f.State, fake)
+	must(t, err)
+	t.Cleanup(func() { next.Close() })
+	for change, want := range map[string]string{
+		idle:  "rebased cleanly",
+		clash: "rebase undone: the rebase conflicted and the unit is past its seal or is a frame unit",
+	} {
+		if got := swept(t, next, change, lander); len(got) != 1 || got[0] != want {
+			t.Errorf("unit %s logs %q after the next process opened, want %q", unit.Short(change), got, want)
+		}
+		if u, _ := next.Tracker.Unit(change); u.State != unit.Sealed {
+			t.Errorf("unit %s is %s", unit.Short(change), u.State)
+		}
 	}
 }

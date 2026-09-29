@@ -51,12 +51,19 @@ func landHorizon(t *testing.T, f *Factory, horizon string, files ...string) stri
 	return change
 }
 
-// eventsSince returns a unit's events after the first n.
+// eventsSince returns a unit's events after the first n, leaving out the
+// rebases a landing's sweep records in every unit's log (S.vcs.15).
 func eventsSince(t *testing.T, f *Factory, change string, n int) []tracker.Event {
 	t.Helper()
 	events, err := f.Tracker.Events(change)
 	must(t, err)
-	return events[n:]
+	var out []tracker.Event
+	for _, e := range events[n:] {
+		if e.Kind != tracker.UnitRebased {
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 func eventCount(t *testing.T, f *Factory, change string) int {

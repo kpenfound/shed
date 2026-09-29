@@ -377,6 +377,8 @@ func Describe(e Event) string {
 		b.WriteString("held back from sealing")
 	case UnitEntangled:
 		fmt.Fprintf(&b, "entangled with unit %s on %s", unit.Short(e.Entangled.Unit), strings.Join(e.Entangled.Clauses, ", "))
+	case UnitRebased:
+		fmt.Fprintf(&b, "after unit %s landed: %s", unit.Short(e.Rebased.Lander), e.Rebased.Outcome)
 	case RoundStarted:
 		fmt.Fprintf(&b, "debate round %d", e.Round)
 	case Consensus:

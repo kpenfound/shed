@@ -26,6 +26,7 @@ const (
 	NoticeAdded     = "notice.added"
 	NoticeDelivered = "notice.delivered"
 	UnitBounced     = "unit.bounced"
+	UnitRebased     = "unit.rebased"
 	// UnitRestarted sends a proposed unit back to its proposer to start a
 	// new debate, as a bounce does, without counting a bounce (S.shed.18).
 	UnitRestarted = "unit.restarted"
@@ -102,8 +103,10 @@ type Event struct {
 	Objection *ObjectionEv `json:"objection,omitempty"`
 	// Entangled is set on an entanglement advisory.
 	Entangled *EntangledEv `json:"entangled,omitempty"`
-	Round     int          `json:"round,omitempty"`
-	CostUSD   float64      `json:"cost_usd,omitempty"`
+	// Rebased is set when a landing's rebase of a unit is recorded.
+	Rebased *RebasedEv `json:"rebased,omitempty"`
+	Round   int        `json:"round,omitempty"`
+	CostUSD float64    `json:"cost_usd,omitempty"`
 }
 
 // Seal pins a sealed unit to the main commit it was sealed against and to
@@ -191,6 +194,13 @@ type NoticeEv struct {
 type EntangledEv struct {
 	Unit    string   `json:"unit"`
 	Clauses []string `json:"clauses"`
+}
+
+// RebasedEv names the unit whose landing made the commit a unit's change
+// was rebased onto, and the rebase's outcome.
+type RebasedEv struct {
+	Lander  string `json:"lander"`
+	Outcome string `json:"outcome"`
 }
 
 // ObjectionEv describes an objection, its withdrawal or its answer in the

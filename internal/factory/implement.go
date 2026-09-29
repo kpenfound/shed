@@ -525,24 +525,32 @@ func markedRealised(before, after string) bool {
 // is reconciled against the horizon changes it made and then rebased onto
 // main.
 func (f *Factory) Land(ctx context.Context, change string) (Outcome, error) {
+	out, _, err := f.LandReport(ctx, change)
+	return out, err
+}
+
+// LandReport lands a queued unit as Land does and, when it lands, reports
+// the outcome of rebasing each other unit in flight, in the order they
+// opened (S.vcs.15). A unit the sweep did not reach has no report.
+func (f *Factory) LandReport(ctx context.Context, change string) (Outcome, []Rebased, error) {
 	u, err := f.Tracker.Unit(change)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if u.State != unit.Queued {
-		return "", fmt.Errorf("unit %s is %s; only queued units land", unit.Short(u.Change), u.State)
+		return "", nil, fmt.Errorf("unit %s is %s; only queued units land", unit.Short(u.Change), u.State)
 	}
 	if err := unmarked(u, "landed"); err != nil {
-		return "", err
+		return "", nil, err
 	}
 	// A unit already on main only needs recording.
 	if landed, err := f.Repo.OnMain(ctx, u.Change); err != nil || !landed {
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		conflicted, err := f.Repo.Rebase(ctx, u.Change)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		if conflicted {
 			res, err := f.session(ctx, work{
@@ -552,10 +560,10 @@ func (f *Factory) Land(ctx context.Context, change string) (Outcome, error) {
 				Outcomes: []string{outcomeResolved, outcomeUnresolvable},
 			})
 			if err != nil {
-				return "", err
+				return "", nil, err
 			}
 			if res.Status != outcomeResolved {
-				return f.reopen(u, unit.Wheelbuilder, "the unit conflicts with main and the wheelbuilder could not resolve it: "+res.Note, false)
+				return unreported(f.reopen(u, unit.Wheelbuilder, "the unit conflicts with main and the wheelbuilder could not resolve it: "+res.Note, false))
 			}
 		}
 	}
@@ -565,16 +573,16 @@ func (f *Factory) Land(ctx context.Context, change string) (Outcome, error) {
 		// Reconcile before the sweep, so a reopened unit is rebased as a
 		// proposed unit (S.queue.4).
 		if err := f.reconcileHorizon(u.Change, commit); err != nil {
-			return "", fmt.Errorf("unit %s landed as %s but reconciling other units failed: %w", unit.Short(u.Change), commit, err)
+			return "", nil, fmt.Errorf("unit %s landed as %s but reconciling other units failed: %w", unit.Short(u.Change), commit, err)
 		}
-		_ = f.sweep(ctx, u.Change)
-		return Landed, nil
+		swept, _ := f.sweepReport(ctx, u.Change)
+		return Landed, swept, nil
 	case errors.Is(err, vcs.ErrConflict):
-		return f.reopen(u, unit.Wheelbuilder, "conflicts with main remain after resolution", false)
+		return unreported(f.reopen(u, unit.Wheelbuilder, "conflicts with main remain after resolution", false))
 	case errors.Is(err, vcs.ErrEmpty):
-		return f.reopen(u, unit.Wheelbuilder, "the unit changes nothing", false)
+		return unreported(f.reopen(u, unit.Wheelbuilder, "the unit changes nothing", false))
 	}
-	return "", err
+	return "", nil, err
 }
 
 // Run takes a unit through the shed, implementation, verification and

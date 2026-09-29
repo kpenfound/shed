@@ -295,7 +295,7 @@ func (e env) land(args []string) int {
 		if err != nil {
 			return e.fail(err)
 		}
-		out, err := f.Land(e.ctx, u.Change)
+		out, swept, err := f.LandReport(e.ctx, u.Change)
 		if err != nil {
 			return e.fail(err)
 		}
@@ -310,6 +310,9 @@ func (e env) land(args []string) int {
 		fmt.Fprintf(e.stdout, "landed %s on main as %s\n", unit.Short(u.Change), after.Landed)
 		if after.Actual != nil {
 			fmt.Fprintln(e.stdout, tracker.FootprintDrift(after.Footprint, *after.Actual))
+		}
+		for _, r := range swept {
+			fmt.Fprintf(e.stdout, "%s %s: %s\n", unit.Short(r.Unit.Change), r.Unit.State, r.Outcome)
 		}
 		return OK
 	})

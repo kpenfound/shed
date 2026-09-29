@@ -90,3 +90,20 @@
   the queue or lands holding a conflict nobody resolved. The check at
   sealing under S.vcs.10 uses the same test, so markers a painter left in a
   file under `spec/` block the seal as a stored conflict would.
+- **S.vcs.15** (H.vcs.7) After the rebase sweep that follows a landing
+  (S.vcs.10), `shed land` prints one line for every other unit that is
+  neither landed nor archived, naming it by its short change ID and its
+  state and giving the sweep's outcome for it: rebased cleanly, rebased
+  with conflicts stored in its change, rebase undone because the rebase
+  conflicted and the unit is past its seal or is a frame unit (S.frame.3),
+  deferred because a session was running, or failed, with the failure's
+  reason. The lines follow
+  the order the units opened, and the landing's exit status is the same
+  whatever outcomes they report. Each such unit's `shed unit log` records
+  the same outcome as an event naming the landed unit. A deferred unit's
+  later rebase under S.vcs.10, and each rebase the next shed process does
+  under S.vcs.11 to finish an interrupted sweep, also records its outcome
+  in the unit's log as such an event, naming the unit whose landing made
+  the commit the change was rebased onto, and prints nothing. If shed
+  stops partway through the sweep, `shed land` prints no line for the units
+  it had not reached. None of these events changes a unit's state.

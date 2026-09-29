@@ -119,6 +119,31 @@ session was given, so it never reverts what the landing brought in, and the
 sessions running together on a unit, such as a committee's members, all see
 one revision.
 
+After the sweep, `shed land` prints one line for every other unit that is
+neither landed nor archived, in the order the units opened. Each line gives
+the unit's short change ID, its state and the outcome:
+
+```
+landed qpvuntsm on main as 3f2a9c1d7e4b5a6f8c9d0e1f2a3b4c5d6e7f8091
+footprint held
+zsxkmwqp proposed: rebased cleanly
+rlvkpnrz proposed: rebased with conflicts stored in its change
+yostqsxw sealed: rebase undone: the rebase conflicted and the unit is past its seal or is a frame unit
+mzvwutvl implementing: deferred: a session is running
+kmnoplrs verifying: rebase failed: <reason>
+```
+
+These outcomes never change the landing's exit status. Each unit's
+`shed unit log` records the same outcome as an event by shed that names the
+landed unit, such as `after unit qpvuntsm landed: rebased cleanly`. None of
+these events changes a unit's state. When a deferred unit is rebased later,
+once its sessions end, and when the next shed process finishes an
+interrupted sweep, each rebase records its outcome in the unit's log the
+same way, naming the unit whose landing made the commit the change was
+rebased onto. Those rebases print nothing. If shed stops partway through the
+sweep, `shed land` prints no line for the units it had not reached; they get
+their event when the sweep is finished.
+
 Sealing a unit rebases its change the same way onto the main commit the seal
 records, so a sealed unit's change is always based on its seal's main,
 whatever base it had before. A conflict that rebase leaves only in files

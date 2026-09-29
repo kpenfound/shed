@@ -538,3 +538,17 @@ func isRole(a unit.Actor) bool {
 func sessionDir(stateDir, id string) string {
 	return filepath.Join(stateDir, SessionsDir, id)
 }
+
+// RecordRebase records the outcome of rebasing a unit's change onto the
+// main a landing made, naming the landed unit (S.vcs.15). It changes no
+// unit's state.
+func (t *Tracker) RecordRebase(change, lander, outcome string) error {
+	_, err := t.write(func(tx *sql.Tx) ([]Event, error) {
+		if _, err := stateOf(tx, change); err != nil {
+			return nil, err
+		}
+		return []Event{{Kind: UnitRebased, Unit: change, Actor: unit.Shed,
+			Rebased: &RebasedEv{Lander: lander, Outcome: outcome}}}, nil
+	})
+	return err
+}

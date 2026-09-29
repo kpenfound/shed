@@ -276,7 +276,8 @@ including one the horizon check just reopened, keeps any conflict stored in
 its files for its painter to resolve. A unit past its seal keeps the rebase
 only if it is free of conflicts; otherwise shed undoes it, and the unit takes
 main's changes later. A unit with a session running is rebased once its
-sessions end and are captured. See [version control](vcs.md).
+sessions end and are captured. `shed land` prints each unit's outcome, and each unit's log records it. See
+[version control](vcs.md#keeping-units-on-main).
 
 ## Autopilot
 

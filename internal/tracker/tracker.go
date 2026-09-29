@@ -444,7 +444,7 @@ func apply(tx *sql.Tx, e Event) error {
 	case UnitRestarted:
 		// A new debate, as after a bounce, with no bounce counted.
 		return exec(`UPDATE units SET cycle = cycle + 1, round = 0, reason = ?, updated_at = ? WHERE change = ?`, e.Reason, at, e.Unit)
-	case UnitEntangled, Consensus:
+	case UnitEntangled, UnitRebased, Consensus:
 		return nil
 	case UnitReviewed:
 		return exec(`UPDATE units SET review = 0 WHERE change = ?`, e.Unit)
