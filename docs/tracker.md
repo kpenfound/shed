@@ -129,7 +129,7 @@ commit. A clause counts as changed when its tag list differs, or when its
 text differs once runs of whitespace are collapsed to one space, so
 rewrapping a clause is not a change (S.owner.2).
 
-Last it lists charter questions: the charter clauses that keep sinking
+Then it lists charter questions: the charter clauses that keep sinking
 proposals. A clause of the charter on main is a question when the entries of
 at least two units on the rejected shelf cite it as violated. Shed counts,
 for each clause, only the units archived after the owner last kept that
@@ -149,6 +149,32 @@ question is new. Reading the inbox does not reset the count: a question stays
 listed until the owner keeps its clause, and it loses its mark once the owner
 has seen all of its units (S.owner.9).
 
+Last come sampled amendments, so the owner can check horizon amendments the
+factory accepted without them. A landed unit's commit amends a horizon
+clause when, against its parent on main, it adds or removes the clause or
+changes it as a horizon change above, except when the only change is adding
+`realised` to its tag list. A clause whose text or other tags change as well
+is amended. A horizon amendment is a landed unit whose commit amends at
+least one horizon clause, so a unit that only marks clauses realised is not
+one.
+
+Every landing records in the event log whether the unit is a horizon
+amendment, so `shed tracker rebuild` keeps the count of horizon amendments.
+Landings from before shed recorded this do not count. With
+`owner.sample_every` set to N above 0, the landing of every Nth horizon
+amendment in that count, counting from one in landing order, also records
+the unit as sampled. With the default of 0 nothing is sampled, but horizon
+amendments still count, and changing the setting does not restart the count
+(S.owner.11).
+
+The inbox lists each unit sampled after the event sequence number the
+previous recorded `shed inbox` stored, or every sampled unit when no inbox
+has been recorded, in landing order. Each shows its short change ID, landed
+commit and title, then the horizon clauses its commit amended, in document
+order, each marked added, changed or removed. A clause the commit only
+marked realised is left out. `-peek` lists the same amendments (S.owner.12).
+Sampling moves no unit and never holds back or fails a landing.
+
 ```
 Contested units:
   qpvuntsm  new  bounces 4  Say goodbye: bounced 4 times, over the threshold of 3
@@ -164,6 +190,11 @@ Charter questions:
   C12
     wlsmvkto  Edit the spec on main from the sweeper
     rpoznkqx  Land spec fixes without a unit
+
+Sampled amendments:
+  xtnwkqpl  9c41d07a2be5  Sing along
+    added    H.greet.4
+    changed  H.greet.2
 ```
 
 Every `shed inbox` records the main commit it read, and the event sequence
@@ -175,7 +206,7 @@ re-cloned, the inbox says so and lists no horizon changes, and the commit it
 records becomes the new starting point. `shed inbox -peek` lists the same
 entries, marks new units and questions against the previous recorded inbox
 just as a recording read does, and records nothing (S.owner.3, S.owner.7,
-S.owner.9).
+S.owner.9, S.owner.12).
 
 Reading the inbox never moves a unit and never starts or stops a stage. The
 factory does not wait for it, and listing a charter question holds back no
@@ -251,7 +282,7 @@ answer with an empty reason. A refused answer records nothing (S.owner.10).
 | Command | Does |
 | --- | --- |
 | `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost and title, then the notices waiting for the owner. |
-| `shed inbox [-peek]` | Lists contested units, the horizon changes on main and the charter questions from repeated rejections, marking what is new since the last inbox. `-peek` records nothing. |
+| `shed inbox [-peek]` | Lists contested units, the horizon changes on main, the charter questions from repeated rejections and the sampled horizon amendments, marking what is new since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
 | `shed answer <unit> retry\|defer\|reject <reason>` | Answers a contested unit: moves it back to `proposed`, or defers or rejects it to the archive. |
 | `shed answer <clause> keep <reason>` | Answers a charter question by keeping the clause, clearing the question until two more rejections cite it. |
@@ -323,6 +354,9 @@ max_proposed = 1         # proposals that may wait before the painter proposes a
 
 [serve]
 tick = "1m"              # wakes the controllers when nothing else has
+
+[owner]
+sample_every = 0         # sample every Nth horizon amendment to the inbox; 0 for none
 ```
 
 A profile's fallback must name another profile, and fallbacks may not loop.

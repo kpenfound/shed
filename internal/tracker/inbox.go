@@ -115,6 +115,51 @@ func (t *Tracker) Rejected() ([]RejectedUnit, error) {
 	return out, nil
 }
 
+// horizonAmendmentsKey is the meta key counting the landings recorded as
+// horizon amendments.
+const horizonAmendmentsKey = "horizon_amendments"
+
+// Sampled returns the units sampled to the owner after the latest event
+// the last recorded inbox read, or every sampled unit when no inbox has
+// been recorded, in landing order (S.owner.11, S.owner.12).
+func (t *Tracker) Sampled() ([]Unit, error) {
+	tx, err := t.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	since, err := inboxSeq(tx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(`SELECT change FROM units WHERE sampled_seq > 0 AND sampled_seq > ? ORDER BY sampled_seq`, since)
+	if err != nil {
+		return nil, err
+	}
+	var changes []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		changes = append(changes, c)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]Unit, 0, len(changes))
+	for _, c := range changes {
+		u, err := loadUnit(tx, c)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, nil
+}
+
 // inboxSeq returns the sequence number of the latest event the last
 // recorded inbox read, or -1 when no inbox has been recorded, so every
 // event is after it.

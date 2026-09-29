@@ -52,7 +52,7 @@ func (e env) openTracker() (*tracker.Tracker, error) {
 	if err != nil {
 		return nil, err
 	}
-	return tracker.Open(e.state, tracker.Options{BounceThreshold: op.Shed.BounceThreshold})
+	return tracker.Open(e.state, tracker.Options{BounceThreshold: op.Shed.BounceThreshold, SampleEvery: op.Owner.SampleEvery})
 }
 
 // withTracker opens the tracker, runs fn and closes the tracker.

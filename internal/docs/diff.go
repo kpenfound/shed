@@ -110,3 +110,30 @@ func DiffHorizon(from, to *Set) []HorizonChange {
 	removedBefore(len(old))
 	return out
 }
+
+// AmendedHorizon lists the horizon clauses one revision amends against
+// another, in document order: the changes of DiffHorizon, less the clauses
+// whose only change is gaining the realised tag (S.owner.11). A clause
+// whose text or other tags change as well is amended.
+func AmendedHorizon(from, to *Set) []HorizonChange {
+	var out []HorizonChange
+	for _, c := range DiffHorizon(from, to) {
+		if c.Change == "changed" && onlyRealised(from, to, c.ID) {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+// onlyRealised reports whether a clause differs between two sets only by
+// gaining the realised tag.
+func onlyRealised(from, to *Set, id clause.ID) bool {
+	o, _ := from.Lookup(id)
+	c, _ := to.Lookup(id)
+	if o.Text != c.Text || slices.Contains(o.Tags, Realised) || !slices.Contains(c.Tags, Realised) {
+		return false
+	}
+	rest := slices.DeleteFunc(slices.Clone(c.Tags), func(t string) bool { return t == Realised })
+	return slices.Equal(o.Tags, rest)
+}

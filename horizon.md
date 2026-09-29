@@ -289,7 +289,7 @@ distant and get promoted as the soon tier drains.
 
 ## The owner
 
-- **H.owner.1** (soon) One inbox holds contested units, charter questions,
+- **H.owner.1** (soon, realised) One inbox holds contested units, charter questions,
   sampled amendments and horizon diffs since the owner last looked. The owner
   answers from the CLI. Nothing in the inbox blocks the factory.
 - **H.owner.2** (distant) A painter or the owner drafts a charter amendment.

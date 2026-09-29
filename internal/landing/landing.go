@@ -47,7 +47,8 @@ func Message(u tracker.Unit, diff docs.SpecDiff) string {
 }
 
 // Land lands a queued unit: it lands the unit's change on main as one commit
-// and records the landing in the tracker, with the unit's actual footprint.
+// and records the landing in the tracker, with the unit's actual footprint
+// and whether it is a horizon amendment.
 // A unit whose change already landed is only recorded, so a landing
 // interrupted after main moved completes.
 func Land(ctx context.Context, tr *tracker.Tracker, repo *vcs.Repo, change string, actor unit.Actor) (string, error) {
@@ -70,7 +71,8 @@ func Land(ctx context.Context, tr *tracker.Tracker, repo *vcs.Repo, change strin
 		return "", err
 	}
 	actual := Actual(repo.Root(), commit, u.Footprint)
-	if err := tr.Land(u.Change, commit, actual, actor, "landed on main"); err != nil {
+	amendment := len(AmendedHorizon(repo.Root(), commit)) > 0
+	if err := tr.Land(u.Change, commit, actual, amendment, actor, "landed on main"); err != nil {
 		return "", errors.Join(fmt.Errorf("unit %s landed as %s but the tracker did not record it; land it again to record it", unit.Short(u.Change), commit), err)
 	}
 	return commit, nil
@@ -83,4 +85,12 @@ func Actual(root, commit string, sealed tracker.Footprint) tracker.Footprint {
 	from, _ := docs.Load(revision.Git{Root: root, Rev: commit + "^"})
 	to, _ := docs.Load(revision.Git{Root: root, Rev: commit})
 	return tracker.Footprint{Modifies: docs.DiffSpec(from, to).Modified(), Depends: sealed.Depends, Advances: sealed.Advances}
+}
+
+// AmendedHorizon lists the horizon clauses a landed commit amends against
+// its parent, in document order (S.owner.11).
+func AmendedHorizon(root, commit string) []docs.HorizonChange {
+	from, _ := docs.Load(revision.Git{Root: root, Rev: commit + "^"})
+	to, _ := docs.Load(revision.Git{Root: root, Rev: commit})
+	return docs.AmendedHorizon(from, to)
 }

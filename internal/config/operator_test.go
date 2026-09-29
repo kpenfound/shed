@@ -35,10 +35,16 @@ func TestOperatorDefaultsAndOverrides(t *testing.T) {
 	if c.VCS != (VCS{Main: "main", LandingName: "shed wheelbuilder", LandingEmail: "wheelbuilder@shed.localhost"}) {
 		t.Errorf("vcs = %+v", c.VCS)
 	}
+	if c.Owner.SampleEvery != 0 {
+		t.Errorf("owner = %+v", c.Owner)
+	}
 
 	c, err = LoadOperator(writeOperator(t, `
 [budget]
 per_day_usd = 20
+
+[owner]
+sample_every = 3
 
 [shed]
 bounce_threshold = 5
@@ -79,6 +85,36 @@ landing_email = "lander@example.com"
 	}
 	if c.VCS.Remote != "origin" || c.VCS.Main != "main" || c.VCS.LandingEmail != "lander@example.com" || c.VCS.LandingName != "shed wheelbuilder" {
 		t.Errorf("vcs = %+v", c.VCS)
+	}
+	if c.Owner.SampleEvery != 3 {
+		t.Errorf("owner = %+v", c.Owner)
+	}
+}
+
+//shed:proves S.owner.11
+func TestOperatorOwnerSampling(t *testing.T) {
+	c, err := LoadOperator(filepath.Join(t.TempDir(), OperatorFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Owner.SampleEvery != 0 {
+		t.Errorf("default owner.sample_every = %d, want 0", c.Owner.SampleEvery)
+	}
+	for toml, want := range map[string]int{"[owner]\nsample_every = 0\n": 0, "[owner]\nsample_every = 5\n": 5} {
+		c, err := LoadOperator(writeOperator(t, toml))
+		if err != nil {
+			t.Errorf("%q: %v", toml, err)
+		} else if c.Owner.SampleEvery != want {
+			t.Errorf("%q: owner.sample_every = %d, want %d", toml, c.Owner.SampleEvery, want)
+		}
+	}
+	for toml, want := range map[string]string{
+		"[owner]\nsample_every = -1\n": "owner.sample_every must not be negative",
+		"[owner]\nsample_rate = 2\n":   "unknown setting owner.sample_rate",
+	} {
+		if _, err := LoadOperator(writeOperator(t, toml)); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: error %v, want %q", toml, err, want)
+		}
 	}
 }
 

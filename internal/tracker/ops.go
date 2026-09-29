@@ -162,11 +162,16 @@ func (fp Footprint) specClauses() []string {
 // actual footprint: the clauses the commit modifies, with the dependencies
 // and horizon clauses recorded at its seal. The landing records how the
 // actual footprint drifted from the sealed one.
-func (t *Tracker) Land(change, commit string, actual Footprint, actor unit.Actor, reason string) error {
+//
+// amendment says whether the landed commit amends a horizon clause
+// (S.owner.11). The landing records it, and a horizon amendment whose place
+// in the count of horizon amendments is a multiple of SampleEvery is
+// recorded as sampled.
+func (t *Tracker) Land(change, commit string, actual Footprint, amendment bool, actor unit.Actor, reason string) error {
 	if strings.TrimSpace(commit) == "" {
 		return errors.New("a landing needs the commit on main")
 	}
-	return t.move(change, Event{To: unit.Landed, Commit: commit, Actual: &actual, Actor: actor, Reason: reason})
+	return t.move(change, Event{To: unit.Landed, Commit: commit, Actual: &actual, HorizonAmendment: &amendment, Actor: actor, Reason: reason})
 }
 
 // Archive moves a unit to the archive on a shelf.
@@ -235,6 +240,13 @@ func (t *Tracker) move(change string, e Event, onMain ...func(clause.ID) bool) e
 			}
 			drift := FootprintDrift(sealed, *e.Actual)
 			e.Drift = &drift
+		}
+		if e.HorizonAmendment != nil && *e.HorizonAmendment && t.opts.SampleEvery > 0 {
+			n, err := metaInt(tx, horizonAmendmentsKey)
+			if err != nil {
+				return nil, err
+			}
+			e.Sampled = (n+1)%int64(t.opts.SampleEvery) == 0
 		}
 		e.Kind, e.Unit, e.From = UnitMoved, change, from
 		events := []Event{e}

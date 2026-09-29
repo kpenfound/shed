@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -329,4 +330,130 @@ func TestInboxMarksNewContestedUnits(t *testing.T) {
 	mustRun(t, r.Dir, "tracker", "rebuild")
 	inbox("inbox after another rebuild", nil,
 		line(b, "Wave", 1, false), line(a, "Say goodbye", 2, false))
+}
+
+// sampledEntries returns the lines of the inbox's sampled amendments, with
+// runs of whitespace collapsed: for each unit a line "<change> <commit>
+// <title>", then a line "<added|changed|removed> <clause>" for each horizon
+// clause it amended.
+func sampledEntries(out string) []string {
+	var entries []string
+	in := false
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.Join(strings.Fields(line), " ")
+		switch {
+		case line == "Sampled amendments:":
+			in = true
+		case line == "":
+			in = false
+		case in:
+			entries = append(entries, line)
+		}
+	}
+	return entries
+}
+
+//shed:proves S.owner.11 S.owner.12
+func TestInboxListsSampledAmendments(t *testing.T) {
+	r := testrepo.Colocated(t)
+	state := filepath.Join(r.Dir, DefaultStateDir)
+	r.Write(".shed/config.toml", "[vcs]\nremote = \"origin\"\n\n[owner]\nsample_every = 1\n")
+
+	// land lands a unit whose change writes the horizon, and returns the
+	// line the inbox lists it under.
+	land := func(title, horizon string) string {
+		t.Helper()
+		change := openUnit(t, r.Dir, title)
+		dir := strings.TrimSpace(mustRun(t, r.Dir, "unit", "path", change))
+		if err := os.WriteFile(filepath.Join(dir, "horizon.md"), []byte(horizon), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		seal(t, state, change)
+		for _, s := range []string{"implementing", "verifying", "queued"} {
+			mustRun(t, r.Dir, "unit", "move", change, s, "by hand")
+		}
+		out := mustRun(t, r.Dir, "land", change)
+		commit := r.GitRemote("rev-parse", "main")
+		if !strings.HasPrefix(out, "landed "+unit.Short(change)+" on main as "+commit) {
+			t.Fatalf("land %s = %q", title, out)
+		}
+		return unit.Short(change) + " " + shortCommit(commit) + " " + title
+	}
+	sampled := func(what string, args []string, want ...string) {
+		t.Helper()
+		wantEntries(t, what, sampledEntries(mustRun(t, r.Dir, append([]string{"inbox"}, args...)...)), want...)
+	}
+
+	// Sing adds H.greet.4, moves H.greet.2 to near and only marks
+	// H.greet.3 realised. Realise only marks H.greet.2 realised, so it is
+	// no horizon amendment. Narrow removes H.greet.3.
+	sing := land("Sing", `# Horizon
+
+- **H.greet.4** (eventual) The tool sings.
+- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (near) The tool says goodbye.
+- **H.greet.3** (distant, realised) The tool greets in any language, within C2.
+
+## Milestones
+
+- **M1** Greetings. H.greet.1 to H.greet.2.
+`)
+	land("Realise", `# Horizon
+
+- **H.greet.4** (eventual) The tool sings.
+- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (near, realised) The tool says goodbye.
+- **H.greet.3** (distant, realised) The tool greets in any language, within C2.
+
+## Milestones
+
+- **M1** Greetings. H.greet.1 to H.greet.2.
+`)
+	narrow := land("Narrow", `# Horizon
+
+- **H.greet.4** (eventual) The tool sings.
+- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (near, realised) The tool says goodbye.
+
+## Milestones
+
+- **M1** Greetings. H.greet.1 to H.greet.2.
+`)
+
+	// With no inbox recorded, every sampled unit is listed, in landing
+	// order, and a peek lists the same.
+	all := []string{sing, "added H.greet.4", "changed H.greet.2", narrow, "removed H.greet.3"}
+	sampled("peeked sampled amendments", []string{"-peek"}, all...)
+	sampled("sampled amendments", nil, all...)
+	sampled("sampled amendments with none since", nil)
+	sampled("peeked sampled amendments with none since", []string{"-peek"})
+
+	// Every second horizon amendment is sampled, counting on from the
+	// amendments already landed, and the count survives a rebuild.
+	r.Write(".shed/config.toml", "[vcs]\nremote = \"origin\"\n\n[owner]\nsample_every = 2\n")
+	land("Hum", `# Horizon
+
+- **H.greet.4** (eventual) The tool hums.
+- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (near, realised) The tool says goodbye.
+
+## Milestones
+
+- **M1** Greetings. H.greet.1 to H.greet.2.
+`)
+	mustRun(t, r.Dir, "tracker", "rebuild")
+	whistle := land("Whistle", `# Horizon
+
+- **H.greet.4** (eventual) The tool whistles.
+- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (near, realised) The tool says goodbye.
+
+## Milestones
+
+- **M1** Greetings. H.greet.1 to H.greet.2.
+`)
+	mustRun(t, r.Dir, "tracker", "rebuild")
+	sampled("peeked sampled amendments after a rebuild", []string{"-peek"}, whistle, "changed H.greet.4")
+	sampled("sampled amendments after a rebuild", nil, whistle, "changed H.greet.4")
+	sampled("sampled amendments with none since, again", nil)
 }

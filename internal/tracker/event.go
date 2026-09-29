@@ -70,8 +70,14 @@ type Event struct {
 	Clause string `json:"clause,omitempty"`
 	// Actual and Drift are set when a unit lands: its actual footprint and
 	// how that differs from the footprint recorded at its seal.
-	Actual    *Footprint   `json:"actual,omitempty"`
-	Drift     *Drift       `json:"drift,omitempty"`
+	Actual *Footprint `json:"actual,omitempty"`
+	Drift  *Drift     `json:"drift,omitempty"`
+	// HorizonAmendment is set on every landing: whether the landed commit
+	// amends a horizon clause. A landing that predates it records neither.
+	HorizonAmendment *bool `json:"horizon_amendment,omitempty"`
+	// Sampled is set on the landing of a horizon amendment sampled to the
+	// owner.
+	Sampled   bool         `json:"sampled,omitempty"`
 	Session   *SessionEv   `json:"session,omitempty"`
 	Notice    *NoticeEv    `json:"notice,omitempty"`
 	Objection *ObjectionEv `json:"objection,omitempty"`

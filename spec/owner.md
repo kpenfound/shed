@@ -92,3 +92,30 @@
   or carries a revision, whose clause has no question listed for it at
   that moment, or whose reason is empty; a refused answer records nothing.
   A keep moves no unit and changes no archive entry.
+- **S.owner.11** (H.owner.1) A landed unit's commit amends a horizon
+  clause in `horizon.md` when, against its parent on main, it adds or
+  removes the clause, or changes it as under S.owner.2 other than only by
+  adding `realised` to its tag list (S.hz.1); a clause whose text or other
+  tags also change is amended. A horizon amendment is a landed unit whose
+  commit amends at least one horizon clause. The landing of every unit
+  records in the event log whether it is a horizon amendment, so
+  `shed tracker rebuild` keeps the count of horizon amendments, which is the
+  number of landings recorded as horizon amendments; a landing whose event
+  records neither, because it landed before shed recorded this, does not
+  count. The operator setting `owner.sample_every`, a whole
+  number that defaults to 0, samples horizon amendments to the owner: when
+  it is N above 0, the landing of a horizon amendment whose place in that
+  count is a multiple of N, counted from one in landing order, also records
+  that the unit is sampled; when it is 0 nothing is sampled, and horizon
+  amendments landed meanwhile still count. Changing the setting does not
+  restart the count. Shed refuses a negative `owner.sample_every` as under
+  S.config.2. Sampling moves no unit and never holds back or fails a
+  landing.
+- **S.owner.12** (H.owner.1) `shed inbox` then lists sampled amendments:
+  each unit sampled (S.owner.11) after the sequence number stored by the
+  previous recorded `shed inbox` (S.owner.7), or every sampled unit when no
+  `shed inbox` has been recorded, in landing order. Each is listed with its
+  short change ID, title and landed commit, and with the horizon clauses its
+  commit amended, in document order, each with its ID and whether it was
+  added, changed or removed; a clause its commit only marked realised is not
+  listed. `-peek` lists the same sampled amendments.

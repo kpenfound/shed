@@ -78,7 +78,7 @@ func through(t *testing.T, tr *Tracker, change string, states ...unit.State) {
 			must(t, tr.Seal(change, "main1", "unitcommit", Footprint{}, unit.Committee, "consensus", nil))
 			continue
 		case unit.Landed:
-			must(t, tr.Land(change, "landed1", Footprint{}, unit.Wheelbuilder, "landed"))
+			must(t, tr.Land(change, "landed1", Footprint{}, false, unit.Wheelbuilder, "landed"))
 			continue
 		}
 		must(t, tr.Move(change, s, unit.Mechanic, "next"))
@@ -533,7 +533,7 @@ func TestLandingRecordsTheActualFootprint(t *testing.T) {
 		t.Errorf("actual footprint before landing = %+v", *u.Actual)
 	}
 	actual := Footprint{Modifies: []string{"S.greet.2", "S.greet.4"}, Depends: []string{"S.greet.1"}, Advances: []string{"H.greet.2"}}
-	must(t, tr.Land(unitA, "landed1", actual, unit.Wheelbuilder, "landed on main"))
+	must(t, tr.Land(unitA, "landed1", actual, false, unit.Wheelbuilder, "landed on main"))
 
 	check := func(when string) {
 		t.Helper()
@@ -587,11 +587,11 @@ func TestLandingEventReportsDrift(t *testing.T) {
 	must(t, tr.OpenUnit(unitA, "Say goodbye", unit.Painter))
 	must(t, tr.Seal(unitA, "main1", "unitcommit", Footprint{Modifies: []string{"S.greet.2"}}, unit.Committee, "consensus", nil))
 	through(t, tr, unitA, unit.Implementing, unit.Verifying, unit.Queued)
-	must(t, tr.Land(unitA, "landed1", Footprint{Modifies: []string{"S.greet.3"}}, unit.Wheelbuilder, "landed on main"))
+	must(t, tr.Land(unitA, "landed1", Footprint{Modifies: []string{"S.greet.3"}}, false, unit.Wheelbuilder, "landed on main"))
 	must(t, tr.OpenUnit(unitB, "Wave", unit.Painter))
 	must(t, tr.Seal(unitB, "main1", "unitcommit", Footprint{Modifies: []string{"S.greet.4"}}, unit.Committee, "consensus", nil))
 	through(t, tr, unitB, unit.Implementing, unit.Verifying, unit.Queued)
-	must(t, tr.Land(unitB, "landed2", Footprint{Modifies: []string{"S.greet.4"}}, unit.Wheelbuilder, "landed on main"))
+	must(t, tr.Land(unitB, "landed2", Footprint{Modifies: []string{"S.greet.4"}}, false, unit.Wheelbuilder, "landed on main"))
 
 	for change, want := range map[string]string{
 		unitA: "footprint drifted: not sealed S.greet.3; not modified S.greet.2",

@@ -7,6 +7,7 @@ import (
 	"github.com/kpenfound/shed/internal/archive"
 	"github.com/kpenfound/shed/internal/clause"
 	"github.com/kpenfound/shed/internal/docs"
+	"github.com/kpenfound/shed/internal/landing"
 	"github.com/kpenfound/shed/internal/revision"
 	"github.com/kpenfound/shed/internal/tracker"
 	"github.com/kpenfound/shed/internal/unit"
@@ -15,7 +16,8 @@ import (
 
 // inbox lists the contested units, the horizon clauses changed on main
 // since the main commit the last inbox recorded (S.owner.1, S.owner.2), then
-// the charter questions (S.owner.9). It marks the units contested, and the
+// the charter questions (S.owner.9) and the sampled amendments since the
+// last recorded inbox (S.owner.12). It marks the units contested, and the
 // questions that gained a unit, since the last recorded inbox as new
 // (S.owner.7), and records the main commit and the latest event it read
 // unless it is a peek (S.owner.3).
@@ -107,6 +109,27 @@ func (e env) inbox(args []string) int {
 				fmt.Fprintf(w, "  %s\t%s\n", q.Clause, mark)
 				for _, u := range q.Units {
 					fmt.Fprintf(w, "    %s\t%s\n", unit.Short(u.Change), u.Title)
+				}
+			}
+			if err := w.Flush(); err != nil {
+				return e.fail(err)
+			}
+		}
+
+		sampled, err := t.Sampled()
+		if err != nil {
+			return e.fail(err)
+		}
+		fmt.Fprintln(e.stdout)
+		if len(sampled) == 0 {
+			fmt.Fprintln(e.stdout, "No sampled amendments.")
+		} else {
+			fmt.Fprintln(e.stdout, "Sampled amendments:")
+			w := tabwriter.NewWriter(e.stdout, 0, 4, 2, ' ', 0)
+			for _, u := range sampled {
+				fmt.Fprintf(w, "  %s\t%s\t%s\n", unit.Short(u.Change), shortCommit(u.Landed), u.Title)
+				for _, c := range landing.AmendedHorizon(e.root, u.Landed) {
+					fmt.Fprintf(w, "    %s\t%s\n", c.Change, c.ID)
 				}
 			}
 			if err := w.Flush(); err != nil {

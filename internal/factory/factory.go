@@ -68,7 +68,7 @@ func Open(ctx context.Context, root, state string, runner session.Runner) (*Fact
 	if err != nil {
 		return nil, err
 	}
-	tr, err := tracker.Open(state, tracker.Options{BounceThreshold: op.Shed.BounceThreshold})
+	tr, err := tracker.Open(state, tracker.Options{BounceThreshold: op.Shed.BounceThreshold, SampleEvery: op.Owner.SampleEvery})
 	if err != nil {
 		return nil, err
 	}

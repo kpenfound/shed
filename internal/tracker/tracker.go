@@ -38,6 +38,9 @@ type Options struct {
 	// Alive reports whether a session's process is still running. It
 	// defaults to asking the operating system.
 	Alive func(pid int) bool
+	// SampleEvery samples every Nth horizon amendment landed to the owner;
+	// zero samples none.
+	SampleEvery int
 }
 
 // Tracker is an open state directory.
@@ -105,6 +108,7 @@ CREATE TABLE IF NOT EXISTS units (
 	contested_seq INTEGER NOT NULL DEFAULT 0,
 	contested_reason TEXT NOT NULL DEFAULT '',
 	archived_seq INTEGER NOT NULL DEFAULT 0,
+	sampled_seq INTEGER NOT NULL DEFAULT 0,
 	opened_seq INTEGER NOT NULL,
 	opened_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
@@ -174,7 +178,7 @@ var tables = []string{"units", "seals", "footprints", "actual_footprints", "sess
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 8
+const schemaVersion = 9
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -360,6 +364,20 @@ func apply(tx *sql.Tx, e Event) error {
 		}
 		if e.To == unit.Archived {
 			if err := exec(`UPDATE units SET archived_seq = ? WHERE change = ?`, e.Seq, e.Unit); err != nil {
+				return err
+			}
+		}
+		if e.HorizonAmendment != nil && *e.HorizonAmendment {
+			n, err := metaInt(tx, horizonAmendmentsKey)
+			if err != nil {
+				return err
+			}
+			if err := setMeta(tx, horizonAmendmentsKey, n+1); err != nil {
+				return err
+			}
+		}
+		if e.Sampled {
+			if err := exec(`UPDATE units SET sampled_seq = ? WHERE change = ?`, e.Seq, e.Unit); err != nil {
 				return err
 			}
 		}

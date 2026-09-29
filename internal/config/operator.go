@@ -31,6 +31,14 @@ type Operator struct {
 	VCS         VCS                `toml:"vcs"`
 	Painter     Painter            `toml:"painter"`
 	Serve       Serve              `toml:"serve"`
+	Owner       Owner              `toml:"owner"`
+}
+
+// Owner tunes what reaches the owner's inbox.
+type Owner struct {
+	// SampleEvery samples every Nth horizon amendment to the owner; zero
+	// samples none (S.owner.11).
+	SampleEvery int `toml:"sample_every"`
 }
 
 // Painter throttles proposals. A painter whose proposals are being sealed
@@ -246,6 +254,9 @@ func (c Operator) Validate() error {
 	}
 	if c.Shed.ContestedTimeout.Duration < 0 {
 		fail("shed.contested_timeout must not be negative")
+	}
+	if c.Owner.SampleEvery < 0 {
+		fail("owner.sample_every must not be negative")
 	}
 
 	for _, name := range sortedKeys(c.Profiles) {
