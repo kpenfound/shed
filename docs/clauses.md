@@ -124,7 +124,7 @@ runner = ["scripts/in-dagger"]
 | --- | --- |
 | `shed check` | Validates documents, IDs, history, citations and proofs. Exits non-zero on any problem. |
 | `shed show <citation>...` | Prints the clauses the citations name. |
-| `shed diff <from> [<to>]` | Lists spec and horizon clauses added, removed or changed between revisions, or between a revision and the working tree, and the tier of the horizon amendment. |
+| `shed diff <from> [<to>]` | Lists spec and horizon clauses added, removed or changed between revisions, or between a revision and the working tree, the parent each refining clause is judged at, and the tier of the horizon amendment. |
 | `shed trace` | Lists every horizon clause with its tier, whether it is realised, the spec clauses advancing it, and the clause it refines or the clauses refining it, then the near and soon clauses that refine nothing. |
 | `shed gap` | Lists the horizon clauses not yet realised, with their tier, the spec clauses advancing them, and the ID and tier of the clause each refines. |
 | `shed prove [<id>...]` | Runs proofs and reports per clause. |
@@ -158,3 +158,15 @@ Two rules adjust the count:
   counts at the tier of the clause its tag names on each revision where it
   carries the tag. Adding a soon clause that refines a distant clause makes
   a distant amendment.
+
+A clause that counts at another clause's tier because of its `refines` tag
+names that clause on its line, with the tier it has on the revision whose tag
+names it. A retargeted tag names the old parent first, then the new one:
+
+```
+added   H.greet.6 near parent H.greet.3 (distant)
+changed H.greet.5 near parent H.greet.3 (distant), H.greet.4 (eventual)
+tier    eventual
+```
+
+A clause that counts only at its own tier, or not at all, names no parent.

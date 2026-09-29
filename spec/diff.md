@@ -24,3 +24,10 @@
   counts at the tier of the clause its tag names on each revision where it
   carries the tag. When it counts no horizon clause, `shed diff` gives no
   tier.
+- **S.diff.5** (H.hz.3) On the line of each horizon clause it lists,
+  `shed diff` names each clause at whose tier S.diff.4 counts the listed
+  clause because of its `refines` tag (S.horizon.6), with that clause's ID
+  and its tier on the revision where the tag names it: first the clause the
+  tag names on the first revision, then the one it names on the second. A
+  listed clause that S.diff.4 counts only at its own tier, or not at all,
+  names none.

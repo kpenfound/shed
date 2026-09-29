@@ -142,6 +142,11 @@ func onlyRealised(from, to *Set, id clause.ID) bool {
 type TieredHorizonChange struct {
 	ID   clause.ID
 	Tier string
+	// Parents are the clauses at whose tier the amendment counts this one
+	// because of its refines tag, each with its tier on the revision whose
+	// tag names it: the first revision's parent, then the second's
+	// (S.diff.5).
+	Parents []TieredHorizonChange
 }
 
 // HorizonDiff lists the horizon clauses that differ between two revisions and
@@ -194,7 +199,7 @@ func DiffHorizonAmendment(from, to *Set) HorizonDiff {
 			counts[id] = append(counts[id], tier)
 		}
 	}
-	countParents := func(o, c *TraceEntry) {
+	countParents := func(o, c *TraceEntry) []TieredHorizonChange {
 		var was, now clause.ID
 		if o != nil {
 			was = o.Refines
@@ -203,47 +208,48 @@ func DiffHorizonAmendment(from, to *Set) HorizonDiff {
 			now = c.Refines
 		}
 		if was == now {
-			return
+			return nil
 		}
+		var parents []TieredHorizonChange
 		if parent, ok := old[was]; ok {
 			count(parent.Tier)
+			parents = append(parents, TieredHorizonChange{ID: was, Tier: parent.Tier})
 		}
 		if parent, ok := cur[now]; ok {
 			count(parent.Tier)
+			parents = append(parents, TieredHorizonChange{ID: now, Tier: parent.Tier})
 		}
+		return parents
 	}
 	for _, id = range slices.SortedFunc(maps.Keys(cur), clause.Compare) {
 		c := cur[id]
 		o, ok := old[id]
 		switch {
 		case !ok:
-			d.Added = append(d.Added, TieredHorizonChange{id, c.Tier})
 			count(c.Tier)
-			countParents(nil, &c)
+			d.Added = append(d.Added, TieredHorizonChange{ID: id, Tier: c.Tier, Parents: countParents(nil, &c)})
 		case o.Clause.Text != c.Clause.Text || !slices.Equal(o.Clause.Tags, c.Clause.Tags):
 			tier := o.Tier
 			if tierRank(c.Tier) > tierRank(tier) {
 				tier = c.Tier
 			}
-			d.Changed = append(d.Changed, TieredHorizonChange{id, tier})
 			if !onlyRealised(from, to, id) {
 				count(tier)
 			}
-			countParents(&o, &c)
+			d.Changed = append(d.Changed, TieredHorizonChange{ID: id, Tier: tier, Parents: countParents(&o, &c)})
 		}
 	}
 	for _, id = range slices.SortedFunc(maps.Keys(old), clause.Compare) {
 		if _, ok := cur[id]; !ok {
 			o := old[id]
-			d.Removed = append(d.Removed, TieredHorizonChange{id, o.Tier})
 			count(o.Tier)
-			countParents(&o, nil)
+			d.Removed = append(d.Removed, TieredHorizonChange{ID: id, Tier: o.Tier, Parents: countParents(&o, nil)})
 		}
 	}
 	for _, s := range []*Set{to, from} {
 		for _, e := range Trace(s) {
 			for _, tier := range counts[e.Clause.ID] {
-				d.Counted = append(d.Counted, TieredHorizonChange{e.Clause.ID, tier})
+				d.Counted = append(d.Counted, TieredHorizonChange{ID: e.Clause.ID, Tier: tier})
 			}
 			delete(counts, e.Clause.ID)
 		}

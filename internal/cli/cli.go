@@ -320,7 +320,16 @@ func (e env) diff(args []string) int {
 		changes []docs.TieredHorizonChange
 	}{{"added", h.Added}, {"removed", h.Removed}, {"changed", h.Changed}} {
 		for _, c := range group.changes {
-			fmt.Fprintf(e.stdout, "%-8s%s %s\n", group.label, c.ID, c.Tier)
+			// S.diff.5: name the parents the clause counts at.
+			var parents []string
+			for _, p := range c.Parents {
+				parents = append(parents, fmt.Sprintf("%s (%s)", p.ID, p.Tier))
+			}
+			var named string
+			if len(parents) > 0 {
+				named = " parent " + strings.Join(parents, ", ")
+			}
+			fmt.Fprintf(e.stdout, "%-8s%s %s%s\n", group.label, c.ID, c.Tier, named)
 		}
 	}
 	if h.Tier != "" {

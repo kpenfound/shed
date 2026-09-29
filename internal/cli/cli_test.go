@@ -231,19 +231,19 @@ func TestDiffGivesHorizonAmendmentTier(t *testing.T) {
 			"changed H.greet.5 near\ntier    near\n"},
 		{"an added clause that refines counts at its parent's tier",
 			base + "- **H.greet.6** (near, refines H.greet.3) The tool greets in German.\n",
-			"added   H.greet.6 near\ntier    distant\n"},
+			"added   H.greet.6 near parent H.greet.3 (distant)\ntier    distant\n"},
 		{"a removed clause that refined counts at its parent's tier",
 			strings.Replace(base, "- **H.greet.5** (near, refines H.greet.3) The tool greets in French.\n", "", 1),
-			"removed H.greet.5 near\ntier    distant\n"},
+			"removed H.greet.5 near parent H.greet.3 (distant)\ntier    distant\n"},
 		{"a dropped refines tag counts at the old parent's tier",
 			strings.Replace(base, "(near, refines H.greet.3)", "(near)", 1),
-			"changed H.greet.5 near\ntier    distant\n"},
+			"changed H.greet.5 near parent H.greet.3 (distant)\ntier    distant\n"},
 		{"a new refines tag counts at the new parent's tier",
 			strings.Replace(base, "(soon) The tool says goodbye.", "(soon, refines H.greet.4) The tool says goodbye.", 1),
-			"changed H.greet.2 soon\ntier    eventual\n"},
+			"changed H.greet.2 soon parent H.greet.4 (eventual)\ntier    eventual\n"},
 		{"a retargeted refines tag counts at both parents' tiers",
 			strings.Replace(base, "(near, refines H.greet.3)", "(near, refines H.greet.4)", 1),
-			"changed H.greet.5 near\ntier    eventual\n"},
+			"changed H.greet.5 near parent H.greet.3 (distant), H.greet.4 (eventual)\ntier    eventual\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r.Write("horizon.md", horizonDoc(tc.horizon))
@@ -252,6 +252,77 @@ func TestDiffGivesHorizonAmendmentTier(t *testing.T) {
 				t.Errorf("diff = %d, stderr %q\n%s\nwant\n%s", code, stderr, stdout, tc.want)
 			}
 		})
+	}
+}
+
+// TestDiffNamesRefinedParent checks that a listed horizon clause counted at
+// a parent's tier because of its refines tag names that parent and the
+// parent's tier on the revision whose tag names it, first revision first,
+// and that other listed clauses name no parent.
+//
+//shed:proves S.diff.5
+func TestDiffNamesRefinedParent(t *testing.T) {
+	base := `- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (soon) The tool says goodbye.
+- **H.greet.3** (distant) The tool greets in any language, within C2.
+- **H.greet.4** (eventual) The tool greets everyone at once.
+- **H.greet.5** (near, refines H.greet.3) The tool greets in French.
+`
+	r := project(t)
+	r.Write("horizon.md", horizonDoc(base))
+	r.Init()
+	first := r.Commit("base")
+
+	for _, tc := range []struct {
+		name    string
+		horizon string
+		want    string
+	}{
+		{"a refining clause with an unchanged tag names none",
+			strings.Replace(base, "greets in French.", "greets in French, formally.", 1),
+			"changed H.greet.5 near\ntier    near\n"},
+		{"a refining clause gaining realised names none",
+			strings.Replace(base, "(near, refines H.greet.3)", "(near, refines H.greet.3, realised)", 1),
+			"changed H.greet.5 near\n"},
+		{"an added clause that refines names its parent",
+			base + "- **H.greet.6** (near, refines H.greet.3) The tool greets in German.\n",
+			"added   H.greet.6 near parent H.greet.3 (distant)\ntier    distant\n"},
+		{"a removed clause that refined names its parent",
+			strings.Replace(base, "- **H.greet.5** (near, refines H.greet.3) The tool greets in French.\n", "", 1),
+			"removed H.greet.5 near parent H.greet.3 (distant)\ntier    distant\n"},
+		{"a dropped refines tag names the old parent",
+			strings.Replace(base, "(near, refines H.greet.3)", "(near)", 1),
+			"changed H.greet.5 near parent H.greet.3 (distant)\ntier    distant\n"},
+		{"a new refines tag names the new parent",
+			strings.Replace(base, "(soon) The tool says goodbye.", "(soon, refines H.greet.4) The tool says goodbye.", 1),
+			"changed H.greet.2 soon parent H.greet.4 (eventual)\ntier    eventual\n"},
+		{"a retargeted refines tag names the old parent, then the new",
+			strings.Replace(base, "(near, refines H.greet.3)", "(near, refines H.greet.4)", 1),
+			"changed H.greet.5 near parent H.greet.3 (distant), H.greet.4 (eventual)\ntier    eventual\n"},
+		{"a parent's tier comes from the revision whose tag names it",
+			strings.NewReplacer(
+				"- **H.greet.5** (near, refines H.greet.3) The tool greets in French.\n", "",
+				"(distant) The tool greets", "(eventual) The tool greets",
+			).Replace(base),
+			"removed H.greet.5 near parent H.greet.3 (distant)\nchanged H.greet.3 eventual\ntier    eventual\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r.Write("horizon.md", horizonDoc(tc.horizon))
+			stdout, stderr, code := run(t, r.Dir, "diff", "HEAD")
+			if code != OK || stderr != "" || stdout != tc.want {
+				t.Errorf("diff = %d, stderr %q\n%s\nwant\n%s", code, stderr, stdout, tc.want)
+			}
+		})
+	}
+
+	// The same retarget in the other direction names the parents in the
+	// other order.
+	r.Write("horizon.md", horizonDoc(strings.Replace(base, "(near, refines H.greet.3)", "(near, refines H.greet.4)", 1)))
+	second := r.Commit("retarget")
+	stdout, stderr, code := run(t, r.Dir, "diff", second, first)
+	want := "changed H.greet.5 near parent H.greet.4 (eventual), H.greet.3 (distant)\ntier    eventual\n"
+	if code != OK || stderr != "" || stdout != want {
+		t.Errorf("diff reversed = %d, stderr %q\n%s\nwant\n%s", code, stderr, stdout, want)
 	}
 }
 
