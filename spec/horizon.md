@@ -36,3 +36,8 @@
   eventual, or carried a `refines` tag. A near or soon clause that HEAD
   already holds at near or soon without a `refines` tag may keep lacking
   one, whatever else in it changes.
+- **S.horizon.12** (H.hz.3) After the clauses it lists, `shed trace` ends
+  with a line naming, in document order, the ID of every near or soon
+  horizon clause, realised or not, that carries no `refines` tag
+  (S.horizon.6), and giving their count. When every near and soon clause
+  carries one, `shed trace` prints no such line.

@@ -380,6 +380,18 @@ func (e env) trace(args []string, gapOnly bool) int {
 	if err := w.Flush(); err != nil {
 		return e.fail(err)
 	}
+	if !gapOnly {
+		// S.horizon.12: name the near and soon clauses that refine nothing.
+		var orphans []clause.ID
+		for _, en := range entries {
+			if (en.Tier == "near" || en.Tier == "soon") && en.Refines == (clause.ID{}) {
+				orphans = append(orphans, en.Clause.ID)
+			}
+		}
+		if len(orphans) > 0 {
+			fmt.Fprintf(e.stdout, "no parent (%d): %s\n", len(orphans), docs.JoinIDs(orphans))
+		}
+	}
 	return OK
 }
 

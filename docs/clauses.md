@@ -65,6 +65,16 @@ one when, on HEAD, that clause was absent, was distant or eventual, or carried
 a `refines` tag. A near or soon clause that HEAD already holds at near or soon
 without a `refines` tag may keep lacking one, however else it changes.
 
+`shed trace` ends with a line naming the near and soon clauses, realised or
+not, that still carry no `refines` tag, in document order and with their
+count:
+
+```text
+no parent (2): H.greet.1, H.greet.2
+```
+
+It prints no such line once every near and soon clause carries one.
+
 ### Spec clauses
 
 A spec clause opens with the horizon clauses it advances:
@@ -115,7 +125,7 @@ runner = ["scripts/in-dagger"]
 | `shed check` | Validates documents, IDs, history, citations and proofs. Exits non-zero on any problem. |
 | `shed show <citation>...` | Prints the clauses the citations name. |
 | `shed diff <from> [<to>]` | Lists spec and horizon clauses added, removed or changed between revisions, or between a revision and the working tree, and the tier of the horizon amendment. |
-| `shed trace` | Lists every horizon clause with its tier, whether it is realised, the spec clauses advancing it, and the clause it refines or the clauses refining it. |
+| `shed trace` | Lists every horizon clause with its tier, whether it is realised, the spec clauses advancing it, and the clause it refines or the clauses refining it, then the near and soon clauses that refine nothing. |
 | `shed gap` | Lists the horizon clauses not yet realised, with their tier, the spec clauses advancing them, and the ID and tier of the clause each refines. |
 | `shed prove [<id>...]` | Runs proofs and reports per clause. |
 

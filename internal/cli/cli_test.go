@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -260,7 +261,8 @@ func TestTraceAndGap(t *testing.T) {
 	stdout, _, code := run(t, r.Dir, "trace")
 	want := "H.greet.1  soon     realised  S.core.1\n" +
 		"H.greet.2  soon               -\n" +
-		"H.greet.3  distant            -\n"
+		"H.greet.3  distant            -\n" +
+		"no parent (2): H.greet.1, H.greet.2\n"
 	if code != OK || stdout != want {
 		t.Errorf("trace = %d\n%s\nwant\n%s", code, stdout, want)
 	}
@@ -289,6 +291,7 @@ func TestTraceShowsRefinement(t *testing.T) {
 		"H.greet.2 soon - refines H.greet.3",
 		"H.greet.3 distant - refined by H.greet.2, H.greet.4",
 		"H.greet.4 near - refines H.greet.3",
+		"no parent (1): H.greet.1",
 	}
 	if len(lines) != len(want) {
 		t.Fatalf("trace =\n%s\nwant %d lines", stdout, len(want))
@@ -297,6 +300,54 @@ func TestTraceShowsRefinement(t *testing.T) {
 		if got := strings.Join(strings.Fields(line), " "); got != want[i] {
 			t.Errorf("trace line %d = %q, want %q", i+1, got, want[i])
 		}
+	}
+}
+
+// TestTraceListsClausesWithoutParent checks that trace ends with the near
+// and soon clauses, realised or not, that refine nothing, and prints no such
+// line when every near and soon clause refines a parent.
+//
+//shed:proves S.horizon.12
+func TestTraceListsClausesWithoutParent(t *testing.T) {
+	r := project(t)
+	r.Write("horizon.md", `- **H.greet.1** (soon, realised) Realised, no parent.
+- **H.greet.2** (soon, refines H.greet.3) Refines.
+- **H.greet.3** (distant) Parent.
+- **H.greet.4** (near) No parent.
+- **H.greet.5** (eventual) Far, never listed.
+- **H.greet.6** (near, refines H.greet.5) Refines the far one.
+- **H.greet.7** (soon) No parent either.
+`)
+	stdout, stderr, code := run(t, r.Dir, "trace")
+	if code != OK {
+		t.Fatalf("trace = %d, stderr %q", code, stderr)
+	}
+	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
+	if len(lines) != 8 {
+		t.Fatalf("trace =\n%s\nwant 8 lines", stdout)
+	}
+	for i, line := range lines[:7] {
+		if want := fmt.Sprintf("H.greet.%d", i+1); !strings.HasPrefix(line, want+" ") {
+			t.Errorf("trace line %d = %q, want clause %s", i+1, line, want)
+		}
+	}
+	if got, want := lines[7], "no parent (3): H.greet.1, H.greet.4, H.greet.7"; got != want {
+		t.Errorf("last trace line = %q, want %q", got, want)
+	}
+
+	r.Write("horizon.md", `- **H.greet.1** (soon, realised, refines H.greet.3) Realised child.
+- **H.greet.2** (near, refines H.greet.3) Child.
+- **H.greet.3** (distant) Parent.
+`)
+	stdout, stderr, code = run(t, r.Dir, "trace")
+	if code != OK {
+		t.Fatalf("trace = %d, stderr %q", code, stderr)
+	}
+	if strings.Contains(stdout, "no parent") {
+		t.Errorf("trace with every clause refined =\n%s\nwant no parent line", stdout)
+	}
+	if n := strings.Count(stdout, "\n"); n != 3 {
+		t.Errorf("trace =\n%s\nwant 3 lines", stdout)
 	}
 }
 
