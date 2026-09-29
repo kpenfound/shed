@@ -290,6 +290,13 @@ func (r *Repo) Conflicted(ctx context.Context, change string) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
+	return r.conflictedFiles(ctx, w)
+}
+
+// conflictedFiles lists the files a workspace's change holds that jj stores
+// as conflicted, slash-separated and relative to the workspace. The caller
+// holds the lock.
+func (r *Repo) conflictedFiles(ctx context.Context, w workspace) ([]string, error) {
 	out, err := r.run(ctx, w.dir, shedIdentity, "file", "list", "-r", "@", "-T", `if(conflict, path ++ "\n", "")`)
 	if err != nil {
 		return nil, err
@@ -301,6 +308,66 @@ func (r *Repo) Conflicted(ctx context.Context, change string) ([]string, error) 
 		}
 	}
 	return files, nil
+}
+
+// RebaseCheck fetches main and rebases a unit's change onto it, under a
+// checkpoint of its own (S.vcs.5). When the rebase conflicts, it restores
+// the repository, undoing the rebase, and reports the files left
+// conflicted. Otherwise it calls check with the main commit the change
+// rebased onto and the rebased change's commit. When check returns a
+// non-nil error, RebaseCheck restores the repository the same way, undoing
+// the rebase, and returns that error unchanged; the change and workspace
+// are left exactly as they were in either case (S.frame.4).
+func (r *Repo) RebaseCheck(ctx context.Context, change string, check func(ctx context.Context, main, commit string) error) (conflicted []string, err error) {
+	unlock, err := r.lock()
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	w, err := r.workspaceOf(ctx, change)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.importGit(ctx); err != nil {
+		return nil, err
+	}
+	if r.opts.Remote != "" {
+		if _, err := r.jj(ctx, "git", "fetch", "--remote", r.opts.Remote); err != nil {
+			return nil, err
+		}
+	}
+	done, err := r.checkpoint(ctx, "accept "+change)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { err = done(err) }()
+
+	main, err := r.MainCommit(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := r.run(ctx, w.dir, shedIdentity, "rebase", "-s", "@", "-d", r.mainRevset()); err != nil {
+		return nil, err
+	}
+	conflicts, err := r.log(ctx, changeRevset(change)+" & conflicts()", "change_id")
+	if err != nil {
+		return nil, err
+	}
+	if conflicts != "" {
+		files, ferr := r.conflictedFiles(ctx, w)
+		if ferr != nil {
+			return nil, ferr
+		}
+		return files, fmt.Errorf("unit %s %w", change, ErrConflict)
+	}
+	commit, err := r.Commit(ctx, change)
+	if err != nil {
+		return nil, err
+	}
+	if cerr := check(ctx, main, commit); cerr != nil {
+		return nil, cerr
+	}
+	return nil, nil
 }
 
 // Behind reports whether a unit's change does not descend from main.

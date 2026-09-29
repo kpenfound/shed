@@ -155,3 +155,38 @@ func TestLandingsBeforeRecordingDoNotCount(t *testing.T) {
 		t.Errorf("sampled after the second recorded amendment = %q, want %q", got, want)
 	}
 }
+
+//shed:proves S.owner.11
+func TestAcceptedFramingsAreNeverSampled(t *testing.T) {
+	dir := t.TempDir()
+	tr := open(t, dir, Options{SampleEvery: 2})
+	k, l, m, n := changeID('k'), changeID('l'), changeID('m'), changeID('n')
+
+	// The accepted framing takes the second place in the count, which
+	// samples nothing; the fourth amendment is sampled.
+	landing(t, tr, k, true)
+	must(t, tr.OpenUnit(l, "Frame H.greet.3 into near and soon clauses", unit.FrameBuilder))
+	must(t, tr.LandFraming(l, "commit-l", Footprint{Advances: []string{"H.greet.3"}}, unit.Owner, "the owner accepted the framing"))
+	if got := sampledNow(t, tr); got != "" {
+		t.Errorf("sampled after an accepted framing = %q, want none", got)
+	}
+	landing(t, tr, m, true)
+	if got := sampledNow(t, tr); got != "" {
+		t.Errorf("sampled after three amendments = %q, want none", got)
+	}
+	landing(t, tr, n, true)
+	if got, want := sampledNow(t, tr), unit.Short(n); got != want {
+		t.Errorf("sampled after four amendments = %q, want %q", got, want)
+	}
+
+	// The accepted framing's landing records a horizon amendment, not
+	// sampled, and that survives a rebuild.
+	ev := landingEvent(t, dir, l)
+	if ev["horizon_amendment"] != true || ev["sampled"] == true {
+		t.Errorf("the accepted framing's landing = %v", ev)
+	}
+	must(t, tr.Rebuild())
+	if got, want := sampledNow(t, tr), unit.Short(n); got != want {
+		t.Errorf("sampled after a rebuild = %q, want %q", got, want)
+	}
+}

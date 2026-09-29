@@ -174,6 +174,40 @@ func (t *Tracker) Land(change, commit string, actual Footprint, amendment bool, 
 	return t.move(change, Event{To: unit.Landed, Commit: commit, Actual: &actual, HorizonAmendment: &amendment, Actor: actor, Reason: reason})
 }
 
+// LandFraming lands a proposed unit that shed frame opened, moving it
+// straight from proposed to landed: the only route from proposed to landed
+// (S.unit.3), taken only by `shed frame -accept` (S.frame.4). The landing
+// always records a horizon amendment, which takes its place in the count of
+// horizon amendments, but never as sampled, since the owner accepted it
+// (S.owner.11).
+func (t *Tracker) LandFraming(change, commit string, actual Footprint, actor unit.Actor, reason string) error {
+	if strings.TrimSpace(commit) == "" {
+		return errors.New("a landing needs the commit on main")
+	}
+	if err := validActor(actor); err != nil {
+		return err
+	}
+	if strings.TrimSpace(reason) == "" {
+		return errors.New("a move needs a reason")
+	}
+	amendment := true
+	_, err := t.write(func(tx *sql.Tx) ([]Event, error) {
+		state, openedBy, err := stateAndOpener(tx, change)
+		if err != nil {
+			return nil, err
+		}
+		if openedBy != unit.FrameBuilder {
+			return nil, fmt.Errorf("unit %s was not opened by shed frame", unit.Short(change))
+		}
+		if state != unit.Proposed {
+			return nil, fmt.Errorf("unit %s is %s; only a proposed framing lands this way", unit.Short(change), state)
+		}
+		return []Event{{Kind: UnitMoved, Unit: change, From: state, To: unit.Landed, Commit: commit,
+			Actual: &actual, HorizonAmendment: &amendment, Actor: actor, Reason: reason}}, nil
+	})
+	return err
+}
+
 // Archive moves a unit to the archive on a shelf.
 func (t *Tracker) Archive(change string, shelf unit.Shelf, actor unit.Actor, reason string) error {
 	if _, err := unit.ParseShelf(string(shelf)); err != nil {
@@ -518,6 +552,16 @@ func stateOf(tx *sql.Tx, change string) (unit.State, error) {
 		return "", fmt.Errorf("unit %s: %w", unit.Short(change), ErrNotFound)
 	}
 	return unit.State(s), err
+}
+
+// stateAndOpener returns a unit's state and who opened it.
+func stateAndOpener(tx *sql.Tx, change string) (unit.State, unit.Actor, error) {
+	var s, o string
+	err := tx.QueryRow(`SELECT state, opened_by FROM units WHERE change = ?`, change).Scan(&s, &o)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", fmt.Errorf("unit %s: %w", unit.Short(change), ErrNotFound)
+	}
+	return unit.State(s), unit.Actor(o), err
 }
 
 func validActor(a unit.Actor) error {

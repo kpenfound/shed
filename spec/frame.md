@@ -23,9 +23,9 @@
   frame builder as actor and a title naming the refined clause. It declares
   no horizon clause, so the unit is a draft (S.serve.4) and is not debated.
   Its change modifies no spec clause, so it cannot be declared (S.fp.2), and
-  it stays proposed, a record of the framing for the owner to read, until a
-  later clause under H.hz.7 gives frame units a route to main; no clause
-  here seals or lands it. It does not count toward
+  it stays proposed, a record of the framing for the owner to read, until
+  the owner lands it under S.frame.4 or discards it; no clause seals it.
+  It does not count toward
   `painter.max_proposed` (S.paint.1), and `shed serve -once` never reports it
   as a draft waiting to be declared (S.serve.1). Every rebase of it, by a
   landing under S.vcs.10 or by the recovery sweep under S.vcs.11, is treated
@@ -38,3 +38,28 @@
   clause, in document order. `shed frame -discard <unit>` archives a unit
   that `shed frame` opened and that is still proposed, as deferred with no
   archive entry, and discards its change. It refuses any other unit.
+- **S.frame.4** (H.hz.7) `shed frame -accept <unit>` lands a unit that
+  `shed frame` opened and that is still proposed, with the owner as actor,
+  and refuses any other unit. It fetches main and rebases the unit's change
+  onto it under the checkpoint of S.vcs.5, then runs on the rebased change
+  the check of S.frame.2 against that main, for the clause the unit was
+  opened for, and requires that clause still be one `shed frame` accepts
+  under S.frame.1. When the rebase conflicts or the check fails, it names
+  each conflict or each change that breaks the check, undoes the rebase,
+  leaving the unit proposed with its change and workspace as they were, and
+  lands nothing. Otherwise it lands the change as S.vcs.6 does and moves the
+  unit from proposed to landed with the owner as actor, a reason saying the
+  owner accepted the framing, and its commit. The commit message holds the
+  unit's title, the ID and tier of each horizon clause it adds, in document
+  order, and a `Unit:` trailer naming its change ID; it has no
+  `Sealed-Against:` trailer, since the unit has no seal. The landing is
+  recorded as a horizon amendment under S.owner.11, which never samples it.
+  Its actual footprint (S.fp.3) holds no spec clause and no dependency, and
+  names the clause the unit was opened for as the horizon clause it
+  advances. Every step that follows a landing by `shed land` follows this
+  one the same way, with the frame unit as the landed unit: shed records
+  the notices, marks and reopens of S.queue.3 to S.queue.6, before the
+  rebase sweep as S.queue.4 orders, then rebases the other units as
+  S.vcs.10 and S.vcs.11 say, and `shed frame -accept` prints and logs each
+  unit's sweep outcome as S.vcs.15 says `shed land` does. It prints the
+  landed commit before those lines.

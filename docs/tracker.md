@@ -174,8 +174,11 @@ Landings from before shed recorded this do not count. With
 `owner.sample_every` set to N above 0, the landing of every Nth horizon
 amendment in that count, counting from one in landing order, also records
 the unit as sampled. With the default of 0 nothing is sampled, but horizon
-amendments still count, and changing the setting does not restart the count
-(S.owner.11).
+amendments still count, and changing the setting does not restart the count.
+A landing by [`shed frame -accept`](autopilot.md#framing-the-horizon) is
+never recorded as sampled, since the owner already accepted the framing, but
+it still takes its place in the count, so a multiple of N that falls on it
+samples nothing (S.owner.11).
 
 The inbox lists each unit sampled after the event sequence number the
 previous recorded `shed inbox` stored, or every sampled unit when no inbox

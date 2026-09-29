@@ -414,3 +414,267 @@ func TestFrameOpensADraftForTheOwner(t *testing.T) {
 		t.Error("frame -discard took an archived unit")
 	}
 }
+
+// landByHand lands a unit the owner opens, writing files, and returns main's
+// commit after it lands.
+func landByHand(t *testing.T, r *testrepo.Repo, title string, files map[string]string) string {
+	t.Helper()
+	change := openUnit(t, r.Dir, title)
+	dir := strings.TrimSpace(mustRun(t, r.Dir, "unit", "path", change))
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(name)), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seal(t, filepath.Join(r.Dir, DefaultStateDir), change)
+	for _, s := range []string{"implementing", "verifying", "queued"} {
+		mustRun(t, r.Dir, "unit", "move", change, s, "by hand")
+	}
+	mustRun(t, r.Dir, "land", change)
+	return r.GitRemote("rev-parse", "main")
+}
+
+// commitOf returns the commit a unit's change is at.
+func commitOf(r *testrepo.Repo, change string) string {
+	return r.JJ("log", "--no-graph", "-r", change, "-T", "commit_id")
+}
+
+//shed:proves S.frame.4 S.unit.3 S.owner.11
+func TestFrameAcceptLandsTheFraming(t *testing.T) {
+	r := frameRepo(t)
+	r.Write(".shed/config.toml", "[vcs]\nremote = \"origin\"\n\n[owner]\nsample_every = 1\n")
+	state := filepath.Join(r.Dir, DefaultStateDir)
+	framed := framedHorizon(
+		"- **H.greet.9** (soon, refines H.greet.3) The tool greets in Italian.",
+		"- **H.greet.8** (near, refines H.greet.3) The tool greets in German.",
+	)
+	f := &framer{t: t, frame: writing(t, "framed", map[string]string{"horizon.md": framed})}
+	if out, errOut, code := runFramer(t, r.Dir, f, "frame", "H.greet.3"); code != OK {
+		t.Fatalf("frame = %d, %q, %q", code, out, errOut)
+	}
+	units := allUnits(t, r)
+	if len(units) != 1 {
+		t.Fatalf("frame opened %d units", len(units))
+	}
+	u := units[0]
+
+	// Other units in flight, in the order they open: a proposal the owner
+	// opened and a sealed unit whose recorded horizon clause the framing
+	// refines.
+	owned := openUnit(t, r.Dir, "Nod")
+	put := func(change, name, content string) {
+		t.Helper()
+		dir := strings.TrimSpace(mustRun(t, r.Dir, "unit", "path", change))
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	put(owned, "nod.txt", "nod\n")
+	past := openUnit(t, r.Dir, "Greet in Spanish")
+	put(past, "hola.txt", "hola\n")
+	tr, err := tracker.Open(state, tracker.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = tr.Seal(past, "main1", "unitcommit", tracker.Footprint{Advances: []string{"H.greet.3"}}, unit.Committee, "consensus", nil)
+	tr.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Accept refuses a unit shed frame did not open.
+	if _, _, code := runFramer(t, r.Dir, f, "frame", "-accept", owned); code == OK {
+		t.Error("frame -accept took a unit the owner opened")
+	}
+	if now := unitNow(t, r, owned); now.State != unit.Proposed {
+		t.Errorf("the owner's unit is %s", now.State)
+	}
+	if _, _, code := runFramer(t, r.Dir, f, "frame", "-accept"); code == OK {
+		t.Error("frame -accept with no unit succeeded")
+	}
+
+	out, errOut, code := runFramer(t, r.Dir, f, "frame", "-accept", unit.Short(u.Change))
+	if code != OK {
+		t.Fatalf("frame -accept = %d, %q, %q", code, out, errOut)
+	}
+	commit := r.GitRemote("rev-parse", "main")
+	if h := r.GitRemote("show", "main:horizon.md"); h+"\n" != framed {
+		t.Errorf("main's horizon after the accept:\n%s", h)
+	}
+	if parent := r.GitRemote("rev-parse", "main^"); parent == commit {
+		t.Error("main did not move")
+	}
+
+	// The unit moved from proposed to landed, by the owner, with its commit.
+	now := unitNow(t, r, u.Change)
+	if now.State != unit.Landed || now.Landed != commit {
+		t.Errorf("after the accept the frame unit is %+v, want landed as %s", now, commit)
+	}
+	move := lastMove(t, r, u.Change)
+	if move.From != unit.Proposed || move.To != unit.Landed || move.Actor != unit.Owner ||
+		!strings.Contains(move.Reason, "accept") || move.Commit != commit {
+		t.Errorf("the landing move = %+v", move)
+	}
+
+	// It is a horizon amendment, never sampled even when every amendment
+	// is.
+	if move.HorizonAmendment == nil || !*move.HorizonAmendment || move.Sampled {
+		t.Errorf("the landing records horizon amendment %v, sampled %v", move.HorizonAmendment, move.Sampled)
+	}
+
+	// Its actual footprint holds no spec clause and no dependency, and
+	// advances the clause it framed.
+	if a := now.Actual; a == nil || len(a.Modifies) != 0 || len(a.Depends) != 0 || strings.Join(a.Advances, " ") != "H.greet.3" {
+		t.Errorf("the actual footprint = %+v", now.Actual)
+	}
+
+	// The commit message holds the title, each added clause with its tier
+	// in document order, and the unit's change ID, and no seal.
+	msg := r.GitRemote("log", "-1", "--format=%B", "main")
+	i9, i8 := -1, -1
+	for i, l := range strings.Split(msg, "\n") {
+		if strings.Contains(l, "H.greet.9") && strings.Contains(l, "soon") {
+			i9 = i
+		}
+		if strings.Contains(l, "H.greet.8") && strings.Contains(l, "near") {
+			i8 = i
+		}
+	}
+	if !strings.Contains(msg, u.Title) || i9 < 0 || i8 < 0 || i9 > i8 ||
+		!strings.Contains(msg, "Unit: "+u.Change) || strings.Contains(msg, "Sealed-Against:") {
+		t.Errorf("the commit message is:\n%s", msg)
+	}
+
+	// It prints the landed commit, then each other unit's sweep outcome in
+	// the order they opened.
+	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	at := func(prefix string) int {
+		for i, l := range lines {
+			if strings.HasPrefix(l, prefix) {
+				return i
+			}
+		}
+		t.Errorf("frame -accept does not print %q:\n%s", prefix, out)
+		return -1
+	}
+	ic := -1
+	for i, l := range lines {
+		if strings.Contains(l, commit) {
+			ic = i
+			break
+		}
+	}
+	io := at(unit.Short(owned) + " proposed: rebased cleanly")
+	ip := at(unit.Short(past) + " sealed: rebased cleanly")
+	if ic < 0 || ic > io || io > ip {
+		t.Errorf("frame -accept printed:\n%s", out)
+	}
+	for change, outcome := range map[string]string{owned: "rebased cleanly", past: "rebased cleanly"} {
+		logged := sweepLog(t, r.Dir, change, u.Change)
+		if len(logged) != 1 || !strings.HasSuffix(logged[0], "landed: "+outcome) {
+			t.Errorf("unit %s logs the sweep as %q, want %q", unit.Short(change), logged, outcome)
+		}
+	}
+
+	// The sealed unit learns that its clause gained refining clauses, and
+	// keeps its state.
+	tr, err = tracker.Open(state, tracker.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := tr.Events(past)
+	if err != nil {
+		tr.Close()
+		t.Fatal(err)
+	}
+	var body string
+	for _, e := range events {
+		if e.Kind == tracker.NoticeAdded && e.Notice != nil {
+			body += e.Notice.Body
+		}
+	}
+	for _, want := range []string{unit.Short(u.Change), "gained", "H.greet.9", "H.greet.8"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the sealed unit's notices lack %q:\n%s", want, body)
+		}
+	}
+	if p, err := tr.Unit(past); err != nil || p.State != unit.Sealed {
+		t.Errorf("the sealed unit is %s, %v", p.State, err)
+	}
+	tr.Close()
+
+	// A landed framing is not accepted again.
+	if _, _, code := runFramer(t, r.Dir, f, "frame", "-accept", u.Change); code == OK {
+		t.Error("frame -accept took a landed unit")
+	}
+	if got := r.GitRemote("rev-parse", "main"); got != commit {
+		t.Errorf("a refused accept moved main to %s", got)
+	}
+}
+
+//shed:proves S.frame.4
+func TestFrameAcceptRefusesAFramingThatNoLongerFits(t *testing.T) {
+	framed := framedHorizon(
+		"- **H.greet.9** (soon, refines H.greet.3) The tool greets in Italian.",
+		"- **H.greet.8** (near, refines H.greet.3) The tool greets in German.",
+	)
+	cases := []struct {
+		name string
+		// main is main's horizon when the owner accepts.
+		main string
+		// named are what the refusal must name.
+		named []string
+	}{
+		{"a conflict", framedHorizon("- **H.greet.10** (near, refines H.greet.3) The tool greets in Welsh."),
+			[]string{"horizon.md"}},
+		{"an ID main now holds", strings.Replace(frameHorizon, "# Horizon\n\n", "# Horizon\n\n- **H.greet.8** (soon) The tool greets loudly.\n", 1),
+			[]string{"H.greet.8"}},
+		{"a clause shed frame no longer takes", strings.Replace(frameHorizon, "(distant) The tool greets in any language", "(distant, realised) The tool greets in any language", 1),
+			[]string{"H.greet.3"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := frameRepo(t)
+			r.Write(".shed/config.toml", "[vcs]\nremote = \"origin\"\n")
+			f := &framer{t: t, frame: writing(t, "framed", map[string]string{"horizon.md": framed})}
+			if out, errOut, code := runFramer(t, r.Dir, f, "frame", "H.greet.3"); code != OK {
+				t.Fatalf("frame = %d, %q, %q", code, out, errOut)
+			}
+			u := allUnits(t, r)[0]
+			main := landByHand(t, r, "Move main", map[string]string{"horizon.md": c.main})
+
+			before := commitOf(r, u.Change)
+			dir := strings.TrimSpace(mustRun(t, r.Dir, "unit", "path", u.Change))
+			held, err := os.ReadFile(filepath.Join(dir, "horizon.md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			out, errOut, code := runFramer(t, r.Dir, f, "frame", "-accept", u.Change)
+			if code == OK {
+				t.Fatalf("frame -accept succeeded: %q", out)
+			}
+			said := out + errOut
+			for _, want := range c.named {
+				if !strings.Contains(said, want) {
+					t.Errorf("frame -accept does not name %s:\n%s", want, said)
+				}
+			}
+
+			// Nothing lands, and the unit stays proposed with its change and
+			// workspace as they were.
+			if got := r.GitRemote("rev-parse", "main"); got != main {
+				t.Errorf("a refused accept moved main from %s to %s", main, got)
+			}
+			if now := unitNow(t, r, u.Change); now.State != unit.Proposed || now.Landed != "" {
+				t.Errorf("after a refused accept the frame unit is %+v", now)
+			}
+			if after := commitOf(r, u.Change); after != before {
+				t.Errorf("a refused accept moved the change from %s to %s", before, after)
+			}
+			if now, err := os.ReadFile(filepath.Join(dir, "horizon.md")); err != nil || string(now) != string(held) {
+				t.Errorf("a refused accept changed the workspace's horizon to %q, %v", now, err)
+			}
+		})
+	}
+}

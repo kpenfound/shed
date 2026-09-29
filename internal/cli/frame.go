@@ -13,12 +13,16 @@ import (
 func (e env) frame(args []string) int {
 	fs := e.flags("frame")
 	discard := fs.Bool("discard", false, "discard a framing that shed frame opened")
+	accept := fs.Bool("accept", false, "land a framing that shed frame opened")
 	if err := fs.Parse(args); err != nil {
 		return Misused
 	}
 	if fs.NArg() != 1 {
-		if *discard {
+		switch {
+		case *discard:
 			return e.misuse("frame -discard needs one unit")
+		case *accept:
+			return e.misuse("frame -accept needs one unit")
 		}
 		return e.misuse("frame needs one horizon clause")
 	}
@@ -29,6 +33,30 @@ func (e env) frame(args []string) int {
 				return e.fail(err)
 			}
 			fmt.Fprintf(e.stdout, "discarded %s\n", unit.Short(u.Change))
+			return OK
+		})
+	}
+	if *accept {
+		return e.withFactory(func(f *factory.Factory) int {
+			u, err := f.Tracker.Unit(fs.Arg(0))
+			if err != nil {
+				return e.fail(err)
+			}
+			acc, err := f.AcceptFraming(e.ctx, u.Change)
+			if err != nil {
+				return e.fail(err)
+			}
+			if !acc.Landed() {
+				fmt.Fprintf(e.stderr, "shed: the framing of %s no longer fits the check; kept nothing:\n", acc.Clause)
+				for _, p := range acc.Problems {
+					fmt.Fprintf(e.stderr, "  %s\n", p)
+				}
+				return Failed
+			}
+			fmt.Fprintf(e.stdout, "accepted %s, landed on main as %s\n", unit.Short(u.Change), acc.Commit)
+			for _, r := range acc.Swept {
+				fmt.Fprintf(e.stdout, "%s %s: %s\n", unit.Short(r.Unit.Change), r.Unit.State, r.Outcome)
+			}
 			return OK
 		})
 	}

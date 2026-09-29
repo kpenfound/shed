@@ -275,7 +275,7 @@ distant and get promoted as the soon tier drains.
   A veto reverts it and reconciles units that cited it.
 - **H.hz.6** (distant) An optional settling period stops a horizon change from
   justifying a proposal until it is a configured number of days old.
-- **H.hz.7** (soon) The frame builder breaks horizon clauses into
+- **H.hz.7** (soon, realised) The frame builder breaks horizon clauses into
   footprint-sized increments and moves clauses between tiers by amendment.
 - **H.hz.8** (distant) A painter may propose moving a deferred archive entry
   onto the eventual tier. Painters reread the deferred shelf whenever the

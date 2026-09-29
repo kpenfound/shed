@@ -608,3 +608,54 @@ func TestLandingEventReportsDrift(t *testing.T) {
 		}
 	}
 }
+
+//shed:proves S.unit.3
+func TestOnlyAnAcceptedFramingLandsFromProposed(t *testing.T) {
+	tr := open(t, t.TempDir(), Options{})
+	must(t, tr.OpenUnit(unitA, "Say goodbye", unit.Painter))
+	must(t, tr.OpenUnit(unitB, "Frame H.greet.3 into near and soon clauses", unit.FrameBuilder))
+	must(t, tr.OpenUnit(unitC, "Frame H.greet.4 into near and soon clauses", unit.FrameBuilder))
+	framing := Footprint{Advances: []string{"H.greet.3"}}
+
+	// No other move takes a proposed unit to landed.
+	for _, change := range []string{unitA, unitB} {
+		if err := tr.Land(change, "landed1", Footprint{}, false, unit.Wheelbuilder, "landed"); err == nil {
+			t.Errorf("landed proposed unit %s as a queued unit", unit.Short(change))
+		}
+		if err := tr.Move(change, unit.Landed, unit.Owner, "landed"); err == nil {
+			t.Errorf("moved proposed unit %s to landed", unit.Short(change))
+		}
+	}
+	if err := tr.LandFraming(unitA, "landed1", framing, unit.Owner, "the owner accepted the framing"); err == nil {
+		t.Error("landed a unit shed frame did not open as a framing")
+	}
+	if u := get(t, tr, unitA); u.State != unit.Proposed {
+		t.Errorf("the painter's unit is %s", u.State)
+	}
+
+	// The move needs an actor and a reason.
+	if err := tr.LandFraming(unitB, "landed1", framing, unit.Owner, " "); err == nil {
+		t.Error("landed a framing without a reason")
+	}
+	if err := tr.LandFraming(unitB, "landed1", framing, "nobody", "the owner accepted the framing"); err == nil {
+		t.Error("landed a framing by an unknown actor")
+	}
+	if u := get(t, tr, unitB); u.State != unit.Proposed {
+		t.Errorf("after refused landings the framing is %s", u.State)
+	}
+
+	must(t, tr.LandFraming(unitB, "landed1", framing, unit.Owner, "the owner accepted the framing"))
+	u := get(t, tr, unitB)
+	if u.State != unit.Landed || u.Landed != "landed1" || u.Actual == nil || strings.Join(u.Actual.Advances, " ") != "H.greet.3" {
+		t.Errorf("the accepted framing = %+v", u)
+	}
+	if err := tr.LandFraming(unitB, "landed2", framing, unit.Owner, "again"); err == nil {
+		t.Error("landed a landed framing again")
+	}
+
+	// A framing that is no longer proposed does not land this way.
+	must(t, tr.Archive(unitC, unit.Deferred, unit.Owner, "the owner discarded the framing"))
+	if err := tr.LandFraming(unitC, "landed3", framing, unit.Owner, "the owner accepted the framing"); err == nil {
+		t.Error("landed an archived framing")
+	}
+}

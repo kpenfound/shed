@@ -110,7 +110,10 @@
   that the unit is sampled; when it is 0 nothing is sampled, and horizon
   amendments landed meanwhile still count. Changing the setting does not
   restart the count. Shed refuses a negative `owner.sample_every` as under
-  S.config.2. Sampling moves no unit and never holds back or fails a
+  S.config.2. A landing by `shed frame -accept` (S.frame.4) is never
+  recorded as sampled, since the owner accepted it, though it still takes
+  its place in the count, so a multiple of N that falls on it samples
+  nothing. Sampling moves no unit and never holds back or fails a
   landing.
 - **S.owner.12** (H.owner.1) `shed inbox` then lists sampled amendments:
   each unit sampled (S.owner.11) after the sequence number stored by the

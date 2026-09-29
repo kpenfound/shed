@@ -104,9 +104,14 @@ conflict with main depends on how far the unit has come:
   proposed unit that `shed frame` opened, keeps the rebase only if the rebased change holds no conflict in any file. Otherwise
   shed undoes that unit's rebase and leaves its change and workspace as they
   were, so no mechanic, verifier or gate meets a conflict a landing brought
-  in, and a framing never holds a conflict no session would resolve. The unit takes main's changes when a later landing rebases it cleanly,
+  in, and a framing never holds a conflict no session would resolve. A unit
+  past its seal takes main's changes when a later landing rebases it cleanly,
   or at its own landing, where the wheelbuilder resolves conflicts against
-  the sealed spec.
+  the sealed spec. A frame unit has no seal and no wheelbuilder to resolve a
+  conflict for it: `shed frame -accept` rebases it onto main itself and, on a
+  conflict, undoes the rebase and refuses to land, leaving the unit proposed
+  for the owner to accept again once main stops conflicting, or to discard
+  (see [framing the horizon](autopilot.md#framing-the-horizon)).
 
 No unit changes state because of the rebase, and a rebase that conflicts, is
 undone or fails neither fails the landing nor stops the other units from

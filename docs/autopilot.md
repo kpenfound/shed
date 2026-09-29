@@ -354,14 +354,46 @@ way it keeps nothing and opens no unit.
 
 The unit is a draft that is never debated, and since it modifies no spec
 clause it cannot be declared. It stays proposed as a record of the framing
-for the owner to read: nothing seals or lands it. Read it with
-`shed unit path <unit>`, and copy the clauses you want into the horizon.
-Crash recovery never archives it. Rebasing it onto a new main, after a
-landing or by the recovery sweep, keeps the rebase only if it leaves no
-conflict, as for a unit past its seal (see
-[keeping units on main](vcs.md#keeping-units-on-main)). `shed frame -discard <unit>` archives a
-proposed unit that `shed frame` opened, as deferred with no archive entry,
-and discards its change; it refuses any other unit.
+for the owner to read, until the owner lands it with `shed frame -accept` or
+discards it with `shed frame -discard`; no clause seals it. Read it with
+`shed unit path <unit>`. Crash recovery never archives it. Rebasing it onto a
+new main, after a landing or by the recovery sweep, keeps the rebase only if
+it leaves no conflict, as for a unit past its seal (see
+[keeping units on main](vcs.md#keeping-units-on-main)).
+
+`shed frame -discard <unit>` archives a proposed unit that `shed frame`
+opened, as deferred with no archive entry, and discards its change; it
+refuses any other unit.
+
+`shed frame -accept <unit>` lands a proposed unit that `shed frame` opened;
+it refuses any other unit. It fetches main, rebases the unit's change onto
+it, and reruns the `shed frame` check against that main, for the clause the
+unit was opened for, requiring the clause still be one `shed frame` accepts.
+If the rebase conflicts or the check fails, it names every conflict or every
+change that breaks the check, undoes the rebase, and leaves the unit
+proposed with its change and workspace as they were. Otherwise it lands the
+change like `shed land` (see [landing](vcs.md#landing)) and moves the unit
+from proposed to landed with the owner as actor. The commit holds the unit's
+title, the ID and tier of each added clause in document order, and a `Unit:`
+trailer; it carries no `Sealed-Against:` trailer, since the unit was never
+sealed:
+
+```
+$ shed frame -accept qpvuntsm
+accepted qpvuntsm, landed on main as 3f2a9c1d7e4b5a6f8c9d0e1f2a3b4c5d6e7f8091
+zsxkmwqp proposed: rebased cleanly
+yostqsxw sealed: rebased cleanly
+```
+
+The landing counts as a horizon amendment, so `shed tracker rebuild` counts
+it and its place in the count skips a sample even when `owner.sample_every`
+would otherwise land on it (see [the owner inbox](tracker.md#the-owner-inbox)),
+since the owner already saw and accepted it. Its footprint records no spec
+clause and no dependency, only the framed clause as the horizon clause it
+advances. From here it follows every step a `shed land` landing does, with
+the frame unit as the landed unit: the notices, marks and reopens of the
+other units in flight, then their rebase sweep, printed and logged the same
+way, after the landed commit.
 
 The in-flight cap defaults to one, so only one unit is ever between sealed
 and landed and nothing needs reconciling.

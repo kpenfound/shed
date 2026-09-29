@@ -205,7 +205,7 @@ shed run <unit>                    # debate, implement, verify, land
 | `shed answer <clause> keep <reason>` | Answers a charter question by keeping the clause as it stands. |
 | `shed unit open\|declare\|move\|reopen\|log\|path` | Drives units by hand. |
 | `shed debate\|land\|run <unit>` | Runs one stage of a unit, or all of them. |
-| `shed frame <clause>`, `shed frame -discard <unit>` | Breaks a distant or eventual horizon clause into near and soon clauses that refine it, recorded on a unit for you to read, or discards such a unit. |
+| `shed frame <clause>`, `shed frame -accept\|-discard <unit>` | Breaks a distant or eventual horizon clause into near and soon clauses that refine it, recorded on a unit for you to read; accepts and lands such a unit, or discards it. |
 | `shed serve [-once]` | Runs the factory. |
 | `shed config` | Prints the operator settings in effect. |
 | `shed doctor` | Checks that everything running the factory needs is in place. |
@@ -221,13 +221,12 @@ from repeated rejections and sampled horizon amendments for the owner. A distant
 for the owner, and so does a soon one the committee splits over. `shed answer` retries, defers, rejects or approves a contested
 unit, and keeps a charter clause to answer its question.
 `shed frame` breaks a distant or eventual horizon clause into near and soon
-clauses that refine it.
+clauses that refine it, recorded on a unit for the owner to read; `shed frame
+-accept` lands it and `shed frame -discard` drops it.
 
-Still to come, as the [horizon](horizon.md) describes: many units in flight at
-once with reconciliation, framings that go through the shed and land, a
-sweeper that patrols main for spec violations, `shed init`, and adopting
-existing codebases. For now a framing stays on its unit for the owner to
-read; the owner brings its clauses to main by editing the horizon.
+Still to come, as the [horizon](horizon.md) describes: many units in flight
+at once with reconciliation, a sweeper that patrols main for spec
+violations, `shed init`, and adopting existing codebases.
 
 ## Documentation
 

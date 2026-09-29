@@ -17,6 +17,7 @@ import (
 	"github.com/kpenfound/shed/internal/session"
 	"github.com/kpenfound/shed/internal/tracker"
 	"github.com/kpenfound/shed/internal/unit"
+	"github.com/kpenfound/shed/internal/vcs"
 )
 
 // Frame builder outcomes.
@@ -49,6 +50,24 @@ func (fr Framing) Kept() bool { return fr.Change != "" }
 // frameTitle titles the unit that records a framing of a clause.
 func frameTitle(id clause.ID) string {
 	return "Frame " + id.String() + " into near and soon clauses"
+}
+
+// frameClause recovers the clause frameTitle names from a frame unit's
+// title.
+func frameClause(title string) (clause.ID, bool) {
+	rest, ok := strings.CutPrefix(title, "Frame ")
+	if !ok {
+		return clause.ID{}, false
+	}
+	rest, ok = strings.CutSuffix(rest, " into near and soon clauses")
+	if !ok {
+		return clause.ID{}, false
+	}
+	id, err := clause.ParseID(rest)
+	if err != nil {
+		return clause.ID{}, false
+	}
+	return id, true
 }
 
 // Frame runs one frame builder session on a distant or eventual horizon
@@ -362,4 +381,119 @@ func (f *Factory) DiscardFraming(ctx context.Context, ref string) (tracker.Unit,
 		return u, err
 	}
 	return u, f.Repo.Discard(ctx, u.Change)
+}
+
+// errFramingNoLongerFits reports a frame acceptance whose framing no longer
+// passes the check against main (S.frame.4). It never leaves AcceptFraming.
+var errFramingNoLongerFits = errors.New("the framing no longer fits")
+
+// Accepted is how `shed frame -accept` ended (S.frame.4).
+type Accepted struct {
+	// Clause is the clause the unit was opened for.
+	Clause clause.ID
+	// Problems names each conflict the rebase left, or each change that
+	// breaks the check; set only when nothing landed.
+	Problems []string
+	// Commit is the commit main moved to; set only when the unit landed.
+	Commit string
+	// Swept is each other unit's sweep outcome, in the order they opened.
+	Swept []Rebased
+}
+
+// Landed reports whether the unit landed.
+func (a Accepted) Landed() bool { return a.Commit != "" }
+
+// AcceptFraming lands a unit that shed frame opened and that is still
+// proposed, with the owner as actor, and refuses any other unit (S.frame.4).
+// It fetches main and rebases the unit's change onto it, then checks the
+// rebased change against that main (S.frame.2) for the clause the unit was
+// opened for, and requires that clause still be one shed frame accepts
+// (S.frame.1). When the rebase conflicts or the check fails, it names each
+// conflict or each change that breaks the check, the rebase is undone, and
+// the unit stays proposed with its change and workspace as they were.
+// Otherwise it lands the change (S.vcs.6), moves the unit to landed,
+// reconciles and rebases every other unit in flight the way a landing by
+// `shed land` does, and reports their sweep outcome.
+func (f *Factory) AcceptFraming(ctx context.Context, ref string) (Accepted, error) {
+	u, err := f.Tracker.Unit(ref)
+	if err != nil {
+		return Accepted{}, err
+	}
+	if u.OpenedBy != unit.FrameBuilder {
+		return Accepted{}, fmt.Errorf("unit %s was not opened by shed frame", unit.Short(u.Change))
+	}
+	if u.State != unit.Proposed {
+		return Accepted{}, fmt.Errorf("unit %s is %s; only a proposed framing is accepted", unit.Short(u.Change), u.State)
+	}
+	id, ok := frameClause(u.Title)
+	if !ok {
+		return Accepted{}, fmt.Errorf("unit %s's title does not name a framed clause: %q", unit.Short(u.Change), u.Title)
+	}
+	fr := Accepted{Clause: id}
+
+	var added []docs.HorizonChange
+	var problems []string
+	check := func(ctx context.Context, main, commit string) error {
+		mainSet, _ := docs.Load(revision.Git{Root: f.Root, Rev: main})
+		if _, ferr := frameable(mainSet, id); ferr != nil {
+			problems = []string{ferr.Error()}
+			return errFramingNoLongerFits
+		}
+		files, parent, err := f.Repo.Changed(ctx, u.Change)
+		if err != nil {
+			return err
+		}
+		var perr error
+		added, problems, perr = f.checkFraming(id, files, parent, commit)
+		if perr != nil {
+			return perr
+		}
+		if len(problems) > 0 {
+			return errFramingNoLongerFits
+		}
+		return nil
+	}
+	conflicted, err := f.Repo.RebaseCheck(ctx, u.Change, check)
+	switch {
+	case errors.Is(err, vcs.ErrConflict):
+		fr.Problems = conflicted
+		return fr, nil
+	case errors.Is(err, errFramingNoLongerFits):
+		fr.Problems = problems
+		return fr, nil
+	case err != nil:
+		return Accepted{}, err
+	}
+
+	commit, err := f.Repo.Land(ctx, u.Change, func(context.Context, string, string) (string, error) {
+		return acceptMessage(u, added), nil
+	})
+	if err != nil {
+		return Accepted{}, err
+	}
+	actual := tracker.Footprint{Advances: []string{id.String()}}
+	if err := f.Tracker.LandFraming(u.Change, commit, actual, unit.Owner, "the owner accepted the framing"); err != nil {
+		return Accepted{}, errors.Join(fmt.Errorf("unit %s landed as %s but the tracker did not record it; accept it again to record it", unit.Short(u.Change), commit), err)
+	}
+	fr.Commit = commit
+	if err := f.reconcileHorizon(u.Change, commit); err != nil {
+		return fr, fmt.Errorf("unit %s landed as %s but reconciling other units failed: %w", unit.Short(u.Change), commit, err)
+	}
+	fr.Swept, _ = f.sweepReport(ctx, u.Change)
+	return fr, nil
+}
+
+// acceptMessage builds the commit message of a landed framing: the unit's
+// title, the ID and tier of each clause it adds in document order, and the
+// unit's change ID, with no seal, since the unit has none (S.frame.4).
+func acceptMessage(u tracker.Unit, added []docs.HorizonChange) string {
+	var b strings.Builder
+	b.WriteString(u.Title)
+	b.WriteString("\n\n")
+	for _, a := range added {
+		fmt.Fprintf(&b, "%s\t%s\n", a.ID, a.Tier)
+	}
+	b.WriteString("\n")
+	fmt.Fprintf(&b, "Unit: %s\n", u.Change)
+	return b.String()
 }

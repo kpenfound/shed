@@ -9,7 +9,8 @@
   actor and a reason. Proposed to sealed, archived or contested. Sealed to
   implementing. Implementing to verifying. Verifying to queued or back to
   implementing. Queued to landed. Sealed, implementing, verifying or queued
-  back to proposed. Contested to proposed or archived.
+  back to proposed. Contested to proposed or archived. Proposed to landed,
+  only for a unit that `shed frame -accept` lands (S.frame.4).
 - **S.unit.4** (H.unit.3) Sealing records the seal, the main commit, the
   unit's change ID and the commit that change points to, together with the
   unit's footprint. Archiving records the shelf, rejected or deferred.
