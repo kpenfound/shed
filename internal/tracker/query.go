@@ -51,6 +51,9 @@ type Unit struct {
 	Actual *Footprint
 	// CostUSD is the total cost of the unit's sessions so far.
 	CostUSD float64
+	// Review is set while the unit is marked for horizon review
+	// (S.queue.5).
+	Review bool
 	// Steps lists the unit's finished steps in the order they finished.
 	Steps   []string
 	Opened  time.Time
@@ -155,10 +158,10 @@ func loadUnit(q querier, change string) (Unit, error) {
 	u := Unit{Change: change}
 	var opened, updated, shelf, state, openedBy string
 	var actual bool
-	err := q.QueryRow(`SELECT title, opened_by, state, bounces, amendments, round, reason, shelf, landed, actual, opened_at, updated_at,
+	err := q.QueryRow(`SELECT title, opened_by, state, bounces, amendments, round, reason, shelf, landed, actual, review, opened_at, updated_at,
 		(SELECT COALESCE(SUM(cost_usd), 0) FROM sessions WHERE change = units.change)
 		FROM units WHERE change = ?`, change).
-		Scan(&u.Title, &openedBy, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Reason, &shelf, &u.Landed, &actual, &opened, &updated, &u.CostUSD)
+		Scan(&u.Title, &openedBy, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Reason, &shelf, &u.Landed, &actual, &u.Review, &opened, &updated, &u.CostUSD)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Unit{}, fmt.Errorf("unit %s: %w", unit.Short(change), ErrNotFound)
 	}
@@ -350,12 +353,19 @@ func Describe(e Event) string {
 		}
 	case NoticeAdded:
 		fmt.Fprintf(&b, "notice %s for %s: %s", e.Notice.ID, e.Notice.Audience, e.Notice.Body)
+		if e.Review {
+			b.WriteString("\n(marked for horizon review)")
+		}
 	case NoticeDelivered:
 		fmt.Fprintf(&b, "notice %s delivered", e.Notice.ID)
 	case UnitBounced:
 		b.WriteString("bounced back to the proposer")
 	case UnitRetitled:
 		fmt.Fprintf(&b, "retitled %q", e.Title)
+	case UnitReviewed:
+		b.WriteString("horizon review found the unit consistent")
+	case UnitHeld:
+		b.WriteString("held back from sealing")
 	case UnitEntangled:
 		fmt.Fprintf(&b, "entangled with unit %s on %s", unit.Short(e.Entangled.Unit), strings.Join(e.Entangled.Clauses, ", "))
 	case RoundStarted:

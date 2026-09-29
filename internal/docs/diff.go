@@ -181,7 +181,7 @@ func (d HorizonDiff) CountedAt(tier string) []clause.ID {
 // whose refines tag differs between the revisions also counts at the tier of
 // the clause its tag names, on each revision where it carries the tag.
 func DiffHorizonAmendment(from, to *Set) HorizonDiff {
-	var d HorizonDiff
+	d := HorizonDiff{}
 	old := horizonByID(from)
 	cur := horizonByID(to)
 	counts := map[clause.ID][]string{}

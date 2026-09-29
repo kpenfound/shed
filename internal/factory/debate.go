@@ -38,6 +38,7 @@ const (
 	Verified    Outcome = "verified"
 	Failed      Outcome = "failed"
 	Landed      Outcome = "landed"
+	Consistent  Outcome = "consistent"
 	Discarded   Outcome = "discarded"
 )
 

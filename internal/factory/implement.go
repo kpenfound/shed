@@ -79,6 +79,9 @@ func (f *Factory) Implement(ctx context.Context, change string) (Outcome, error)
 	if err != nil {
 		return "", err
 	}
+	if err := unmarked(u, "implemented"); err != nil {
+		return "", err
+	}
 	switch u.State {
 	case unit.Sealed:
 		if err := f.Tracker.Move(u.Change, unit.Implementing, unit.Shed, "a mechanic is dispatched"); err != nil {
@@ -272,6 +275,9 @@ func (f *Factory) Verify(ctx context.Context, change string) (Outcome, error) {
 	}
 	if u.State != unit.Verifying {
 		return "", fmt.Errorf("unit %s is %s; only verifying units are verified", unit.Short(u.Change), u.State)
+	}
+	if err := unmarked(u, "verified"); err != nil {
+		return "", err
 	}
 	problems, err := f.checkUnit(ctx, u)
 	if err != nil {
@@ -526,6 +532,9 @@ func (f *Factory) Land(ctx context.Context, change string) (Outcome, error) {
 	if u.State != unit.Queued {
 		return "", fmt.Errorf("unit %s is %s; only queued units land", unit.Short(u.Change), u.State)
 	}
+	if err := unmarked(u, "landed"); err != nil {
+		return "", err
+	}
 	// A unit already on main only needs recording.
 	if landed, err := f.Repo.OnMain(ctx, u.Change); err != nil || !landed {
 		if err != nil {
@@ -569,7 +578,7 @@ func (f *Factory) Land(ctx context.Context, change string) (Outcome, error) {
 }
 
 // Run takes a unit through the shed, implementation, verification and
-// landing, stopping when it lands, leaves the shed's path, or a stage makes
+// landing, with a horizon review first whenever it is marked for one, stopping when it lands, leaves the shed's path, or a stage makes
 // no progress.
 func (f *Factory) Run(ctx context.Context, change string) (Outcome, error) {
 	for {
@@ -578,6 +587,13 @@ func (f *Factory) Run(ctx context.Context, change string) (Outcome, error) {
 			return "", err
 		}
 		var out Outcome
+		if u.Review && unit.PastSeal(u.State) {
+			out, err = f.ReviewHorizon(ctx, u.Change)
+			if out == Consistent {
+				continue
+			}
+			return out, err
+		}
 		switch u.State {
 		case unit.Proposed:
 			out, err = f.Debate(ctx, u.Change)

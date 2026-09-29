@@ -57,7 +57,13 @@ func CanMove(from, to State) bool {
 // IsReopen reports whether a move sends a unit back to the shed. A reopen
 // counts a bounce.
 func IsReopen(from, to State) bool {
-	return to == Proposed && (from == Sealed || from == Implementing || from == Verifying || from == Queued)
+	return to == Proposed && PastSeal(from)
+}
+
+// PastSeal reports whether a unit in state s is sealed and not yet landed:
+// sealed, implementing, verifying or queued.
+func PastSeal(s State) bool {
+	return s == Sealed || s == Implementing || s == Verifying || s == Queued
 }
 
 // Actor is who acts on a unit: the owner, a role, or shed itself.

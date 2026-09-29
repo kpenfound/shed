@@ -469,6 +469,9 @@ func TestRejectedAmendmentKeepsTheSealedSpec(t *testing.T) {
 	if !strings.Contains(r.Git("ls-tree", "-r", "--name-only", commit, "spec/"), "spec/wave.md") {
 		t.Error("the added spec file was removed while sealing was held back")
 	}
+	if got := r.Git("show", commit+":horizon.md"); !strings.Contains(got, "H.greet.4") {
+		t.Errorf("the amended horizon was restored while sealing was held back: %q", got)
+	}
 
 	// A unit lands a spec clause of its own meanwhile, and the next shed
 	// process rebases the unit onto it.
@@ -859,6 +862,62 @@ func TestVerifyGuardsTheHorizon(t *testing.T) {
 				must(t, err)
 				t.Cleanup(func() { f.Close() })
 			}
+			mechanic(t, fake)
+			fake.on(unit.Mechanic, "docs", func(turn session.Turn) session.Result {
+				write(t, turn.Dir, "horizon.md", tc.horizon)
+				return done("done")
+			})
+			must2(t, f.Implement)(change)
+			fake.on(unit.Committee, "review", func(session.Turn) session.Result { return done("pass") })
+			out, err := f.Verify(ctx, change)
+			must(t, err)
+			notices, _ := f.Tracker.Notices(unit.Mechanic, true)
+			if tc.want == "" {
+				if out != Verified {
+					t.Errorf("verify = %s, %+v", out, notices)
+				}
+				return
+			}
+			if out != Failed || len(notices) != 1 || !strings.Contains(notices[0].Body, tc.want) {
+				t.Errorf("verify = %s, %+v", out, notices)
+			}
+		})
+	}
+}
+
+// sealedAmending seals a unit that adds the goodbye clause and rewords
+// H.greet.2 in the horizon.
+func sealedAmending(t *testing.T, f *Factory, fake *fakeRunner) string {
+	t.Helper()
+	change := propose(t, f)
+	dir, err := f.Repo.Workspace(ctx, change)
+	must(t, err)
+	write(t, dir, "horizon.md", strings.Replace(testHorizon, "says goodbye.", "waves goodbye.", 1))
+	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
+	out, err := f.Debate(ctx, change)
+	must(t, err)
+	if out != Sealed {
+		t.Fatalf("debate = %s", out)
+	}
+	return change
+}
+
+//shed:proves S.verify.1
+func TestVerifyPassesTheSealedHorizon(t *testing.T) {
+	sealedText := strings.Replace(testHorizon, "says goodbye.", "waves goodbye.", 1)
+	for _, tc := range []struct {
+		name, horizon, want string
+	}{
+		{"keeps the sealed amendment", sealedText, ""},
+		{"marks the sealed clause realised", strings.Replace(sealedText, "(soon) The tool waves goodbye.", "(soon, realised) The tool waves goodbye.", 1), ""},
+		{"rewords the sealed clause again", strings.Replace(sealedText, "waves goodbye.", "bows goodbye.", 1), "changes H.greet.2 in the horizon"},
+		{"rewords a clause the seal left alone", strings.Replace(sealedText, "greets in any language", "greets in every language", 1), "changes H.greet.3 in the horizon"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := project(t)
+			fake := newFake(t)
+			f := open(t, r, fake, "")
+			change := sealedAmending(t, f, fake)
 			mechanic(t, fake)
 			fake.on(unit.Mechanic, "docs", func(turn session.Turn) session.Result {
 				write(t, turn.Dir, "horizon.md", tc.horizon)

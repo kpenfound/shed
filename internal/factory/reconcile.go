@@ -16,7 +16,8 @@ import (
 // clauses its sealed footprint advances. A unit advancing a clause the
 // landing removed reopens (S.queue.4). A unit advancing a clause the landing
 // changed gets a notice for its next session, whichever role runs it
-// (S.queue.3).
+// (S.queue.3), and one whose clause changed text is also marked for horizon
+// review (S.queue.5).
 // Every other unit is left alone.
 func (f *Factory) reconcileHorizon(landed, commit string) error {
 	root := f.Repo.Root()
@@ -53,7 +54,7 @@ func (f *Factory) reconcileHorizon(landed, commit string) error {
 		if u.Change == landed {
 			continue
 		}
-		if !pastSeal(u.State) {
+		if !unit.PastSeal(u.State) {
 			continue
 		}
 		gone := advanced(removed, u.Footprint.Advances)
@@ -72,27 +73,20 @@ func (f *Factory) reconcileHorizon(landed, commit string) error {
 		if len(touched) == 0 {
 			continue
 		}
+		reworded := false
 		var b strings.Builder
 		fmt.Fprintf(&b, "Unit %s landed and changed horizon clauses this unit advances:", short)
 		for _, c := range touched {
 			now := after[c.ID]
+			reworded = reworded || now.Text != c.Text
 			fmt.Fprintf(&b, "\n- %s\n  before: (%s) %s\n  after: (%s) %s", c.ID,
 				strings.Join(c.Tags, ", "), c.Text, strings.Join(now.Tags, ", "), now.Text)
 		}
-		if _, err := f.Tracker.AddNotice(u.Change, nextSession, "horizon", b.String(), unit.Shed); err != nil {
+		if _, err := f.Tracker.AddReviewNotice(u.Change, nextSession, "horizon", b.String(), unit.Shed, reworded); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-// pastSeal reports whether a unit in state s is sealed and not yet landed.
-func pastSeal(s unit.State) bool {
-	switch s {
-	case unit.Sealed, unit.Implementing, unit.Verifying, unit.Queued:
-		return true
-	}
-	return false
 }
 
 // advanced returns the clauses among cs that advances names, keeping the

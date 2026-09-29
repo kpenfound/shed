@@ -28,6 +28,8 @@ const (
 	UnitBounced     = "unit.bounced"
 	UnitRetitled    = "unit.retitled"
 	UnitEntangled   = "unit.entangled"
+	UnitReviewed    = "unit.reviewed"
+	UnitHeld        = "debate.held"
 	RoundStarted    = "debate.round"
 	// Consensus records that a debate round ended with no objection
 	// standing while the cap on units in flight held the seal back.
@@ -64,6 +66,8 @@ type Event struct {
 	// Approved is set on the owner's move out of contested that approves
 	// a distant or eventual horizon amendment (S.shed.17).
 	Approved bool `json:"approved,omitempty"`
+	// Review is set on a notice that marks its unit for horizon review.
+	Review bool `json:"review,omitempty"`
 	// Shelf is set when a unit is archived.
 	Shelf unit.Shelf `json:"shelf,omitempty"`
 	// Seal is set when a unit is sealed.

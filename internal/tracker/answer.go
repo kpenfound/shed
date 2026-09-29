@@ -110,12 +110,12 @@ func (t *Tracker) Answers(change string) ([]Answer, error) {
 		}
 		kind := Retry
 		switch {
+		case e.Approved:
+			kind = Approve
 		case e.To == unit.Archived && e.Shelf == unit.Rejected:
 			kind = Reject
 		case e.To == unit.Archived:
 			kind = Defer
-		case e.Approved:
-			kind = Approve
 		}
 		out = append(out, Answer{Time: e.Time, Kind: kind, Reason: e.Reason})
 	}

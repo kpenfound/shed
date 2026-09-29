@@ -113,6 +113,9 @@ type work struct {
 	Check    func(status, note string) error
 	StepDone string
 	Extra    []bundle.Section
+	// Show puts the unit's pending notices in the bundle without
+	// delivering them: they stay pending for the unit's next session.
+	Show bool
 }
 
 // session runs one session on a unit: it exports the unit's files into a
@@ -164,7 +167,9 @@ func (f *Factory) session(ctx context.Context, w work) (session.Result, error) {
 	}
 	var ids []string
 	for _, n := range pending {
-		ids = append(ids, n.ID)
+		if !w.Show {
+			ids = append(ids, n.ID)
+		}
 	}
 	res, err := f.Sessions.Run(ctx, session.Turn{
 		Unit: w.Unit.Change, Role: w.Role, Step: w.Step, Dir: view, Writable: w.Writable,

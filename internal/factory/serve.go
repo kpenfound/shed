@@ -38,6 +38,10 @@ type scheduler struct {
 	mu      sync.Mutex
 	busy    map[string]bool
 	started int
+	// reviews counts the horizon reviews running; failed counts each
+	// unit's reviews that reported no outcome in this serve.
+	reviews int
+	failed  map[string]int
 	errs    []error
 	wg      sync.WaitGroup
 }
@@ -88,6 +92,39 @@ func (s *scheduler) run(ctx context.Context, key, label string, fn func(context.
 	}()
 }
 
+// reviewing reports whether a horizon review is running.
+func (s *scheduler) reviewing() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.reviews > 0
+}
+
+// review starts the horizon review of a unit whose key no running stage
+// holds (S.queue.5). A review that reports no outcome is tried again, up to
+// maxStepFailures times in one serve.
+func (s *scheduler) review(ctx context.Context, change string) {
+	key := unit.Short(change)
+	s.mu.Lock()
+	skip := s.busy[key] || s.failed[change] >= maxStepFailures
+	if !skip {
+		s.reviews++
+	}
+	s.mu.Unlock()
+	if skip {
+		return
+	}
+	s.run(ctx, key, key+" review", func(ctx context.Context) (string, error) {
+		out, err := s.f.ReviewHorizon(ctx, change)
+		s.mu.Lock()
+		s.reviews--
+		if err == nil && out == Failed {
+			s.failed[change]++
+		}
+		s.mu.Unlock()
+		return string(out), err
+	})
+}
+
 const (
 	painterKey = "painter"
 	landerKey  = "lander"
@@ -99,9 +136,22 @@ const (
 func (f *Factory) controllers() []controller {
 	return []controller{
 		{name: "wheelbuilder", start: func(ctx context.Context, s *scheduler, units []tracker.Unit) error {
+			// Horizon reviews start before the landing, and nothing lands
+			// while one runs.
+			for _, u := range units {
+				if u.Review && unit.PastSeal(u.State) {
+					s.review(ctx, u.Change)
+				}
+			}
+			if s.reviewing() {
+				return nil
+			}
 			for _, u := range oldestFirst(units, unit.Queued) {
 				if s.isBusy(landerKey) {
 					return nil
+				}
+				if u.Review {
+					continue
 				}
 				change := u.Change
 				s.run(ctx, landerKey, unit.Short(change)+" land", func(ctx context.Context) (string, error) {
@@ -113,6 +163,9 @@ func (f *Factory) controllers() []controller {
 		}},
 		{name: "verifier", start: func(ctx context.Context, s *scheduler, units []tracker.Unit) error {
 			for _, u := range oldestFirst(units, unit.Verifying) {
+				if u.Review {
+					continue
+				}
 				change := u.Change
 				s.run(ctx, unit.Short(change), unit.Short(change)+" verify", func(ctx context.Context) (string, error) {
 					out, err := f.Verify(ctx, change)
@@ -129,6 +182,9 @@ func (f *Factory) controllers() []controller {
 				}
 			}
 			for _, u := range oldestFirst(units, unit.Implementing, unit.Sealed) {
+				if u.Review {
+					continue
+				}
 				if u.State == unit.Sealed {
 					if working >= f.Operator.Concurrency.Units {
 						continue
@@ -239,7 +295,7 @@ func (f *Factory) Paused(now time.Time) (string, error) {
 // current state on every pass; a stage that ends wakes them, and so does
 // serve.tick. Nothing new starts while the daily budget is spent.
 func (f *Factory) Serve(ctx context.Context, opts ServeOptions) error {
-	s := &scheduler{f: f, opts: opts, wake: make(chan struct{}, 1), busy: map[string]bool{}}
+	s := &scheduler{f: f, opts: opts, wake: make(chan struct{}, 1), busy: map[string]bool{}, failed: map[string]int{}}
 	defer s.wg.Wait()
 	startedAny := false
 	ctx, cancel := context.WithCancel(ctx)

@@ -179,7 +179,12 @@ func TestLandingNoticesHorizonChanges(t *testing.T) {
 		t.Errorf("notice lists H.greet.3 before H.greet.2:\n%s", body)
 	}
 
-	// The goodbye unit's next session carries the notice.
+	// The goodbye unit is marked for horizon review, which shows it the
+	// notice without delivering it. Its next mechanic session carries it.
+	fake.on(unit.Wheelbuilder, "review", func(session.Turn) session.Result {
+		return session.Result{Status: "consistent", Note: "Farewell is goodbye.", CostUSD: 0.1}
+	})
+	must2(t, f.ReviewHorizon)(bye)
 	mechanic(t, fake)
 	fake.on(unit.Mechanic, "proofs", func(turn session.Turn) session.Result {
 		for _, w := range []string{short, "H.greet.2", "The tool waves farewell."} {
@@ -298,8 +303,13 @@ func TestHorizonNoticesReachTheUnitsNextSession(t *testing.T) {
 		return strings.Contains(bundle, short) && strings.Contains(bundle, "The tool waves farewell.")
 	}
 
-	// The verifying unit fails on its proofs without a review session, and
-	// the mechanic's next bundle carries the notice.
+	// The verifying unit, once its horizon review finds it consistent,
+	// fails on its proofs without a review session, and the mechanic's
+	// next bundle carries the notice.
+	fake.on(unit.Wheelbuilder, "review", func(session.Turn) session.Result {
+		return session.Result{Status: "consistent", Note: "Farewell is goodbye.", CostUSD: 0.1}
+	})
+	must2(t, f.ReviewHorizon)(failing)
 	reviews := len(fake.ran(unit.Committee))
 	if out, err := f.Verify(ctx, failing); err != nil || out != Failed {
 		t.Fatalf("verify = %s, %v", out, err)

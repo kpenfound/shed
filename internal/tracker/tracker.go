@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS units (
 	reason TEXT NOT NULL DEFAULT '',
 	landed TEXT NOT NULL DEFAULT '',
 	actual INTEGER NOT NULL DEFAULT 0,
+	review INTEGER NOT NULL DEFAULT 0,
 	round INTEGER NOT NULL DEFAULT 0,
 	contested_seq INTEGER NOT NULL DEFAULT 0,
 	contested_reason TEXT NOT NULL DEFAULT '',
@@ -178,7 +179,7 @@ var tables = []string{"units", "seals", "footprints", "actual_footprints", "sess
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 9
+const schemaVersion = 10
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -344,11 +345,19 @@ func apply(tx *sql.Tx, e Event) error {
 		return exec(`INSERT INTO units (change, title, opened_by, state, opened_seq, opened_at, updated_at, reason)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, e.Unit, e.Title, e.Actor, e.To, e.Seq, at, at, e.Reason)
 	case UnitMoved:
-		// A bounce starts a new debate, from round zero.
+		// A bounce starts a new debate, from round zero, and so does a
+		// move to contested for a horizon amendment's tier.
 		if err := exec(`UPDATE units SET state = ?, bounces = bounces + ?, amendments = amendments + ?,
 			shelf = ?, reason = ?, landed = ?, updated_at = ?, round = CASE WHEN ? THEN 0 ELSE round END WHERE change = ?`,
-			e.To, boolInt(e.Bounce), boolInt(e.Amendment), e.Shelf, e.Reason, e.Commit, at, e.Bounce, e.Unit); err != nil {
+			e.To, boolInt(e.Bounce), boolInt(e.Amendment), e.Shelf, e.Reason, e.Commit, at, e.Bounce || e.Tier != "", e.Unit); err != nil {
 			return err
+		}
+		// A unit that leaves sealed, implementing, verifying and queued
+		// leaves horizon review with them.
+		if !unit.PastSeal(e.To) {
+			if err := exec(`UPDATE units SET review = 0 WHERE change = ?`, e.Unit); err != nil {
+				return err
+			}
 		}
 		// Work starts over when a unit reopens or verification sends it
 		// back.
@@ -420,6 +429,11 @@ func apply(tx *sql.Tx, e Event) error {
 		return nil
 	case NoticeAdded:
 		n := e.Notice
+		if e.Review {
+			if err := exec(`UPDATE units SET review = 1 WHERE change = ?`, e.Unit); err != nil {
+				return err
+			}
+		}
 		return exec(`INSERT INTO notices (id, change, audience, kind, body, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
 			n.ID, e.Unit, n.Audience, n.Kind, n.Body, at)
 	case NoticeDelivered:
@@ -428,6 +442,12 @@ func apply(tx *sql.Tx, e Event) error {
 		return exec(`UPDATE units SET bounces = bounces + 1, round = 0, reason = ?, updated_at = ? WHERE change = ?`, e.Reason, at, e.Unit)
 	case UnitEntangled, Consensus:
 		return nil
+	case UnitReviewed:
+		return exec(`UPDATE units SET review = 0 WHERE change = ?`, e.Unit)
+	case UnitHeld:
+		// A held debate is over: the unit waits to be sealed, and a
+		// debate that ends the hold starts afresh from round one.
+		return exec(`UPDATE units SET round = 0, updated_at = ? WHERE change = ?`, at, e.Unit)
 	case UnitRetitled:
 		return exec(`UPDATE units SET title = ?, updated_at = ? WHERE change = ?`, e.Title, at, e.Unit)
 	case RoundStarted:

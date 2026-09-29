@@ -25,3 +25,22 @@
   S.queue.3 for that landing. Shed makes these reopens and records these
   notices before the rebase sweep of S.vcs.10 for the same landing, so a
   reopened unit is rebased there as a proposed unit.
+- **S.queue.5** (H.queue.5) When a notice under S.queue.3 gives a clause
+  whose text differs before and after once runs of whitespace are collapsed
+  to one space, the unit is also marked for horizon review. A clause whose
+  tag list alone differs does not mark it. For each marked unit the
+  wheelbuilder controller runs a review stage: one wheelbuilder session
+  whose bundle shows the unit's pending notices without delivering them, and
+  whose `done` accepts `consistent` or `reopen` with a written reason. The
+  notices stay pending for the unit's next session of another kind, as under
+  S.sess.6. A review starts only when the unit has no stage running, and
+  each pass of `shed serve` starts reviews before the landing that S.serve.4
+  puts first. While a unit is marked, shed starts no implementation,
+  verification or landing for it: `shed land` refuses it. On `reopen` the
+  unit reopens with the wheelbuilder as actor and that reason, and counts a
+  bounce as any reopen does. On `consistent` the unit keeps its state and
+  its seal, and a notice giving the wheelbuilder's reason joins its pending
+  notices. `shed unit log` records either outcome, and either one clears the
+  mark. The mark also clears when the unit leaves sealed, implementing,
+  verifying and queued. A session that reports neither outcome leaves the
+  mark for a later stage.

@@ -182,6 +182,48 @@ func (t *Tracker) Archive(change string, shelf unit.Shelf, actor unit.Actor, rea
 	return t.move(change, Event{To: unit.Archived, Shelf: shelf, Actor: actor, Reason: reason})
 }
 
+// Consistent records that a horizon review found a marked unit consistent
+// with the changed horizon, which clears the mark, and adds a notice giving
+// the reason for audience. The unit keeps its state and its seal.
+func (t *Tracker) Consistent(change string, actor, audience unit.Actor, reason string) error {
+	if err := validActor(actor); err != nil {
+		return err
+	}
+	if err := validActor(audience); err != nil {
+		return err
+	}
+	if strings.TrimSpace(reason) == "" {
+		return errors.New("a horizon review needs a reason")
+	}
+	_, err := t.write(func(tx *sql.Tx) ([]Event, error) {
+		_, marked, err := reviewOf(tx, change)
+		if err != nil {
+			return nil, err
+		}
+		if !marked {
+			return nil, fmt.Errorf("unit %s is not marked for horizon review", unit.Short(change))
+		}
+		body := fmt.Sprintf("The %s reviewed the horizon changes and found this unit consistent with them: %s", actor, reason)
+		return []Event{
+			{Kind: UnitReviewed, Unit: change, Actor: actor, Reason: reason},
+			{Kind: NoticeAdded, Unit: change, Actor: actor, Notice: &NoticeEv{Audience: string(audience), Kind: "horizon", Body: body}},
+		}, nil
+	})
+	return err
+}
+
+// reviewOf returns a unit's state and whether it is marked for horizon
+// review.
+func reviewOf(tx *sql.Tx, change string) (unit.State, bool, error) {
+	var s string
+	var marked bool
+	err := tx.QueryRow(`SELECT state, review FROM units WHERE change = ?`, change).Scan(&s, &marked)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, fmt.Errorf("unit %s: %w", unit.Short(change), ErrNotFound)
+	}
+	return unit.State(s), marked, err
+}
+
 // SetFootprint records the footprint a unit declares while it is proposed.
 func (t *Tracker) SetFootprint(change string, fp Footprint, actor unit.Actor, reason string, onMain func(clause.ID) bool) error {
 	if err := validActor(actor); err != nil {
@@ -408,6 +450,17 @@ func (t *Tracker) interrupted(tx *sql.Tx) ([]Event, error) {
 
 // AddNotice records a notice for a role or the owner about a unit.
 func (t *Tracker) AddNotice(change string, audience unit.Actor, kind, body string, actor unit.Actor) (string, error) {
+	return t.addNotice(change, audience, kind, body, actor, false)
+}
+
+// AddReviewNotice records a notice as AddNotice does and, with review,
+// marks its sealed, implementing, verifying or queued unit for horizon
+// review (S.queue.5).
+func (t *Tracker) AddReviewNotice(change string, audience unit.Actor, kind, body string, actor unit.Actor, review bool) (string, error) {
+	return t.addNotice(change, audience, kind, body, actor, review)
+}
+
+func (t *Tracker) addNotice(change string, audience unit.Actor, kind, body string, actor unit.Actor, review bool) (string, error) {
 	if err := validActor(audience); err != nil {
 		return "", err
 	}
@@ -415,10 +468,14 @@ func (t *Tracker) AddNotice(change string, audience unit.Actor, kind, body strin
 		return "", err
 	}
 	events, err := t.write(func(tx *sql.Tx) ([]Event, error) {
-		if _, err := stateOf(tx, change); err != nil {
+		state, err := stateOf(tx, change)
+		if err != nil {
 			return nil, err
 		}
-		return []Event{{Kind: NoticeAdded, Unit: change, Actor: actor,
+		if review && !unit.PastSeal(state) {
+			return nil, fmt.Errorf("unit %s is %s; only sealed, implementing, verifying and queued units are reviewed", unit.Short(change), state)
+		}
+		return []Event{{Kind: NoticeAdded, Unit: change, Actor: actor, Review: review,
 			Notice: &NoticeEv{Audience: string(audience), Kind: kind, Body: body}}}, nil
 	})
 	if err != nil {

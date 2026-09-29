@@ -59,14 +59,17 @@ amendment's diff, or, when the amendment was rejected, says the sealed spec
 stands as written and gives the objections that stood at the cap. A
 mechanic's bundle for a unit whose change holds an unresolved conflict names
 each file holding one and says to resolve it against the sealed spec before
-any other work. Notices count as delivered once a session starts. Bundles
+any other work. Notices count as delivered once a session starts, except in
+a wheelbuilder's horizon review, whose bundle shows them without delivering
+them. Bundles
 come from a context provider; the default one uses only the documents, the
 tracker and the debate record.
 
 Each role has a system prompt: a part every role shares, then its own. Write
 a file of the same name under `prompts/` in the state directory to replace
 one: `common.md`, `painter.md`, `painter-reply.md`, `committee.md`,
-`committee-review.md`, `mechanic.md` or `wheelbuilder.md`.
+`committee-review.md`, `mechanic.md`, `wheelbuilder.md` or
+`wheelbuilder-review.md`.
 
 ## Failures and cost
 

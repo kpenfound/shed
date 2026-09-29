@@ -218,6 +218,25 @@ queued against the horizon clauses its footprint recorded at its last seal:
   `shed unit log`, and does not move the unit.
 - Any other unit is left alone, and nothing is recorded for it.
 
+A notice that gives a clause whose text changed, once runs of whitespace are
+collapsed, also marks the unit for horizon review. A change to a clause's tags
+alone does not. While a unit is marked, shed starts no implementation,
+verification or landing for it, and `shed land` refuses it. Once the unit has
+no stage running, the wheelbuilder reviews it in one session. The bundle for
+that session shows the unit's pending notices without delivering them, so
+they stay pending for the unit's next painter or mechanic session. The
+wheelbuilder calls `done` with a written reason and one of two outcomes:
+
+- `consistent`: the unit keeps its state and its seal, and a notice giving
+  the reason joins its pending notices.
+- `reopen`: the unit reopens with the wheelbuilder as actor and that reason,
+  and the reopen counts a bounce.
+
+`shed unit log` records either outcome, and either one clears the mark. The
+mark also clears when the unit leaves sealed, implementing, verifying and
+queued by any other route. A review session that reports neither outcome
+leaves the mark, and a later review runs.
+
 Then shed rebases every other unit that is neither landed nor archived onto
 the new main, leaving its state alone. A proposed or contested unit,
 including one the horizon check just reopened, keeps any conflict stored in
@@ -232,14 +251,15 @@ sessions end and are captured. See [version control](vcs.md).
 
 | Controller | Starts | When |
 | --- | --- | --- |
-| wheelbuilder | landing | a unit is queued; one landing at a time |
+| wheelbuilder | horizon review, then landing | a unit is marked for horizon review and has no stage running; a unit is queued and not marked, one landing at a time |
 | verifier | verification | a unit is verifying |
 | mechanic | implementation | a unit is implementing, or sealed while fewer than `concurrency.units` units implement or verify |
 | shed | debate | a proposal declares a horizon clause and fewer than `concurrency.in_flight` units are sealed through queued; one debate at a time |
 | painter | a proposal | the gap is not empty, fewer than `painter.max_proposed` units are proposed, and the painter is not backing off |
 
 Each pass starts work downstream first, so work in flight finishes before new
-work starts. Controllers start stages in the background and never wait on
+work starts: horizon reviews, landing, verification, implementation, debate,
+then proposals. Controllers start stages in the background and never wait on
 a session; a stage that ends wakes them all, and `serve.tick` wakes them
 anyway. `shed serve -once` stops when nothing is running and nothing can
 start.
