@@ -188,6 +188,77 @@ func TestInboxListsHorizonChanges(t *testing.T) {
 		"changed H.greet.2 near")
 }
 
+// TestInboxNamesRefinedParent checks that a listed horizon clause whose
+// refines tag differs between the recorded commit and main names each parent
+// it is judged at, with the parent's tier on the commit whose tag names it,
+// recorded commit first, that a clause whose tag is unchanged or absent names
+// none, and that a peek names the same parents.
+//
+//shed:proves S.owner.13
+func TestInboxNamesRefinedParent(t *testing.T) {
+	r := testrepo.Colocated(t)
+	m := newMainClone(t, r)
+	horizon := func(clauses string) string {
+		return "# Horizon\n\n" + clauses + "\n## Milestones\n\n- **M1** Greetings. H.greet.1 to H.greet.2.\n"
+	}
+	steps := []struct {
+		name    string
+		horizon string
+		want    []string
+	}{
+		{"added clauses that refine name their parent", horizon(`- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (soon) The tool says goodbye.
+- **H.greet.3** (distant) The tool greets in any language, within C2.
+- **H.greet.4** (eventual) The tool greets everyone at once.
+- **H.greet.5** (near, refines H.greet.3) The tool greets in French.
+- **H.greet.6** (soon, refines H.greet.3) The tool greets in German.
+`), []string{
+			"added H.greet.4 eventual",
+			"added H.greet.5 near parent H.greet.3 (distant)",
+			"added H.greet.6 soon parent H.greet.3 (distant)",
+		}},
+		{"a retargeted tag names the old parent, then the new, and an unchanged tag names none", horizon(`- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (soon) The tool says goodbye.
+- **H.greet.3** (distant) The tool greets in any language, within C2.
+- **H.greet.4** (eventual) The tool greets everyone at once.
+- **H.greet.5** (near, refines H.greet.4) The tool greets in French.
+- **H.greet.6** (soon, refines H.greet.3) The tool greets in German, formally.
+`), []string{
+			"changed H.greet.5 near parent H.greet.3 (distant), H.greet.4 (eventual)",
+			"changed H.greet.6 soon",
+		}},
+		{"a new tag names the parent's tier on main and a dropped tag the old parent", horizon(`- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (soon, refines H.greet.3) The tool says goodbye.
+- **H.greet.3** (eventual) The tool greets in any language, within C2.
+- **H.greet.4** (eventual) The tool greets everyone at once.
+- **H.greet.5** (near) The tool greets in French.
+- **H.greet.6** (soon, refines H.greet.3) The tool greets in German, formally.
+`), []string{
+			"changed H.greet.2 soon parent H.greet.3 (eventual)",
+			"changed H.greet.3 eventual",
+			"changed H.greet.5 near parent H.greet.4 (eventual)",
+		}},
+		{"a removed clause names the parent's tier on the recorded commit", horizon(`- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (soon, refines H.greet.3) The tool says goodbye.
+- **H.greet.3** (distant) The tool greets in any language, within C2.
+- **H.greet.4** (eventual) The tool greets everyone at once.
+- **H.greet.5** (near) The tool greets in French.
+`), []string{
+			"changed H.greet.3 distant",
+			"removed H.greet.6 soon parent H.greet.3 (eventual)",
+		}},
+	}
+
+	mustRun(t, r.Dir, "inbox")
+	for _, step := range steps {
+		m.commit(step.horizon)
+		_, peeked := inboxEntries(mustRun(t, r.Dir, "inbox", "-peek"))
+		wantEntries(t, step.name+", peeked", peeked, step.want...)
+		_, listed := inboxEntries(mustRun(t, r.Dir, "inbox"))
+		wantEntries(t, step.name, listed, step.want...)
+	}
+}
+
 //shed:proves S.owner.3
 func TestInboxRecordsWhatItRead(t *testing.T) {
 	r := testrepo.Colocated(t)

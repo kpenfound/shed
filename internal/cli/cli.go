@@ -321,13 +321,9 @@ func (e env) diff(args []string) int {
 	}{{"added", h.Added}, {"removed", h.Removed}, {"changed", h.Changed}} {
 		for _, c := range group.changes {
 			// S.diff.5: name the parents the clause counts at.
-			var parents []string
-			for _, p := range c.Parents {
-				parents = append(parents, fmt.Sprintf("%s (%s)", p.ID, p.Tier))
-			}
 			var named string
-			if len(parents) > 0 {
-				named = " parent " + strings.Join(parents, ", ")
+			if parents := namedParents(c.Parents); parents != "" {
+				named = " " + parents
 			}
 			fmt.Fprintf(e.stdout, "%-8s%s %s%s\n", group.label, c.ID, c.Tier, named)
 		}
@@ -336,6 +332,20 @@ func (e env) diff(args []string) int {
 		fmt.Fprintf(e.stdout, "%-8s%s\n", "tier", h.Tier)
 	}
 	return OK
+}
+
+// namedParents names the parents a horizon clause counts at because of its
+// refines tag, each with its tier, as "parent <id> (<tier>), ...", or
+// returns "" when there are none.
+func namedParents(parents []docs.TieredHorizonChange) string {
+	if len(parents) == 0 {
+		return ""
+	}
+	var named []string
+	for _, p := range parents {
+		named = append(named, fmt.Sprintf("%s (%s)", p.ID, p.Tier))
+	}
+	return "parent " + strings.Join(named, ", ")
 }
 
 func (e env) setAt(rev string) (*docs.Set, error) {

@@ -120,3 +120,11 @@
   commit amended, in document order, each with its ID and whether it was
   added, changed or removed; a clause its commit only marked realised is not
   listed. `-peek` lists the same sampled amendments.
+- **S.owner.13** (H.hz.3) On the line of each horizon clause it lists under
+  S.owner.2, `shed inbox` names each clause at whose tier `shed diff`
+  between the recorded commit and main would count the listed clause
+  because of its `refines` tag (S.horizon.6, S.diff.4), with that clause's
+  ID and its tier on the commit where the tag names it: first the clause
+  the tag names on the recorded commit, then the one it names on main. A
+  listed clause whose `refines` tag is the same on both commits, or that
+  carries none on either, names none. `-peek` lists the same names.

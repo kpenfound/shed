@@ -20,7 +20,8 @@ import (
 // last recorded inbox (S.owner.12). It marks the units contested, and the
 // questions that gained a unit, since the last recorded inbox as new
 // (S.owner.7), and records the main commit and the latest event it read
-// unless it is a peek (S.owner.3).
+// unless it is a peek (S.owner.3). Each horizon clause names the parents
+// its refines tag has it judged at (S.owner.13).
 func (e env) inbox(args []string) int {
 	fs := e.flags("inbox")
 	peek := fs.Bool("peek", false, "list the inbox without recording that it was read")
@@ -82,8 +83,21 @@ func (e env) inbox(args []string) int {
 				break
 			}
 			fmt.Fprintf(e.stdout, "Horizon changes since main at %s:\n", shortCommit(last))
+			// S.owner.13: name the parents each clause is judged at, as
+			// shed diff between the two commits would.
+			amendment := docs.DiffHorizonAmendment(from, to)
+			parents := map[clause.ID]string{}
+			for _, group := range [][]docs.TieredHorizonChange{amendment.Added, amendment.Changed, amendment.Removed} {
+				for _, c := range group {
+					parents[c.ID] = namedParents(c.Parents)
+				}
+			}
 			w := tabwriter.NewWriter(e.stdout, 0, 4, 2, ' ', 0)
 			for _, c := range changes {
+				if named := parents[c.ID]; named != "" {
+					fmt.Fprintf(w, "  %s\t%s\t%s\t%s\n", c.Change, c.ID, c.Tier, named)
+					continue
+				}
 				fmt.Fprintf(w, "  %s\t%s\t%s\n", c.Change, c.ID, c.Tier)
 			}
 			if err := w.Flush(); err != nil {
