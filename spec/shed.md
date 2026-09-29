@@ -131,9 +131,9 @@
   the last seal whatever a painter wrote meanwhile. The seal of S.shed.17
   takes no tier.
 - **S.shed.17** (H.hz.1) `shed answer <unit> approve <reason>` moves a
-  contested unit whose latest move to contested was made under S.shed.16 to
-  proposed, with the owner as actor and the reason as the move's reason. Its
-  next debate runs no round and seals it as under S.shed.8, without the
+  contested unit whose latest move to contested was made under S.shed.16 or
+  S.shed.18 to proposed, with the owner as actor and the reason as the
+  move's reason. Its next debate runs no round and seals it as under S.shed.8, without the
   check of S.shed.16; while S.serve.7 holds sealing back it waits in proposed
   like a proposal that reached consensus. A unit in the amendment lane
   (S.shed.11) stays in it until that seal, which is a seal out of the
@@ -145,4 +145,24 @@
   round one, so S.shed.16 takes the tier of its horizon amendment as the
   painter left it. Shed
   refuses `approve` for a unit whose latest move to contested was not made
-  under S.shed.16.
+  under S.shed.16 or S.shed.18.
+- **S.shed.18** (H.hz.1) When a debate outside the amendment lane
+  (S.shed.11) reaches its round cap with objections standing, every one of
+  them a horizon objection, and at least one committee member of its last
+  round has no objection standing, the debate is split: shed takes the tier
+  of the proposal's horizon amendment as under S.shed.16. When that tier is
+  soon, the unit moves to contested with shed as actor and a reason naming
+  the tier and each standing objection, in place of the deferral of
+  S.shed.4. This move counts no bounce. A debate that is not split, or a
+  split one whose proposal has no tier or a near, distant or eventual tier,
+  is deferred, bounced or rejected as before under S.shed.3, S.shed.4 and
+  S.shed.6; a distant or eventual amendment is accepted only through
+  S.shed.16 and S.shed.17 in any case. When the owner answers `retry`
+  (S.owner.4) to a unit whose latest move to contested was made under this
+  clause, the unit goes back to its painter as the bounce of S.shed.6 would,
+  with the objections that stood at the cap as the reason, but counts no
+  bounce, and its next debate starts afresh from round one. The amendment
+  lane is left out because a debate there that reaches its cap with
+  objections standing rejects the amendment under S.shed.14, restoring the
+  horizon of the last seal, so no split horizon amendment is accepted there
+  without the owner.

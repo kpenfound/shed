@@ -107,8 +107,9 @@ var errNoSpecChange = errors.New("the proposal changes no spec clause")
 // in parallel, round by round, and the painter answers between rounds. A
 // charter objection rejects the proposal at once. With no standing
 // objection the unit is sealed. At the round cap, a proposal whose only
-// standing objections say it is off the horizon is deferred, and any other
-// goes back to its painter with a bounce. In the amendment lane, objections
+// standing objections say it is off the horizon is deferred, unless the
+// committee split over a soon-tier horizon amendment, which waits for the
+// owner; any other goes back to its painter with a bounce. In the amendment lane, objections
 // standing at the cap reject the amendment instead.
 func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 	u, err := f.Tracker.Unit(change)
@@ -201,6 +202,18 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 				return f.rejectAmendment(ctx, u, lane, standing, round)
 			}
 			if len(byKind(standing, tracker.HorizonObjection)) == len(standing) {
+				if f.split(standing) {
+					d, err := f.amendmentTier(ctx, u.Change)
+					if err != nil {
+						return "", err
+					}
+					if d.Tier == "soon" {
+						if err := f.Tracker.ContestSplit(u.Change, d.Tier, splitReason(d.Tier, standing, round)); err != nil {
+							return "", err
+						}
+						return Contested, nil
+					}
+				}
 				return f.archive(ctx, u, unit.Deferred, standing)
 			}
 			return f.bounce(u, fmt.Sprintf("%d objections still stand after %d rounds: %s", len(standing), round, ids(standing)))
@@ -514,22 +527,52 @@ func pendingSeal(events []tracker.Event) int {
 	return noPendingSeal
 }
 
+// split reports whether a debate is split at its round cap: at least one
+// committee member of its last round has no objection standing (S.shed.18).
+func (f *Factory) split(standing []tracker.Objection) bool {
+	for m := 1; m <= f.Operator.Concurrency.Committee; m++ {
+		if !slices.ContainsFunc(standing, func(o tracker.Objection) bool { return o.Member == m }) {
+			return true
+		}
+	}
+	return false
+}
+
+// splitReason names the tier of a split debate's horizon amendment and each
+// objection standing at its cap (S.shed.18).
+func splitReason(tier string, standing []tracker.Objection, round int) string {
+	lines := []string{fmt.Sprintf("the committee split over the %s-tier horizon amendment, so it waits for the owner; %d horizon objections still stand after %d rounds:", tier, len(standing), round)}
+	for _, o := range standing {
+		lines = append(lines, fmt.Sprintf("- %s (member %d, citing %s): %s", o.ID, o.Member, strings.Join(o.Citations, ", "), o.Text))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// amendmentTier diffs a proposal's horizon against the latest main commit
+// its change descends from, as shed diff does (S.diff.4).
+func (f *Factory) amendmentTier(ctx context.Context, change string) (docs.HorizonDiff, error) {
+	base, err := f.Repo.Base(ctx, change)
+	if err != nil {
+		return docs.HorizonDiff{}, err
+	}
+	from, _ := docs.Load(revision.Git{Root: f.Root, Rev: base})
+	head, err := f.headSet(ctx, change)
+	if err != nil {
+		return docs.HorizonDiff{}, err
+	}
+	return docs.DiffHorizonAmendment(from, head), nil
+}
+
 // farTier takes the tier of a proposal's horizon amendment against the
 // latest main commit its change descends from, as shed diff gives it
 // (S.diff.4). A distant or eventual tier waits for the owner (S.shed.16):
 // farTier returns it with the reason naming it and each horizon clause
 // counted at it, in document order. It returns "" for any other tier.
 func (f *Factory) farTier(ctx context.Context, change string) (string, string, error) {
-	base, err := f.Repo.Base(ctx, change)
+	d, err := f.amendmentTier(ctx, change)
 	if err != nil {
 		return "", "", err
 	}
-	from, _ := docs.Load(revision.Git{Root: f.Root, Rev: base})
-	head, err := f.headSet(ctx, change)
-	if err != nil {
-		return "", "", err
-	}
-	d := docs.DiffHorizonAmendment(from, head)
 	if d.Tier != "distant" && d.Tier != "eventual" {
 		return "", "", nil
 	}

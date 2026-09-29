@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS units (
 	actual INTEGER NOT NULL DEFAULT 0,
 	review INTEGER NOT NULL DEFAULT 0,
 	round INTEGER NOT NULL DEFAULT 0,
+	cycle INTEGER NOT NULL DEFAULT 0,
 	contested_seq INTEGER NOT NULL DEFAULT 0,
 	contested_reason TEXT NOT NULL DEFAULT '',
 	archived_seq INTEGER NOT NULL DEFAULT 0,
@@ -179,7 +180,7 @@ var tables = []string{"units", "seals", "footprints", "actual_footprints", "sess
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 10
+const schemaVersion = 11
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -347,9 +348,9 @@ func apply(tx *sql.Tx, e Event) error {
 	case UnitMoved:
 		// A bounce starts a new debate, from round zero, and so does a
 		// move to contested for a horizon amendment's tier.
-		if err := exec(`UPDATE units SET state = ?, bounces = bounces + ?, amendments = amendments + ?,
+		if err := exec(`UPDATE units SET state = ?, bounces = bounces + ?, cycle = cycle + ?, amendments = amendments + ?,
 			shelf = ?, reason = ?, landed = ?, updated_at = ?, round = CASE WHEN ? THEN 0 ELSE round END WHERE change = ?`,
-			e.To, boolInt(e.Bounce), boolInt(e.Amendment), e.Shelf, e.Reason, e.Commit, at, e.Bounce || e.Tier != "", e.Unit); err != nil {
+			e.To, boolInt(e.Bounce), boolInt(e.Bounce), boolInt(e.Amendment), e.Shelf, e.Reason, e.Commit, at, e.Bounce || e.Tier != "", e.Unit); err != nil {
 			return err
 		}
 		// A unit that leaves sealed, implementing, verifying and queued
@@ -439,7 +440,10 @@ func apply(tx *sql.Tx, e Event) error {
 	case NoticeDelivered:
 		return exec(`UPDATE notices SET delivered_at = ? WHERE id = ?`, at, e.Notice.ID)
 	case UnitBounced:
-		return exec(`UPDATE units SET bounces = bounces + 1, round = 0, reason = ?, updated_at = ? WHERE change = ?`, e.Reason, at, e.Unit)
+		return exec(`UPDATE units SET bounces = bounces + 1, cycle = cycle + 1, round = 0, reason = ?, updated_at = ? WHERE change = ?`, e.Reason, at, e.Unit)
+	case UnitRestarted:
+		// A new debate, as after a bounce, with no bounce counted.
+		return exec(`UPDATE units SET cycle = cycle + 1, round = 0, reason = ?, updated_at = ? WHERE change = ?`, e.Reason, at, e.Unit)
 	case UnitEntangled, Consensus:
 		return nil
 	case UnitReviewed:
@@ -455,7 +459,7 @@ func apply(tx *sql.Tx, e Event) error {
 	case ObjectionRaised:
 		o := e.Objection
 		return exec(`INSERT INTO objections (id, change, cycle, round, member, kind, citations, text, seq)
-			VALUES (?, ?, (SELECT bounces FROM units WHERE change = ?), ?, ?, ?, ?, ?, ?)`,
+			VALUES (?, ?, (SELECT cycle FROM units WHERE change = ?), ?, ?, ?, ?, ?, ?)`,
 			o.ID, e.Unit, e.Unit, e.Round, o.Member, o.Kind, strings.Join(o.Citations, ","), o.Text, e.Seq)
 	case ObjectionClosed:
 		return exec(`UPDATE objections SET withdrawn = ? WHERE id = ?`, e.Reason, e.Objection.ID)

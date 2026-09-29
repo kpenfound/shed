@@ -246,6 +246,11 @@ func (t *Tracker) SetFootprint(change string, fp Footprint, actor unit.Actor, re
 }
 
 func (t *Tracker) move(change string, e Event, onMain ...func(clause.ID) bool) error {
+	return t.moveThen(change, e, nil, onMain...)
+}
+
+// moveThen is move followed, in the same write, by further events.
+func (t *Tracker) moveThen(change string, e Event, then []Event, onMain ...func(clause.ID) bool) error {
 	if err := validActor(e.Actor); err != nil {
 		return err
 	}
@@ -299,7 +304,7 @@ func (t *Tracker) move(change string, e Event, onMain ...func(clause.ID) bool) e
 			}
 			events = append(events, contested...)
 		}
-		return events, nil
+		return append(events, then...), nil
 	})
 	return err
 }

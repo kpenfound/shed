@@ -261,7 +261,7 @@ distant and get promoted as the soon tier drains.
 
 ## Horizon governance
 
-- **H.hz.1** (soon) Horizon amendments go through the shed. Near-tier
+- **H.hz.1** (soon, realised) Horizon amendments go through the shed. Near-tier
   amendments accept on consensus. Soon-tier amendments accept on zero dissent
   and wait for the owner on a split. Distant and eventual amendments always
   wait for the owner.

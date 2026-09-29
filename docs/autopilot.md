@@ -30,7 +30,7 @@ that must resolve, in one of four kinds:
 | Kind | Means | At the end |
 | --- | --- | --- |
 | `charter` | The proposal violates a charter clause. | A veto: rejected at the end of the round. |
-| `horizon` | It does not move the spec toward the horizon. | Deferred if only horizon objections stand at the cap. |
+| `horizon` | It does not move the spec toward the horizon. | Deferred if only horizon objections stand at the cap, unless a split soon amendment waits for the owner. |
 | `size` | The footprint is too large; split it by clause. | Stands until withdrawn. |
 | `spec` | A clause is ambiguous, untestable or wrong. | Stands until withdrawn. |
 
@@ -70,7 +70,24 @@ counts no bounce, and its next debate starts afresh from round one, so the
 tier is taken again before it is sealed. A unit bounced for changing a
 clause outside an amendment's scope is not tiered (S.shed.16).
 
-The owner lets such an amendment through with
+A soon tier accepts on zero dissent and waits for the owner on a split. A
+debate outside the amendment lane is split when it reaches its round cap
+with objections standing, every one of them a horizon objection, and at
+least one committee member of its last round has no objection standing.
+Shed then tiers the horizon amendment as above. When the tier is soon, the
+unit is not deferred: it moves to contested, with shed as actor and a
+reason naming the tier and each standing objection. This counts no bounce.
+A debate that is not split, such as one where every member objects or a
+spec or size objection stands, and a split one whose amendment has no tier
+or a near, distant or eventual tier, is deferred, bounced or rejected as
+before. When the owner answers `retry` to a unit contested this way, it
+goes back to its painter as a bounce at the cap would, with the objections
+that stood at the cap as the reason, but counts no bounce, and its next
+debate starts afresh from round one. The amendment lane is left out, since
+standing objections at its cap reject the amendment and restore the
+horizon of the last seal (S.shed.18).
+
+The owner lets a distant, eventual or split soon amendment through with
 `shed answer <unit> approve <reason>`, which moves the unit back to proposed.
 Its next debate runs no round and seals it, without tiering it again; while
 the in-flight cap holds sealing back it waits in proposed like any proposal
@@ -80,8 +97,8 @@ the approval, and so does a painter session on the unit, such as one
 resolving conflicts a landing stored in its files; that session counts no
 bounce. Once the approval ends, the unit's later debates run as for any
 proposal, starting afresh from round one, so the horizon amendment is
-tiered again as the painter left it. Shed refuses `approve` for a unit that
-was contested for any other reason (S.shed.17).
+tiered again as the painter left it. Shed refuses `approve` for a unit whose
+latest move to contested was for any other reason (S.shed.17).
 
 A unit whose latest reopen requested an amendment is debated in the
 amendment lane. Every rule above holds, but the round cap is

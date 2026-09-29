@@ -237,6 +237,7 @@ stateDiagram-v2
     queued --> proposed: reopened (wheelbuilder reconciliation)
     proposed --> contested: bounce counter over threshold
     proposed --> contested: distant or eventual horizon amendment
+    proposed --> contested: split on a soon horizon amendment
     contested --> proposed: owner answers
     contested --> archived: frame builder discards after timeout
     landed --> [*]
@@ -251,7 +252,7 @@ stateDiagram-v2
 |queued|In the merge queue. Wheelbuilders rebase onto main, resolve conflicts against the sealed spec, order by entanglement.|wheelbuilder|
 |landed|One commit on main. Terminal. Triggers reconcile.|wheelbuilder|
 |reopened|Not a resting state. The universal return edge, or "back to the shed". Any role may send a unit back to `proposed` with a written reason. Increments the bounce counter.|any|
-|contested|Bounce counter over threshold, or a distant or eventual horizon amendment awaiting approval. Raised to the owner without blocking. The frame builder may discard after a timeout.|owner, frame builder|
+|contested|Bounce counter over threshold, or a distant, eventual or split soon horizon amendment awaiting approval. Raised to the owner without blocking. The frame builder may discard after a timeout.|owner, frame builder|
 |archived|Terminal. Rejected or deferred, with reasons.|none|
 
 ### 6.2 A shed, not a pipeline

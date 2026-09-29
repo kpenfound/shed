@@ -33,8 +33,8 @@ var ObjectionKinds = []string{CharterObjection, HorizonObjection, SizeObjection,
 type Objection struct {
 	ID   string
 	Unit string
-	// Cycle is the debate the objection was raised in: the unit's bounce
-	// count at the time. Each bounce starts a new debate.
+	// Cycle is the debate the objection was raised in: the unit's cycle at
+	// the time. Each bounce starts a new debate.
 	Cycle     int
 	Round     int
 	Member    int
@@ -162,7 +162,7 @@ func (t *Tracker) Standing(change string) ([]Objection, error) {
 	if err != nil {
 		return nil, err
 	}
-	all, err := t.Objections(u.Change, u.Bounces)
+	all, err := t.Objections(u.Change, u.Cycle)
 	if err != nil {
 		return nil, err
 	}
@@ -192,6 +192,17 @@ func (t *Tracker) Bounce(change string, actor unit.Actor, reason string) error {
 // eventual to contested for the owner, with shed as actor, and counts no
 // bounce (S.shed.16). The owner is notified.
 func (t *Tracker) ContestTier(change, tier, reason string) error {
+	return t.contestTier(change, tier, reason, false)
+}
+
+// ContestSplit moves a proposed unit whose debate split at the round cap
+// over its soon-tier horizon amendment to contested for the owner, with
+// shed as actor, and counts no bounce (S.shed.18). The owner is notified.
+func (t *Tracker) ContestSplit(change, tier, reason string) error {
+	return t.contestTier(change, tier, reason, true)
+}
+
+func (t *Tracker) contestTier(change, tier, reason string, split bool) error {
 	if strings.TrimSpace(tier) == "" {
 		return errors.New("contesting a horizon amendment needs its tier")
 	}
@@ -203,7 +214,7 @@ func (t *Tracker) ContestTier(change, tier, reason string) error {
 			return nil, err
 		}
 		return []Event{
-			{Kind: UnitMoved, Unit: change, Actor: unit.Shed, From: unit.Proposed, To: unit.Contested, Tier: tier, Reason: reason},
+			{Kind: UnitMoved, Unit: change, Actor: unit.Shed, From: unit.Proposed, To: unit.Contested, Tier: tier, Split: split, Reason: reason},
 			{Kind: NoticeAdded, Unit: change, Actor: unit.Shed, Notice: &NoticeEv{
 				Audience: string(unit.Owner), Kind: "contested",
 				Body: fmt.Sprintf("Unit %s is contested: %s.", unit.Short(change), reason),

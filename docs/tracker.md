@@ -47,8 +47,8 @@ proposed -> sealed -> implementing -> verifying -> queued -> landed
 - Any bounce that leaves a unit's bounce count above the operator's
   `bounce_threshold`, whether a reopen or a proposal bounced back to its
   painter, moves it on to `contested`. So does a debate that reaches
-  consensus on a distant or eventual horizon amendment, without counting a
-  bounce. Shed leaves a notice for the owner and keeps working on other
+  consensus on a distant or eventual horizon amendment, or splits at its
+  round cap over a soon one, without counting a bounce. Shed leaves a notice for the owner and keeps working on other
   units. A unit leaves `contested` only on the owner's answer: back to
   `proposed`, or to the deferred or rejected shelf.
 - `landed` and `archived` are terminal. An archived unit rests on the
@@ -229,7 +229,9 @@ shed answer qpvuntsm approve the new distant clause matches where shed is going
 - `retry` moves the unit to `proposed`, with the owner as actor and the
   reason as the move's reason. The unit keeps its bounce count, so it is
   still past the threshold and its next bounce, of any kind, sends it back
-  to `contested` (S.owner.4).
+  to `contested` (S.owner.4). A unit contested over a split soon horizon
+  amendment goes back to its painter with the objections that stood at the
+  cap, counts no bounce, and debates afresh from round one (S.shed.18).
 - `defer` archives the unit on the deferred shelf as a deferred proposal is
   archived, with the owner as actor and the reason as what would change the
   decision (S.owner.5).
@@ -238,7 +240,8 @@ shed answer qpvuntsm approve the new distant clause matches where shed is going
   entry cites as violated every charter clause the reason names, in the
   order they first appear and without repeats (S.owner.8).
 - `approve` moves a unit that shed contested because its horizon amendment
-  is distant or eventual tier (S.shed.16) back to `proposed`, with the owner
+  is distant or eventual tier (S.shed.16), or because its debate split over
+  a soon tier amendment (S.shed.18), back to `proposed`, with the owner
   as actor and the reason as the move's reason. Its next debate runs no
   round and seals it; a bounce before that seal ends the approval. Shed
   refuses `approve` for a unit contested for any other reason (S.shed.17).
@@ -293,7 +296,7 @@ answer with an empty reason. A refused answer records nothing (S.owner.10).
 | `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost and title, then the notices waiting for the owner. |
 | `shed inbox [-peek]` | Lists contested units, the horizon changes on main, the charter questions from repeated rejections and the sampled horizon amendments, marking what is new since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
-| `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: moves it back to `proposed`, defers or rejects it to the archive, or approves its distant or eventual horizon amendment. |
+| `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: moves it back to `proposed`, defers or rejects it to the archive, or approves its distant, eventual or split soon horizon amendment. |
 | `shed answer <clause> keep <reason>` | Answers a charter question by keeping the clause, clearing the question until two more rejections cite it. |
 | `shed unit move <unit> <state> <reason>` | Moves a unit by hand to `implementing`, `verifying` or `queued`. |
 | `shed unit reopen [-amendment] <unit> <reason>` | Sends a unit back to the shed. |

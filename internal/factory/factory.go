@@ -233,7 +233,7 @@ func (f *Factory) record(change string) (string, error) {
 		if o.Cycle != cycle {
 			cycle = o.Cycle
 			label := "an earlier debate"
-			if cycle == u.Bounces {
+			if cycle == u.Cycle {
 				label = "the current debate"
 			}
 			fmt.Fprintf(&b, "\n### Debate %d, %s\n\n", cycle+1, label)

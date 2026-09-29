@@ -26,11 +26,14 @@ const (
 	NoticeAdded     = "notice.added"
 	NoticeDelivered = "notice.delivered"
 	UnitBounced     = "unit.bounced"
-	UnitRetitled    = "unit.retitled"
-	UnitEntangled   = "unit.entangled"
-	UnitReviewed    = "unit.reviewed"
-	UnitHeld        = "debate.held"
-	RoundStarted    = "debate.round"
+	// UnitRestarted sends a proposed unit back to its proposer to start a
+	// new debate, as a bounce does, without counting a bounce (S.shed.18).
+	UnitRestarted = "unit.restarted"
+	UnitRetitled  = "unit.retitled"
+	UnitEntangled = "unit.entangled"
+	UnitReviewed  = "unit.reviewed"
+	UnitHeld      = "debate.held"
+	RoundStarted  = "debate.round"
 	// Consensus records that a debate round ended with no objection
 	// standing while the cap on units in flight held the seal back.
 	Consensus       = "debate.consensus"
@@ -60,11 +63,14 @@ type Event struct {
 	Amendment bool `json:"amendment,omitempty"`
 	// Rejected is set on a seal that rejected a requested amendment.
 	Rejected bool `json:"rejected,omitempty"`
-	// Tier is set on a move to contested for a distant or eventual horizon
-	// amendment (S.shed.16): the amendment's tier.
+	// Tier is set on a move to contested for the tier of a horizon
+	// amendment (S.shed.16, S.shed.18): the amendment's tier.
 	Tier string `json:"tier,omitempty"`
+	// Split is set on a move to contested for a soon-tier horizon
+	// amendment whose debate split at the round cap (S.shed.18).
+	Split bool `json:"split,omitempty"`
 	// Approved is set on the owner's move out of contested that approves
-	// a distant or eventual horizon amendment (S.shed.17).
+	// a horizon amendment waiting for the owner (S.shed.17).
 	Approved bool `json:"approved,omitempty"`
 	// Review is set on a notice that marks its unit for horizon review.
 	Review bool `json:"review,omitempty"`

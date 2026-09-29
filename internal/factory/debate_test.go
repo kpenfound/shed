@@ -902,3 +902,202 @@ func TestApprovedAmendmentSeals(t *testing.T) {
 		t.Errorf("a refused approval moved the unit to %s", u.State)
 	}
 }
+
+//shed:proves S.shed.18 S.shed.17
+func TestSplitSoonAmendmentWaitsForTheOwner(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[concurrency]\nin_flight = 10\n[shed]\nmax_rounds = 2\namendment_rounds = 1\nbounce_threshold = 10\n")
+
+	// plan gives the kind of objection a member raises in a round, or ""
+	// for none. raised holds the IDs of the objections raised.
+	var mu sync.Mutex
+	var plan func(round, member int) string
+	var raised []string
+	fake.on(unit.Committee, "debate", func(turn session.Turn) session.Result {
+		var round, m int
+		_, _ = fmtSscanf(turn.Step, &round, &m)
+		mu.Lock()
+		kind := plan(round, m)
+		mu.Unlock()
+		if kind == "" {
+			return done("clean")
+		}
+		citation := "S.core.2"
+		if kind == tracker.HorizonObjection {
+			citation = "H.greet.2"
+		}
+		out, err := call(t, turn, "object", map[string]any{"kind": kind, "citations": []string{citation}, "text": "Goodbye need not be polite."})
+		must(t, err)
+		mu.Lock()
+		raised = append(raised, strings.Fields(out)[1])
+		mu.Unlock()
+		return done("objecting")
+	})
+	fake.on(unit.Painter, "reply", func(session.Turn) session.Result { return done("replied") })
+	debate := func(change string, p func(round, member int) string) Outcome {
+		t.Helper()
+		mu.Lock()
+		plan, raised = p, nil
+		mu.Unlock()
+		out, err := f.Debate(ctx, change)
+		must(t, err)
+		return out
+	}
+	clean := func(int, int) string { return "" }
+
+	// Members 1 and 2 hold horizon objections at the cap and member 3 holds
+	// none: the soon-tier amendment is split and goes to the owner.
+	split := func(round, member int) string {
+		if round == member && member < 3 {
+			return tracker.HorizonObjection
+		}
+		return ""
+	}
+	soon := proposeHorizon(t, f, soonHorizon)
+	if out := debate(soon, split); out != Contested {
+		t.Fatalf("a split soon-tier amendment = %s", out)
+	}
+	objections := append([]string(nil), raised...)
+	if len(objections) != 2 {
+		t.Fatalf("raised %v, want two objections", objections)
+	}
+	u, err := f.Tracker.Unit(soon)
+	must(t, err)
+	if u.State != unit.Contested || u.Bounces != 0 || u.Seal != nil {
+		t.Errorf("unit = %+v, want contested with no bounce and no seal", u)
+	}
+	ev := lastMoveOf(t, f, soon)
+	if ev.From != unit.Proposed || ev.To != unit.Contested || ev.Actor != unit.Shed || ev.Bounce {
+		t.Errorf("the move = %+v, want shed moving it from proposed to contested", ev)
+	}
+	for _, want := range append([]string{"soon"}, objections...) {
+		if !strings.Contains(ev.Reason, want) {
+			t.Errorf("the reason does not name %s: %q", want, ev.Reason)
+		}
+	}
+	if entries, _ := archive.Read(r.Dir); len(entries) != 0 {
+		t.Errorf("the split amendment was archived: %+v", entries)
+	}
+
+	// Every member holding an objection at the cap is no split: the
+	// soon-tier amendment is deferred.
+	unanimous := proposeHorizon(t, f, soonHorizon)
+	if out := debate(unanimous, func(round, member int) string {
+		if (round == 1 && member < 3) || (round == 2 && member == 3) {
+			return tracker.HorizonObjection
+		}
+		return ""
+	}); out != Deferred {
+		t.Errorf("a soon-tier amendment every member objects to = %s, want deferred", out)
+	}
+
+	// A standing objection of another kind is no split: it bounces.
+	mixed := proposeHorizon(t, f, soonHorizon)
+	if out := debate(mixed, func(round, member int) string {
+		switch {
+		case round == 1 && member == 1:
+			return tracker.HorizonObjection
+		case round == 1 && member == 2:
+			return tracker.SpecObjection
+		}
+		return ""
+	}); out != Bounced {
+		t.Errorf("a split with a spec objection standing = %s, want bounced", out)
+	}
+	if u, _ := f.Tracker.Unit(mixed); u.State != unit.Proposed || u.Bounces != 1 {
+		t.Errorf("the bounced unit = %+v", u)
+	}
+
+	// A split over a near, distant or eventual amendment, or over a
+	// proposal with no horizon amendment, is deferred.
+	for name, horizon := range map[string]string{"near": nearHorizon, "distant": distantHorizon, "eventual": eventualHorizon} {
+		change := proposeHorizon(t, f, horizon)
+		if out := debate(change, split); out != Deferred {
+			t.Errorf("a split %s-tier amendment = %s, want deferred", name, out)
+		}
+	}
+	if out := debate(propose(t, f), split); out != Deferred {
+		t.Errorf("a split proposal with no horizon amendment = %s, want deferred", out)
+	}
+
+	// The owner retries the split unit: it goes back to its painter with
+	// the objections that stood at the cap as the reason, counts no bounce,
+	// and its next debate starts afresh from round one.
+	must(t, f.Tracker.Retry(soon, "Look at politeness again."))
+	u, err = f.Tracker.Unit(soon)
+	must(t, err)
+	if u.State != unit.Proposed || u.Bounces != 0 || u.Round != 0 {
+		t.Errorf("after the retry = %+v, want proposed at round 0 with no bounce", u)
+	}
+	for _, id := range objections {
+		if !strings.Contains(u.Reason, id) {
+			t.Errorf("the retried unit's reason does not name %s: %q", id, u.Reason)
+		}
+	}
+	if standing, _ := f.Tracker.Standing(soon); len(standing) != 0 {
+		t.Errorf("objections of the old debate still stand: %+v", standing)
+	}
+	committee := len(fake.ran(unit.Committee))
+	if out := debate(soon, clean); out != Sealed {
+		t.Fatalf("the retried unit's debate = %s", out)
+	}
+	turns := fake.ran(unit.Committee)[committee:]
+	if len(turns) != 3 {
+		t.Errorf("%d committee sessions after the retry, want 3 members for 1 round", len(turns))
+	}
+	for _, turn := range turns {
+		if !strings.HasPrefix(turn.Step, "debate round 1") {
+			t.Errorf("the retried unit's debate ran %s, want round 1", turn.Step)
+		}
+	}
+
+	// The owner approves a split unit: its next debate runs no round and
+	// seals it.
+	approved := proposeHorizon(t, f, soonHorizon)
+	if out := debate(approved, split); out != Contested {
+		t.Fatalf("a split soon-tier amendment = %s", out)
+	}
+	const why = "Politeness is where the tool is going."
+	must(t, f.Tracker.Approve(approved, why))
+	if ev := lastMoveOf(t, f, approved); ev.From != unit.Contested || ev.To != unit.Proposed || ev.Actor != unit.Owner || ev.Reason != why {
+		t.Errorf("the approval's move = %+v", ev)
+	}
+	committee, painter := len(fake.ran(unit.Committee)), len(fake.ran(unit.Painter))
+	if out := debate(approved, split); out != Sealed {
+		u, _ := f.Tracker.Unit(approved)
+		t.Fatalf("an approved split unit = %s: %+v", out, u)
+	}
+	if n := len(fake.ran(unit.Committee)) - committee; n != 0 {
+		t.Errorf("the approved unit's debate ran %d committee sessions", n)
+	}
+	if n := len(fake.ran(unit.Painter)) - painter; n != 0 {
+		t.Errorf("the approved unit's debate ran %d painter sessions", n)
+	}
+	commit, err := f.Repo.Commit(ctx, approved)
+	must(t, err)
+	if got := r.Git("show", commit+":horizon.md"); !strings.Contains(got, "goodbye politely") {
+		t.Errorf("the sealed horizon lacks the approved amendment:\n%s", got)
+	}
+
+	// In the amendment lane a split at the cap rejects the amendment,
+	// restoring the horizon of the last seal.
+	lane := propose(t, f)
+	if out := debate(lane, clean); out != Sealed {
+		t.Fatalf("debate = %s", out)
+	}
+	must(t, f.Tracker.Reopen(lane, unit.Mechanic, "the mechanic requested an amendment:\nS.core.2 should say more.", true))
+	dir, err := f.Repo.Workspace(ctx, lane)
+	must(t, err)
+	write(t, dir, "spec/core.md", strings.Replace(goodbyeSpec, "prints goodbye.", "prints the word goodbye.", 1))
+	write(t, dir, "horizon.md", soonHorizon)
+	if out := debate(lane, split); out != Sealed {
+		u, _ := f.Tracker.Unit(lane)
+		t.Fatalf("a split soon-tier amendment in the amendment lane = %s, want the amendment rejected: %+v", out, u)
+	}
+	commit, err = f.Repo.Commit(ctx, lane)
+	must(t, err)
+	if got := r.Git("show", commit+":horizon.md"); strings.Contains(got, "goodbye politely") {
+		t.Errorf("the rejected amendment's horizon was kept:\n%s", got)
+	}
+}

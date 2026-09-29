@@ -37,6 +37,10 @@ type Unit struct {
 	Amendments int
 	// Round is the round of the unit's current debate.
 	Round int
+	// Cycle counts the unit's debates before the current one. Each bounce
+	// starts a new debate, and so does the owner's retry of a split
+	// debate (S.shed.18).
+	Cycle int
 	// Reason is the reason given for the unit's latest move.
 	Reason string
 	Shelf  unit.Shelf
@@ -158,10 +162,10 @@ func loadUnit(q querier, change string) (Unit, error) {
 	u := Unit{Change: change}
 	var opened, updated, shelf, state, openedBy string
 	var actual bool
-	err := q.QueryRow(`SELECT title, opened_by, state, bounces, amendments, round, reason, shelf, landed, actual, review, opened_at, updated_at,
+	err := q.QueryRow(`SELECT title, opened_by, state, bounces, amendments, round, cycle, reason, shelf, landed, actual, review, opened_at, updated_at,
 		(SELECT COALESCE(SUM(cost_usd), 0) FROM sessions WHERE change = units.change)
 		FROM units WHERE change = ?`, change).
-		Scan(&u.Title, &openedBy, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Reason, &shelf, &u.Landed, &actual, &u.Review, &opened, &updated, &u.CostUSD)
+		Scan(&u.Title, &openedBy, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Cycle, &u.Reason, &shelf, &u.Landed, &actual, &u.Review, &opened, &updated, &u.CostUSD)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Unit{}, fmt.Errorf("unit %s: %w", unit.Short(change), ErrNotFound)
 	}
@@ -329,6 +333,9 @@ func Describe(e Event) string {
 		}
 		if e.Tier != "" {
 			fmt.Fprintf(&b, " (%s horizon amendment)", e.Tier)
+			if e.Split {
+				b.WriteString(" (split debate)")
+			}
 		}
 		if e.Shelf != "" {
 			fmt.Fprintf(&b, " on the %s shelf", e.Shelf)
@@ -360,6 +367,8 @@ func Describe(e Event) string {
 		fmt.Fprintf(&b, "notice %s delivered", e.Notice.ID)
 	case UnitBounced:
 		b.WriteString("bounced back to the proposer")
+	case UnitRestarted:
+		b.WriteString("sent back to the proposer with no bounce counted")
 	case UnitRetitled:
 		fmt.Fprintf(&b, "retitled %q", e.Title)
 	case UnitReviewed:
