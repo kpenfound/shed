@@ -93,3 +93,59 @@ func TestSpecDiff(t *testing.T) {
 		t.Error("a set differs from itself")
 	}
 }
+
+//shed:proves S.horizon.11
+func TestNewNearAndSoonClausesNameTheirParent(t *testing.T) {
+	r := testrepo.Minimal(t)
+	head := `# Horizon
+
+- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (soon) The tool says goodbye.
+- **H.greet.3** (distant) The tool greets in any language, within C2.
+- **H.greet.4** (eventual) The tool greets everyone.
+- **H.greet.5** (soon, refines H.greet.3) The tool greets in French.
+- **H.greet.6** (distant) The tool greets in song.
+`
+	r.Write("horizon.md", head)
+	work := `# Horizon
+
+- **H.greet.1** (soon, realised) The tool says hello.
+- **H.greet.2** (near) The tool says goodbye politely.
+- **H.greet.3** (distant) The tool greets in any language, within C2.
+- **H.greet.4** (eventual) The tool greets everyone.
+- **H.greet.5** (soon) The tool greets in French.
+- **H.greet.6** (soon) The tool greets in song.
+- **H.greet.7** (near) The tool greets by name.
+- **H.greet.8** (soon, refines H.greet.4) The tool greets crowds.
+- **H.greet.9** (distant) The tool greets in writing.
+`
+	// Outside git there is no HEAD to compare against.
+	r.Write("horizon.md", work)
+	if got := history(t, r); len(got) != 0 {
+		t.Fatalf("outside git: %s", messages(got))
+	}
+
+	r.Write("horizon.md", head)
+	r.Init()
+	r.Commit("documents")
+	if got := history(t, r); len(got) != 0 {
+		t.Fatalf("at HEAD: %s", messages(got))
+	}
+
+	// H.greet.2 was soon without a refines tag at HEAD, so it may keep
+	// lacking one even as its tier and text change. H.greet.5 dropped its
+	// tag, H.greet.6 left the distant tier and H.greet.7 is new.
+	r.Write("horizon.md", work)
+	wantProblems(t, history(t, r),
+		"horizon.md:7: H.greet.5 is soon and names no distant or eventual clause it refines",
+		"horizon.md:8: H.greet.6 is soon and names no distant or eventual clause it refines",
+		"horizon.md:9: H.greet.7 is near and names no distant or eventual clause it refines",
+	)
+
+	// Once HEAD holds them at near or soon without a tag, they may keep
+	// lacking one.
+	r.Commit("untagged clauses")
+	if got := history(t, r); len(got) != 0 {
+		t.Errorf("after commit: %s", messages(got))
+	}
+}

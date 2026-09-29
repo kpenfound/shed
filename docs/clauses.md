@@ -59,6 +59,12 @@ a `refines` tag:
 `refines` tag, and one naming anything other than a distant or eventual clause
 in the horizon.
 
+In a git repository, a new near or soon clause must carry a `refines` tag.
+`shed check` refuses a working tree that leaves a near or soon clause without
+one when, on HEAD, that clause was absent, was distant or eventual, or carried
+a `refines` tag. A near or soon clause that HEAD already holds at near or soon
+without a `refines` tag may keep lacking one, however else it changes.
+
 ### Spec clauses
 
 A spec clause opens with the horizon clauses it advances:

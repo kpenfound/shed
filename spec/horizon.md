@@ -30,3 +30,9 @@
   (S.paint.2), show for each listed clause that refines another (S.horizon.6)
   the ID and tier of the clause it refines. A listed clause with no
   `refines` tag shows none.
+- **S.horizon.11** (H.hz.3) In a git repository, shed refuses a working
+  tree change that leaves a near or soon horizon clause without a `refines`
+  tag (S.horizon.6) when that clause, on HEAD, was absent, was distant or
+  eventual, or carried a `refines` tag. A near or soon clause that HEAD
+  already holds at near or soon without a `refines` tag may keep lacking
+  one, whatever else in it changes.
