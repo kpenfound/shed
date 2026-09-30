@@ -188,6 +188,30 @@ func (t *Tracker) Bounce(change string, actor unit.Actor, reason string) error {
 	return err
 }
 
+// UncountedBounce sends a proposed unit back to its painter as Bounce does,
+// but counts no bounce toward S.unit.6's threshold: shed calls it for a
+// sealing rebase that leaves an unresolved conflict under spec/ that a
+// landing brought in after the painter's latest capture (S.vcs.17). It still
+// moves the unit to contested, with a notice for the owner, once the run of
+// uncounted bounces since the unit opened or was last sealed exceeds the
+// operator's bounce threshold.
+func (t *Tracker) UncountedBounce(change string, actor unit.Actor, reason string) error {
+	if strings.TrimSpace(reason) == "" {
+		return errors.New("a bounce needs a reason")
+	}
+	_, err := t.write(func(tx *sql.Tx) ([]Event, error) {
+		if err := requireState(tx, change, unit.Proposed); err != nil {
+			return nil, err
+		}
+		contested, err := t.overUncountedThreshold(tx, change)
+		if err != nil {
+			return nil, err
+		}
+		return append([]Event{{Kind: UnitBounceUncounted, Unit: change, Actor: actor, Reason: reason}}, contested...), nil
+	})
+	return err
+}
+
 // ContestTier moves a proposed unit whose horizon amendment is distant or
 // eventual to contested for the owner, with shed as actor, and counts no
 // bounce (S.shed.16). The owner is notified.

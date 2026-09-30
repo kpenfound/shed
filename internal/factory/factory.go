@@ -183,6 +183,11 @@ func (f *Factory) session(ctx context.Context, w work) (session.Result, error) {
 		if _, err := f.Repo.Capture(ctx, w.Unit.Change, view); err != nil {
 			return res, fmt.Errorf("capturing the session's work: %w", err)
 		}
+		if w.Role == unit.Painter {
+			if err := f.recordPainterCapture(ctx, w.Unit.Change); err != nil {
+				return res, fmt.Errorf("recording the painter session's capture: %w", err)
+			}
+		}
 	}
 	return res, nil
 }

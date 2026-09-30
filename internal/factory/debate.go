@@ -604,7 +604,10 @@ func (f *Factory) farTier(ctx context.Context, change string) (string, string, e
 
 // seal seals a unit, against main as it is now, with a reason. Its change
 // is first rebased onto that main commit, and a rebase that fails or
-// conflicts under spec/ bounces the unit instead (S.vcs.10).
+// conflicts under spec/ bounces the unit instead (S.vcs.10). A spec/
+// conflict counts no bounce when the painter's latest captured session
+// (S.vcs.4) found spec/ clean, since the conflict then came in by a landing
+// after that capture (S.vcs.17).
 func (f *Factory) seal(ctx context.Context, u tracker.Unit, reason string) (Outcome, error) {
 	if full, err := f.inFlightFull(u.Change); err != nil || full {
 		return Waiting, err
@@ -613,9 +616,18 @@ func (f *Factory) seal(ctx context.Context, u tracker.Unit, reason string) (Outc
 	if err != nil {
 		return "", err
 	}
-	if why, err := f.onSeal(ctx, u.Change, commit); err != nil || why != "" {
+	if why, specConflict, err := f.onSeal(ctx, u.Change, commit); err != nil || why != "" {
 		if err != nil {
 			return "", err
+		}
+		if specConflict {
+			saw, err := f.Tracker.PainterSawSpecConflict(u.Change)
+			if err != nil {
+				return "", err
+			}
+			if !saw {
+				return f.bounceUncounted(u, why)
+			}
 		}
 		return f.bounce(u, why)
 	}
@@ -728,13 +740,30 @@ func (f *Factory) rejectAmendment(ctx context.Context, u tracker.Unit, lane amen
 	return Sealed, nil
 }
 
-// bounce sends a proposal back to its painter, and reports whether that
-// made it contested.
+// bounce sends a proposal back to its painter, counting a bounce, and
+// reports whether that made it contested.
 func (f *Factory) bounce(u tracker.Unit, reason string) (Outcome, error) {
 	if err := f.Tracker.Bounce(u.Change, unit.Committee, reason); err != nil {
 		return "", err
 	}
-	after, err := f.Tracker.Unit(u.Change)
+	return f.afterBounce(u.Change)
+}
+
+// bounceUncounted sends a proposal back to its painter for a sealing rebase
+// conflict under spec/ that a landing brought in after the painter's latest
+// capture, counting no bounce (S.vcs.17), and reports whether that still
+// made it contested.
+func (f *Factory) bounceUncounted(u tracker.Unit, reason string) (Outcome, error) {
+	if err := f.Tracker.UncountedBounce(u.Change, unit.Committee, reason); err != nil {
+		return "", err
+	}
+	return f.afterBounce(u.Change)
+}
+
+// afterBounce reports whether a bounce, counted or not, made a unit
+// contested.
+func (f *Factory) afterBounce(change string) (Outcome, error) {
+	after, err := f.Tracker.Unit(change)
 	if err != nil {
 		return "", err
 	}

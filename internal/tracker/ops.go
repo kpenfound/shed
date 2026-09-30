@@ -368,6 +368,33 @@ func (t *Tracker) overThreshold(tx *sql.Tx, change string) ([]Event, error) {
 	}, nil
 }
 
+// overUncountedThreshold returns the events that make a unit contested when
+// the uncounted bounce about to be recorded leaves it with more uncounted
+// bounces since it opened or was last sealed than the operator's bounce
+// threshold (S.vcs.17). It counts no bounce itself.
+func (t *Tracker) overUncountedThreshold(tx *sql.Tx, change string) ([]Event, error) {
+	var n int
+	if err := tx.QueryRow(`SELECT uncounted_bounces FROM units WHERE change = ?`, change).Scan(&n); err != nil {
+		return nil, err
+	}
+	n++
+	if n <= t.opts.BounceThreshold {
+		return nil, nil
+	}
+	times := "times"
+	if n == 1 {
+		times = "time"
+	}
+	reason := fmt.Sprintf("landings kept bringing conflicts under spec/ %d %s, over the threshold of %d, so a unit that landings keep conflicting with still reaches the owner", n, times, t.opts.BounceThreshold)
+	return []Event{
+		{Kind: UnitMoved, Unit: change, Actor: unit.Shed, From: unit.Proposed, To: unit.Contested, Reason: reason},
+		{Kind: NoticeAdded, Unit: change, Actor: unit.Shed, Notice: &NoticeEv{
+			Audience: string(unit.Owner), Kind: "contested",
+			Body: fmt.Sprintf("Unit %s is contested: %s.", unit.Short(change), reason),
+		}},
+	}, nil
+}
+
 // checkFootprint refuses a footprint with malformed IDs, and one that
 // depends on a clause missing from main: one another unit is adding and has
 // not landed, or one no unit has. A clause the unit modifies itself is not a
@@ -595,4 +622,34 @@ func (t *Tracker) RecordRebase(change, lander, outcome string) error {
 			Rebased: &RebasedEv{Lander: lander, Outcome: outcome}}}, nil
 	})
 	return err
+}
+
+// RecordPainterCapture records, each time shed captures the directory of
+// one of a unit's painter sessions (S.vcs.4), whether spec/ then holds an
+// unresolved conflict (S.vcs.12). It changes no unit's state.
+func (t *Tracker) RecordPainterCapture(change string, specConflict bool) error {
+	_, err := t.write(func(tx *sql.Tx) ([]Event, error) {
+		if _, err := stateOf(tx, change); err != nil {
+			return nil, err
+		}
+		return []Event{{Kind: UnitPainterCaptured, Unit: change, Actor: unit.Shed, SpecConflict: specConflict}}, nil
+	})
+	return err
+}
+
+// PainterSawSpecConflict reports whether the latest capture of one of a
+// unit's painter session (S.vcs.4) found spec/ holding an unresolved
+// conflict. A unit with no such capture reports true, since nothing
+// establishes that a conflict a sealing rebase later finds came in after a
+// painter saw it (S.vcs.17).
+func (t *Tracker) PainterSawSpecConflict(change string) (bool, error) {
+	var captured, conflict int
+	err := t.db.QueryRow(`SELECT painter_captured, painter_spec_conflict FROM units WHERE change = ?`, change).Scan(&captured, &conflict)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, fmt.Errorf("unit %s: %w", unit.Short(change), ErrNotFound)
+	}
+	if err != nil {
+		return false, err
+	}
+	return captured == 0 || conflict != 0, nil
 }

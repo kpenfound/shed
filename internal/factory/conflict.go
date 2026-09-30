@@ -224,6 +224,18 @@ func conflictedRegions(src string, recorded []string) string {
 	return strings.Join(lines[first:last+1], "\n")
 }
 
+// recordPainterCapture records, at a capture of one of a unit's painter
+// sessions (S.vcs.4), whether spec/ then holds an unresolved conflict
+// (S.vcs.12), so a later sealing bounce can tell a conflict the painter was
+// given and left from one a landing brought in after (S.vcs.17).
+func (f *Factory) recordPainterCapture(ctx context.Context, change string) error {
+	conflicts, err := f.specConflicted(ctx, change)
+	if err != nil {
+		return err
+	}
+	return f.Tracker.RecordPainterCapture(change, conflicts != "")
+}
+
 // conflictSection tells a unit's mechanic of each file on its change that
 // holds an unresolved conflict (S.vcs.10, S.vcs.12), or returns nil when
 // none does.

@@ -177,6 +177,10 @@ rebase that fails, or that leaves an unresolved conflict in any file under
 `spec/`, seals nothing and bounces the unit to its painter, as
 [debate](autopilot.md#debate) describes. A failed rebase leaves the change as
 it was; a conflicted one keeps its rebased files for the painter to resolve.
+Whether a `spec/` conflict's bounce counts toward the bounce threshold
+depends on whether the painter's latest session already saw it and left it,
+as [debate](autopilot.md#debate) describes; a conflict a landing brought in
+after that session counts no bounce.
 
 ## Unresolved conflicts
 

@@ -369,6 +369,14 @@ func Describe(e Event) string {
 		b.WriteString("bounced back to the proposer")
 	case UnitRestarted:
 		b.WriteString("sent back to the proposer with no bounce counted")
+	case UnitBounceUncounted:
+		b.WriteString("bounced back to the painter with no bounce counted")
+	case UnitPainterCaptured:
+		if e.SpecConflict {
+			b.WriteString("painter session captured with spec/ conflicted")
+		} else {
+			b.WriteString("painter session captured with spec/ clean")
+		}
 	case UnitRetitled:
 		fmt.Fprintf(&b, "retitled %q", e.Title)
 	case UnitReviewed:

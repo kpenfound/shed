@@ -30,11 +30,20 @@ const (
 	// UnitRestarted sends a proposed unit back to its proposer to start a
 	// new debate, as a bounce does, without counting a bounce (S.shed.18).
 	UnitRestarted = "unit.restarted"
-	UnitRetitled  = "unit.retitled"
-	UnitEntangled = "unit.entangled"
-	UnitReviewed  = "unit.reviewed"
-	UnitHeld      = "debate.held"
-	RoundStarted  = "debate.round"
+	// UnitBounceUncounted sends a proposed unit back to its painter, as a
+	// bounce does, without counting toward S.unit.6's threshold: a sealing
+	// rebase left an unresolved conflict under spec/ that came in after the
+	// painter's latest capture (S.vcs.17).
+	UnitBounceUncounted = "unit.bounce_uncounted"
+	// UnitPainterCaptured records, each time shed captures the directory of
+	// one of a unit's painter sessions (S.vcs.4), whether spec/ then held an
+	// unresolved conflict (S.vcs.12, S.vcs.17).
+	UnitPainterCaptured = "unit.painter_captured"
+	UnitRetitled        = "unit.retitled"
+	UnitEntangled       = "unit.entangled"
+	UnitReviewed        = "unit.reviewed"
+	UnitHeld            = "debate.held"
+	RoundStarted        = "debate.round"
 	// Consensus records that a debate round ended with no objection
 	// standing while the cap on units in flight held the seal back.
 	Consensus       = "debate.consensus"
@@ -97,10 +106,13 @@ type Event struct {
 	HorizonAmendment *bool `json:"horizon_amendment,omitempty"`
 	// Sampled is set on the landing of a horizon amendment sampled to the
 	// owner.
-	Sampled   bool         `json:"sampled,omitempty"`
-	Session   *SessionEv   `json:"session,omitempty"`
-	Notice    *NoticeEv    `json:"notice,omitempty"`
-	Objection *ObjectionEv `json:"objection,omitempty"`
+	Sampled bool `json:"sampled,omitempty"`
+	// SpecConflict is set on a painter capture (S.vcs.17) that found spec/
+	// holding an unresolved conflict.
+	SpecConflict bool         `json:"spec_conflict,omitempty"`
+	Session      *SessionEv   `json:"session,omitempty"`
+	Notice       *NoticeEv    `json:"notice,omitempty"`
+	Objection    *ObjectionEv `json:"objection,omitempty"`
 	// Entangled is set on an entanglement advisory.
 	Entangled *EntangledEv `json:"entangled,omitempty"`
 	// Rebased is set when a landing's rebase of a unit is recorded.

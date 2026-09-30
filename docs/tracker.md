@@ -51,6 +51,13 @@ proposed -> sealed -> implementing -> verifying -> queued -> landed
   round cap over a soon one, without counting a bounce. Shed leaves a notice for the owner and keeps working on other
   units. A unit leaves `contested` only on the owner's answer: back to
   `proposed`, or to the deferred or rejected shelf.
+- A sealing bounce for a `spec/` conflict a landing brought in after the
+  painter's latest session saw `spec/` clean counts no bounce toward
+  `bounce_threshold`, since the painter never had the conflict to leave.
+  Such an uncounted bounce still runs its own count, since the unit opened
+  or was last sealed, and crossing `bounce_threshold` on that count alone
+  still moves the unit to `contested`, with a notice that landings kept
+  bringing conflicts under `spec/`. See [debate](autopilot.md#debate).
 - `landed` and `archived` are terminal. An archived unit rests on the
   `rejected` or `deferred` shelf.
 

@@ -456,7 +456,7 @@ func TestSealingRebasesOntoTheSealsMain(t *testing.T) {
 	}
 }
 
-//shed:proves S.vcs.10
+//shed:proves S.vcs.10 S.vcs.17
 func TestFailedSealingRebaseBounces(t *testing.T) {
 	r := project(t)
 	fake := newFake(t)
@@ -668,6 +668,193 @@ func TestPainterMarkersBlockTheSeal(t *testing.T) {
 	if out, err := f.Debate(ctx, hola); err != nil || out != Sealed {
 		u, _ := f.Tracker.Unit(hola)
 		t.Fatalf("debate once the painter resolved the markers = %s, %v: %q", out, err, u.Reason)
+	}
+}
+
+// bounceNoBounceLine returns the description of a unit's events that says a
+// bounce counted no bounce, or "" when none does.
+func bounceNoBounceLine(t *testing.T, f *Factory, change string) string {
+	t.Helper()
+	events, err := f.Tracker.Events(change)
+	must(t, err)
+	for _, e := range events {
+		if line := tracker.Describe(e); strings.Contains(line, "no bounce") {
+			return line
+		}
+	}
+	return ""
+}
+
+//shed:proves S.vcs.17
+func TestSealingBounceCountsOnlyIfThePainterSawTheConflict(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[concurrency]\ncommittee = 1\n[shed]\nmax_rounds = 2\nbounce_threshold = 10\n")
+
+	// A proposal whose painter's latest captured session found spec/ clean:
+	// answering an unrelated round-1 objection, the painter's session sees
+	// no conflict, because the landing that will conflict has not yet been
+	// rebased onto the change. The conflict surfaces only when sealing
+	// rebases the change, so it came in after the painter's latest capture
+	// and the bounce counts no bounce.
+	change, err := f.Repo.NewUnit(ctx, "Hola")
+	must(t, err)
+	must(t, f.Tracker.OpenUnit(change, "Hola", unit.Painter))
+	dir, err := f.Repo.Workspace(ctx, change)
+	must(t, err)
+	write(t, dir, "spec/core.md", strings.Replace(testrepo.Spec, "prints hello.", "prints hola.", 1))
+	must(t, f.Declare(ctx, change, "", nil, []string{"H.greet.1"}, unit.Painter))
+
+	var main string
+	fake.on(unit.Committee, "debate", func(turn session.Turn) session.Result {
+		switch {
+		case strings.HasPrefix(turn.Step, "debate round 1"):
+			_, err := call(t, turn, "object", map[string]any{"kind": tracker.SizeObjection,
+				"citations": []string{"S.core.1", "H.greet.1"}, "text": "reconsider the wording"})
+			must(t, err)
+			// The landing happens once the round is under way. The change
+			// is not rebased onto it until sealing, so the painter's reply
+			// session below still sees spec/core.md clean.
+			main = landOther(t, f, "Newline", map[string]string{
+				"spec/core.md": strings.Replace(testrepo.Spec, "prints hello.", "prints hello and a newline.", 1)})
+			return done("objecting")
+		case strings.HasPrefix(turn.Step, "debate round 2"):
+			objs, err := f.Tracker.Standing(change)
+			must(t, err)
+			must(t, f.Tracker.Withdraw(objs[0].ID, 1, "reconsidered"))
+			return done("clean")
+		}
+		return done("clean")
+	})
+	fake.on(unit.Painter, "reply", func(turn session.Turn) session.Result {
+		got, err := os.ReadFile(filepath.Join(turn.Dir, "spec", "core.md"))
+		must(t, err)
+		if strings.Contains(string(got), "<<<<<<<") {
+			t.Errorf("the painter's reply session already sees a conflict:\n%s", got)
+		}
+		return done("replied")
+	})
+
+	if out, err := f.Debate(ctx, change); err != nil || out != Bounced {
+		u, _ := f.Tracker.Unit(change)
+		t.Fatalf("debate whose sealing rebase meets a landing-brought conflict = %s, %v: %q", out, err, u.Reason)
+	}
+	u, err := f.Tracker.Unit(change)
+	must(t, err)
+	if u.State != unit.Proposed || u.Bounces != 0 || u.Seal != nil || u.Round != 0 {
+		t.Errorf("an uncounted bounce = %+v, want proposed at round 0, no bounce counted and no seal", u)
+	}
+	for _, want := range []string{"spec/core.md", "S.core.1"} {
+		if !strings.Contains(u.Reason, want) {
+			t.Errorf("the bounce does not name %s: %q", want, u.Reason)
+		}
+	}
+	if line := bounceNoBounceLine(t, f, change); line == "" {
+		t.Error("the log does not state that the bounce counted no bounce")
+	}
+	if got := parent(t, f, r, change); got != main {
+		t.Errorf("the conflicted unit sits on %s, want the rebased change on %s", got, main)
+	}
+
+	// A fresh proposal with no painter session at all behaves as it did
+	// before S.vcs.17: nothing establishes that its conflict is
+	// landing-brought, so its sealing bounce counts normally.
+	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
+	baseline, err := f.Repo.NewUnit(ctx, "Baseline")
+	must(t, err)
+	must(t, f.Tracker.OpenUnit(baseline, "Baseline", unit.Painter))
+	bdir, err := f.Repo.Workspace(ctx, baseline)
+	must(t, err)
+	write(t, bdir, "spec/core.md", strings.Replace(testrepo.Spec, "prints hello.", "prints hola nicely.", 1))
+	must(t, f.Declare(ctx, baseline, "", nil, []string{"H.greet.1"}, unit.Painter))
+	landOther(t, f, "Warmer", map[string]string{
+		"spec/core.md": strings.Replace(testrepo.Spec, "prints hello.", "prints hello warmly.", 1)})
+	if out, err := f.Debate(ctx, baseline); err != nil || out != Bounced {
+		t.Fatalf("debate of a fresh proposal with no painter session = %s, %v", out, err)
+	}
+	if u, _ := f.Tracker.Unit(baseline); u.State != unit.Proposed || u.Bounces != 1 {
+		t.Errorf("a bounce with no prior painter capture = %+v, want one counted bounce", u)
+	}
+}
+
+//shed:proves S.vcs.17 S.unit.6
+func TestUncountedBouncesPastTheThresholdContest(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[concurrency]\ncommittee = 1\n[shed]\nmax_rounds = 2\nbounce_threshold = 1\n")
+
+	change, err := f.Repo.NewUnit(ctx, "Hola")
+	must(t, err)
+	must(t, f.Tracker.OpenUnit(change, "Hola", unit.Painter))
+	dir, err := f.Repo.Workspace(ctx, change)
+	must(t, err)
+	write(t, dir, "spec/core.md", strings.Replace(testrepo.Spec, "prints hello.", "prints hola.", 1))
+	must(t, f.Declare(ctx, change, "", nil, []string{"H.greet.1"}, unit.Painter))
+
+	// The first bounce: the painter's latest captured session, answering an
+	// unrelated objection, found spec/ clean. A landing conflicts with the
+	// change only afterwards, discovered when sealing rebases: it counts no
+	// bounce.
+	fake.on(unit.Committee, "debate", func(turn session.Turn) session.Result {
+		switch {
+		case strings.HasPrefix(turn.Step, "debate round 1"):
+			_, err := call(t, turn, "object", map[string]any{"kind": tracker.SizeObjection,
+				"citations": []string{"S.core.1", "H.greet.1"}, "text": "reconsider the wording"})
+			must(t, err)
+			landOther(t, f, "Newline", map[string]string{
+				"spec/core.md": strings.Replace(testrepo.Spec, "prints hello.", "prints hello and a newline.", 1)})
+			return done("objecting")
+		case strings.HasPrefix(turn.Step, "debate round 2"):
+			objs, err := f.Tracker.Standing(change)
+			must(t, err)
+			must(t, f.Tracker.Withdraw(objs[0].ID, 1, "reconsidered"))
+			return done("clean")
+		}
+		return done("clean")
+	})
+	fake.on(unit.Painter, "reply", func(session.Turn) session.Result { return done("replied") })
+
+	if out, err := f.Debate(ctx, change); err != nil || out != Bounced {
+		u, _ := f.Tracker.Unit(change)
+		t.Fatalf("first debate = %s, %v: %q", out, err, u.Reason)
+	}
+	if u, _ := f.Tracker.Unit(change); u.State != unit.Proposed || u.Bounces != 0 {
+		t.Fatalf("after the first uncounted bounce = %+v", u)
+	}
+
+	// The second bounce: the painter's own resolving session fixes the
+	// stored conflict cleanly, and a fresh landing conflicts with the fix
+	// only afterwards, again discovered only when sealing rebases: it also
+	// counts no bounce. But two uncounted bounces since the unit opened
+	// exceed the threshold of one, so the unit is contested for the owner.
+	resolved := strings.Replace(testrepo.Spec, "prints hello.", "prints hola and a newline.", 1)
+	fake.on(unit.Painter, "", func(turn session.Turn) session.Result {
+		write(t, turn.Dir, "spec/core.md", resolved)
+		landOther(t, f, "Warmly", map[string]string{
+			"spec/core.md": strings.Replace(resolved, "prints hola and a newline.", "prints hola and a newline, warmly.", 1)})
+		return done("replied")
+	})
+	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
+
+	out, err := f.Debate(ctx, change)
+	must(t, err)
+	if out != Contested {
+		u, _ := f.Tracker.Unit(change)
+		t.Fatalf("second debate = %s, want contested: %q", out, u.Reason)
+	}
+	u, err := f.Tracker.Unit(change)
+	must(t, err)
+	if u.State != unit.Contested || u.Bounces != 0 {
+		t.Errorf("after two uncounted bounces past the threshold = %+v", u)
+	}
+	if line := bounceNoBounceLine(t, f, change); line == "" {
+		t.Error("the log does not state that the second bounce counted no bounce")
+	}
+	notices, err := f.Tracker.Notices(unit.Owner, true)
+	must(t, err)
+	if len(notices) != 1 || notices[0].Unit != change ||
+		!strings.Contains(notices[0].Body, "spec/") || !strings.Contains(notices[0].Body, "landings") {
+		t.Errorf("owner notices = %+v", notices)
 	}
 }
 

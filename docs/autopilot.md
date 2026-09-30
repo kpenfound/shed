@@ -48,7 +48,25 @@ a reason naming the failure, or each file under `spec/` holding an
 unresolved conflict and each clause ID inside a conflicted region. A
 conflicted change keeps its rebased files, so the painter's next session
 sees the markers and resolves them before the committee debates the text
-again. At `shed.max_rounds` with objections still standing, the proposal
+again.
+
+A failed rebase always counts a bounce. A `spec/` conflict counts one only
+if shed's latest capture of one of the unit's painter sessions found
+`spec/` already conflicted then, since no rebase runs while a session runs,
+so a conflict that capture found is one the painter was given and left. A
+capture that instead found `spec/` clean means every such conflict at this
+sealing came from a landing after that capture, and the bounce counts for
+nothing toward `shed.bounce_threshold`: `shed unit log` records it and
+states that it counted no bounce. An uncounted bounce still runs its own
+count, of uncounted bounces since the unit opened or was last sealed, and
+crossing `shed.bounce_threshold` on that count alone still moves the unit
+to contested, with a notice for the owner that landings kept bringing
+conflicts under `spec/`, so a unit that landings keep conflicting with still
+reaches the owner even though its painter never leaves a conflict of its
+own unresolved. The run of uncounted bounces resets at every seal, so it
+tracks conflicts since the unit's current attempt began.
+
+At `shed.max_rounds` with objections still standing, the proposal
 bounces back to its painter and counts a bounce. Unless that bounce leaves
 it past `shed.bounce_threshold` bounces, when it is contested and waits for
 the owner's `shed answer`, it stays proposed and debates afresh next time.

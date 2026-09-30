@@ -253,17 +253,19 @@ func (f *Factory) follow(ctx context.Context, change string) (string, bool) {
 // onSeal rebases a unit's change onto the main commit its seal is to
 // record (S.vcs.10). It returns why the unit may not be sealed: the rebase
 // failed, which leaves the change as it was, or a file under spec/ holds a
-// conflict, which stays in the change. It returns "" when the unit may be
-// sealed, conflicts outside spec/ included.
-func (f *Factory) onSeal(ctx context.Context, change, main string) (string, error) {
+// conflict, which stays in the change; it reports the latter as a spec
+// conflict, so the caller can tell it from a failed rebase for S.vcs.17. It
+// returns "" and false when the unit may be sealed, conflicts outside spec/
+// included.
+func (f *Factory) onSeal(ctx context.Context, change, main string) (why string, specConflict bool, err error) {
 	if _, err := f.Repo.RebaseOnto(ctx, change, main); err != nil {
-		return fmt.Sprintf("sealing could not rebase the change onto main %s: %v", main, err), nil
+		return fmt.Sprintf("sealing could not rebase the change onto main %s: %v", main, err), false, nil
 	}
 	conflicts, err := f.specConflicted(ctx, change)
 	if err != nil || conflicts == "" {
-		return "", err
+		return "", false, err
 	}
-	return fmt.Sprintf("sealing rebased the change onto main %s and left conflicts under spec/ to resolve: %s", main, conflicts), nil
+	return fmt.Sprintf("sealing rebased the change onto main %s and left conflicts under spec/ to resolve: %s", main, conflicts), true, nil
 }
 
 // unreported returns the outcome of a landing that did not land, which has

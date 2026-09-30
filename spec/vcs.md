@@ -67,9 +67,9 @@
   resolve it against the sealed spec before other work. If that rebase
   fails, or leaves an unresolved conflict (S.vcs.12) in any file under
   `spec/`, nothing is sealed: the unit bounces to its painter as under
-  S.shed.6, staying proposed, counting a bounce and starting its next debate
-  afresh, with a reason that names the failure, or each file under `spec/`
-  holding an unresolved conflict and each clause ID
+  S.shed.6, counting a bounce except as S.vcs.17 says and, unless the
+  bounce, counted or not, moves it to contested under S.unit.6 or S.vcs.17,
+  staying proposed and starting its next debate afresh, with a reason that names the failure, or each file under `spec/` holding an unresolved conflict and each clause ID
   inside a conflicted region. A conflicted change keeps its rebased files, so
   the painter's next session sees the conflicts and resolves them before any
   member debates the text; a failed rebase leaves the change as it was.
@@ -128,3 +128,20 @@
   of a unit that is verifying, is still undone as S.vcs.10 says. `shed
   land` and the unit's log report a kept rebase as rebased with conflicts
   stored in its change (S.vcs.15).
+- **S.vcs.17** (H.vcs.7, H.unit.5) Each time shed captures the directory
+  of one of a unit's painter sessions (S.vcs.4), it records whether any file
+  under `spec/` then holds an unresolved conflict (S.vcs.12). No rebase runs
+  while a session runs (S.vcs.10), so such a conflict is one the painter was
+  given and left. A sealing that S.vcs.10 stops because its rebase leaves an
+  unresolved conflict (S.vcs.12) in a file under `spec/` counts a bounce
+  only if the latest such capture found one. Otherwise every conflict
+  under `spec/` came in by a landing after the painter's latest capture, and
+  the bounce leaves the unit's bounce count as it was: its reason is as
+  S.vcs.10 says, and `shed unit log` records the bounce and states that it
+  counted no bounce. An uncounted bounce that leaves the unit with more
+  uncounted bounces since it opened or was last sealed than the operator's
+  bounce threshold still counts no bounce, but moves the unit to contested
+  and leaves a notice for the owner as S.unit.6 says, saying that landings
+  kept bringing conflicts under `spec/`, so a unit that landings keep
+  conflicting with still reaches the owner. A sealing whose rebase fails
+  counts a bounce as S.vcs.10 says.

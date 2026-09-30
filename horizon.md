@@ -106,7 +106,7 @@ distant and get promoted as the soon tier drains.
   main fast-forward only, under the landing identity. The commit message comes
   from the unit's seal and spec diff and includes its change ID.
 - **H.vcs.6** (soon, realised) Nothing but landing moves main.
-- **H.vcs.7** (soon) After every landing shed rebases every in-flight unit
+- **H.vcs.7** (soon, realised) After every landing shed rebases every in-flight unit
   onto the new main. Conflicts are stored in the change and block nothing.
 - **H.vcs.8** (soon) Shed lists the in-flight units that carry stored
   conflicts, and their files, from jj alone.

@@ -99,6 +99,9 @@ CREATE TABLE IF NOT EXISTS units (
 	opened_by TEXT NOT NULL DEFAULT '',
 	state TEXT NOT NULL,
 	bounces INTEGER NOT NULL DEFAULT 0,
+	uncounted_bounces INTEGER NOT NULL DEFAULT 0,
+	painter_captured INTEGER NOT NULL DEFAULT 0,
+	painter_spec_conflict INTEGER NOT NULL DEFAULT 0,
 	amendments INTEGER NOT NULL DEFAULT 0,
 	shelf TEXT NOT NULL DEFAULT '',
 	reason TEXT NOT NULL DEFAULT '',
@@ -180,7 +183,7 @@ var tables = []string{"units", "seals", "footprints", "actual_footprints", "sess
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 11
+const schemaVersion = 12
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -396,6 +399,10 @@ func apply(tx *sql.Tx, e Event) error {
 				e.Unit, e.Seal.Main, e.Seal.Commit, at); err != nil {
 				return err
 			}
+			// A seal starts a fresh run of uncounted bounces (S.vcs.17).
+			if err := exec(`UPDATE units SET uncounted_bounces = 0 WHERE change = ?`, e.Unit); err != nil {
+				return err
+			}
 		}
 		if e.Actual != nil {
 			if err := exec(`UPDATE units SET actual = 1 WHERE change = ?`, e.Unit); err != nil {
@@ -444,6 +451,13 @@ func apply(tx *sql.Tx, e Event) error {
 	case UnitRestarted:
 		// A new debate, as after a bounce, with no bounce counted.
 		return exec(`UPDATE units SET cycle = cycle + 1, round = 0, reason = ?, updated_at = ? WHERE change = ?`, e.Reason, at, e.Unit)
+	case UnitBounceUncounted:
+		// A new debate, as after a bounce, with no bounce counted toward
+		// S.unit.6's threshold, but counted toward S.vcs.17's own (reset at
+		// each seal).
+		return exec(`UPDATE units SET uncounted_bounces = uncounted_bounces + 1, cycle = cycle + 1, round = 0, reason = ?, updated_at = ? WHERE change = ?`, e.Reason, at, e.Unit)
+	case UnitPainterCaptured:
+		return exec(`UPDATE units SET painter_captured = 1, painter_spec_conflict = ? WHERE change = ?`, boolInt(e.SpecConflict), e.Unit)
 	case UnitEntangled, UnitRebased, Consensus:
 		return nil
 	case UnitReviewed:
