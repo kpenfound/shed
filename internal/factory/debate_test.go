@@ -29,6 +29,7 @@ func TestDebateSealsOnConsensus(t *testing.T) {
 	fake := newFake(t)
 	f := open(t, r, fake, "")
 	change := propose(t, f)
+	must(t, f.Declare(ctx, change, "", nil, []string{"H.greet.2"}, unit.Painter))
 	main, err := f.Repo.MainCommit(ctx)
 	must(t, err)
 
@@ -54,6 +55,9 @@ func TestDebateSealsOnConsensus(t *testing.T) {
 			mu.Unlock()
 			return done("objecting")
 		}
+		if !strings.Contains(turn.Bundle, "Depends on: S.core.1") {
+			t.Errorf("next round lacks declared dependency: %s", turn.Bundle)
+		}
 		if !strings.Contains(turn.Bundle, "Answer: It prints goodbye.") || !strings.Contains(turn.Bundle, "Your standing objections") {
 			t.Errorf("round 2 bundle lacks the debate record:\n%s", turn.Bundle)
 		}
@@ -66,6 +70,8 @@ func TestDebateSealsOnConsensus(t *testing.T) {
 			t.Errorf("reply turn: writable %v, bundle:\n%s", turn.Writable, turn.Bundle)
 		}
 		_, err := call(t, turn, "answer", map[string]any{"objection": objection, "text": "It prints goodbye."})
+		must(t, err)
+		_, err = call(t, turn, "declare", map[string]any{"depends": []string{"S.core.1"}})
 		must(t, err)
 		write(t, turn.Dir, "spec/core.md", strings.Replace(goodbyeSpec, "prints goodbye.", "prints the word goodbye.", 1))
 		return done("replied")
@@ -494,6 +500,13 @@ func TestAmendmentLaneKeepsToTheSealedScope(t *testing.T) {
 	revision := ""
 	fake.on(unit.Painter, "reply", func(turn session.Turn) session.Result {
 		write(t, turn.Dir, "spec/core.md", revision)
+		if strings.Contains(revision, "S.core.4") {
+			_, err := call(t, turn, "declare", map[string]any{"depends": []string{"S.core.1", "S.core.4"}})
+			must(t, err)
+		} else {
+			_, err := call(t, turn, "declare", map[string]any{"depends": []string{"S.core.1"}})
+			must(t, err)
+		}
 		return done("replied")
 	})
 

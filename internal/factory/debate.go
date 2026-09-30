@@ -434,6 +434,13 @@ func (f *Factory) reply(ctx context.Context, u tracker.Unit, round int, lane ame
 		Objection string `json:"objection" jsonschema:"the objection's ID"`
 		Text      string `json:"text" jsonschema:"your answer, citing clause IDs"`
 	}
+	type declareIn struct {
+		Depends  *[]string `json:"depends,omitempty" jsonschema:"Replace the spec dependencies; omit to preserve, empty array to clear."`
+		Advances *[]string `json:"advances,omitempty" jsonschema:"Replace the horizon clauses advanced; omit to preserve, empty array to clear."`
+	}
+	var mu sync.Mutex
+	fp := u.Footprint
+	declared := false
 	res, err := f.session(ctx, work{
 		Unit: u, Role: unit.Painter, Prompt: roles.PainterReply, Writable: true,
 		Step: fmt.Sprintf("reply to round %d", round),
@@ -445,6 +452,32 @@ func (f *Factory) reply(ctx context.Context, u tracker.Unit, round int, lane ame
 						return "", err
 					}
 					return "answer recorded", nil
+				}), session.NewTool("declare", "Update this proposal's dependencies and horizon advances for the next round. Omitted fields are preserved.",
+				func(_ context.Context, in declareIn) (string, error) {
+					for _, field := range []struct {
+						ids  *[]string
+						kind clause.Kind
+					}{{in.Depends, clause.Spec}, {in.Advances, clause.Horizon}} {
+						if field.ids == nil {
+							continue
+						}
+						for _, raw := range *field.ids {
+							id, err := clause.ParseID(raw)
+							if err != nil || id.Kind != field.kind {
+								return "", fmt.Errorf("invalid declaration clause %q", raw)
+							}
+						}
+					}
+					mu.Lock()
+					defer mu.Unlock()
+					if in.Depends != nil {
+						fp.Depends = slices.Clone(*in.Depends)
+					}
+					if in.Advances != nil {
+						fp.Advances = slices.Clone(*in.Advances)
+					}
+					declared = true
+					return "declaration staged; validated and recorded after the reply is captured", nil
 				})}
 		},
 		Outcomes: []string{outcomeReplied},
@@ -454,6 +487,11 @@ func (f *Factory) reply(ctx context.Context, u tracker.Unit, round int, lane ame
 	}
 	if res.Failure != session.NoFailure {
 		return fmt.Errorf("the painter's reply: %s: %s", res.Failure, res.Reason)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if declared {
+		return f.Declare(ctx, u.Change, "", fp.Depends, fp.Advances, unit.Painter)
 	}
 	return nil
 }

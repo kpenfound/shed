@@ -17,7 +17,15 @@
   would change the decision.
 - **S.shed.5** (H.shed.5) Between rounds the painter answers the standing
   objections once, with the `answer` tool, and may revise the proposal's
-  files. An objection stands until the member who raised it withdraws it with
+  files. Its `declare` tool replaces the dependencies or horizon advances
+  supplied, preserving omitted fields and clearing a list supplied empty.
+  After a successful reply is captured, shed validates the declaration under
+  S.unit.7 and S.fp.2 and records it with the painter as actor, computing
+  modified clauses from the captured files before the next round. A failed
+  reply records no declaration; an invalid declaration stops the debate
+  without replacing the footprint. Declaration updates do not widen the
+  amendment scope recorded at the last seal (S.shed.12).
+  An objection stands until the member who raised it withdraws it with
   the `withdraw` tool; no one else can withdraw it.
 - **S.shed.6** (H.shed.6) When no objection stands after a round, the unit is
   sealed. The round cap is `shed.max_rounds`, and reaching it approves

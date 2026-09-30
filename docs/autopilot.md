@@ -35,7 +35,11 @@ that must resolve, in one of four kinds:
 | `spec` | A clause is ambiguous, untestable or wrong. | Stands until withdrawn. |
 
 Between rounds the painter answers each standing objection once with
-`answer`, and may revise the files. Only the member who raised an objection
+`answer`, and may revise the files. Its `declare` tool updates dependencies
+and horizon advances: supplied lists replace their fields, omitted fields
+are preserved, and empty lists clear them. Shed validates and records the
+update after capturing a successful reply, before the next committee round.
+A declaration update does not widen an amendment's scope beyond its last seal. Only the member who raised an objection
 can withdraw it. With no objection standing, the unit is sealed against
 main's current commit and the commit its change points to. Sealing first
 rebases the change onto that main commit, so a sealed unit's change is
