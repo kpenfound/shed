@@ -203,6 +203,46 @@ func (r *Repo) RebaseOnto(ctx context.Context, change, commit string) (bool, err
 	return r.rebase(ctx, change, false, commit, true)
 }
 
+// FollowUnless rebases a unit's change onto main as Follow does, unless the
+// rebase would leave a conflict in a file bad reports true for: then, as
+// FollowClean does when a rebase would conflict at all, the change and its
+// workspace are left exactly as they were. It reports whether the rebase was
+// kept, even conflicted, and whether the kept or refused change holds a
+// conflict in some file.
+func (r *Repo) FollowUnless(ctx context.Context, change string, bad func(files []string) bool) (kept, conflicted bool, err error) {
+	unlock, err := r.lock()
+	if err != nil {
+		return false, false, err
+	}
+	defer unlock()
+	w, err := r.workspaceOf(ctx, change)
+	if err != nil {
+		return false, false, err
+	}
+	if err := r.importGit(ctx); err != nil {
+		return false, false, err
+	}
+	done, err := r.checkpoint(ctx, "rebase "+change)
+	if err != nil {
+		return false, false, err
+	}
+	defer func() { err = done(err) }()
+	if _, err := r.run(ctx, w.dir, shedIdentity, "util", "snapshot"); err != nil {
+		return false, false, err
+	}
+	conflicted, files, err := r.trialRebase(ctx, change, r.mainRevset())
+	if err != nil {
+		return false, false, err
+	}
+	if conflicted && bad(files) {
+		return false, true, nil
+	}
+	if _, err := r.run(ctx, w.dir, shedIdentity, "rebase", "-s", "@", "-d", r.mainRevset()); err != nil {
+		return false, false, err
+	}
+	return true, conflicted, nil
+}
+
 // rebase rebases a unit's change onto dest under a checkpoint of its own, so
 // a rebase that fails or is interrupted is restored and nothing else is.
 // Unless keep is set, a rebase that would conflict is not made: a copy of
@@ -235,7 +275,7 @@ func (r *Repo) rebase(ctx context.Context, change string, fetch bool, dest strin
 		if _, err := r.run(ctx, w.dir, shedIdentity, "util", "snapshot"); err != nil {
 			return false, err
 		}
-		if conflicts, err := r.trialRebase(ctx, change, dest); err != nil || conflicts {
+		if conflicts, _, err := r.trialRebase(ctx, change, dest); err != nil || conflicts {
 			return conflicts, err
 		}
 	}
@@ -247,34 +287,51 @@ func (r *Repo) rebase(ctx context.Context, change string, fetch bool, dest strin
 }
 
 // trialRebase reports whether rebasing a unit's change onto dest would
-// conflict, without rewriting the change: a scratch commit holding the
-// change's files on the change's parent is rebased instead, and abandoned.
-func (r *Repo) trialRebase(ctx context.Context, change, dest string) (bool, error) {
+// conflict, and the files that would hold a conflict, without rewriting the
+// change: a scratch commit holding the change's files on the change's parent
+// is rebased instead, and abandoned.
+func (r *Repo) trialRebase(ctx context.Context, change, dest string) (conflicted bool, files []string, err error) {
 	marker := "shed: trial rebase " + nonce()
 	if _, err := r.jj(ctx, "new", "--no-edit", "-m", marker, "parents("+changeRevset(change)+")"); err != nil {
-		return false, err
+		return false, nil, err
 	}
 	scratch, err := r.log(ctx, fmt.Sprintf("description(substring:%q)", marker), "change_id")
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	if scratch == "" || strings.Contains(scratch, "\n") {
-		return false, fmt.Errorf("rebasing unit %s: the scratch commit cannot be found", change)
+		return false, nil, fmt.Errorf("rebasing unit %s: the scratch commit cannot be found", change)
 	}
 	if _, err := r.jj(ctx, "restore", "--from", changeRevset(change), "--into", changeRevset(scratch)); err != nil {
-		return false, err
+		return false, nil, err
 	}
 	if _, err := r.jj(ctx, "rebase", "-r", changeRevset(scratch), "-d", dest); err != nil {
-		return false, err
+		return false, nil, err
 	}
-	out, err := r.log(ctx, changeRevset(scratch)+" & conflicts()", "change_id")
+	files, err = r.conflictedFilesOf(ctx, changeRevset(scratch))
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	if _, err := r.jj(ctx, "abandon", changeRevset(scratch)); err != nil {
-		return false, err
+		return false, nil, err
 	}
-	return out != "", nil
+	return len(files) > 0, files, nil
+}
+
+// conflictedFilesOf lists the files revset holds that jj stores as
+// conflicted, slash-separated, without touching any working copy.
+func (r *Repo) conflictedFilesOf(ctx context.Context, revset string) ([]string, error) {
+	out, err := r.jj(ctx, "file", "list", "-r", revset, "-T", `if(conflict, path ++ "\n", "")`)
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, line := range strings.Split(out, "\n") {
+		if line != "" {
+			files = append(files, filepath.ToSlash(line))
+		}
+	}
+	return files, nil
 }
 
 // Conflicted lists the files a unit's change holds that jj stores as

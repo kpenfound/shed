@@ -3,12 +3,19 @@ package factory
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
 	"github.com/kpenfound/shed/internal/tracker"
 	"github.com/kpenfound/shed/internal/unit"
 )
+
+// specConflict reports whether a rebase that would leave conflicts in files
+// would leave one under spec/, so S.vcs.16's exception does not cover it.
+func specConflict(files []string) bool {
+	return slices.ContainsFunc(files, func(name string) bool { return strings.HasPrefix(name, "spec/") })
+}
 
 // live counts the sessions this process runs on each unit, from before
 // their files are exported until after they are captured, so no rebase
@@ -198,7 +205,20 @@ func (f *Factory) follow(ctx context.Context, change string) (string, bool) {
 		return failed(err), true
 	}
 	switch {
-	case u.State == unit.Sealed, u.State == unit.Implementing, u.State == unit.Verifying, u.State == unit.Queued:
+	case u.State == unit.Sealed, u.State == unit.Implementing:
+		// A sealed or implementing unit keeps a rebase whose conflicts lie
+		// only outside spec/ (S.vcs.16); one that conflicts under spec/, like
+		// one that conflicts anywhere for a unit past that, is undone.
+		kept, conflicted, err := f.Repo.FollowUnless(ctx, change, specConflict)
+		switch {
+		case err != nil:
+			return failed(err), true
+		case !kept:
+			return rebaseUndone, true
+		case conflicted:
+			return rebasedConflict, true
+		}
+	case u.State == unit.Verifying, u.State == unit.Queued:
 		// Past its seal, a unit keeps only a rebase that holds no conflict.
 		conflicted, err := f.Repo.FollowClean(ctx, change)
 		switch {

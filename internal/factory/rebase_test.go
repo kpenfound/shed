@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -57,7 +58,7 @@ func checkpoints(t *testing.T, f *Factory) int {
 	return len(entries)
 }
 
-//shed:proves S.vcs.10 S.vcs.11
+//shed:proves S.vcs.10 S.vcs.11 S.vcs.16
 func TestLandingRebasesUnitsInFlight(t *testing.T) {
 	r := project(t)
 	fake := newFake(t)
@@ -78,13 +79,15 @@ func TestLandingRebasesUnitsInFlight(t *testing.T) {
 	must2(t, f.Implement)(lander)
 	must2(t, f.Verify)(lander)
 
-	// Units in flight: one apart from the landing, one past its seal that
-	// clashes with it, a proposed and a contested one that clash with it,
-	// and one whose mechanic is at work when it lands.
+	// Units in flight: one apart from the landing, one verifying that
+	// clashes with it (S.vcs.16 still undoes it, since no mechanic session
+	// is left to resolve a stored conflict), a proposed and a contested one
+	// that clash with it, and one whose mechanic is at work when it lands.
 	idle := inFlight(t, f, fake, "wave", map[string]string{"wave.txt": "wave\n"})
 	kindly := "package greet\n\n// Hello greets kindly.\nfunc Hello() string { return \"hello\" }\n"
 	clash := inFlight(t, f, fake, "hola", map[string]string{"greet.go": kindly})
 	must(t, f.Tracker.Move(clash, unit.Implementing, unit.Shed, "a mechanic is dispatched"))
+	must(t, f.Tracker.Move(clash, unit.Verifying, unit.Mechanic, "every step of the formula finished"))
 	clashBefore, err := f.Repo.Commit(ctx, clash)
 	must(t, err)
 	clashBase := parent(t, f, r, clash)
@@ -178,24 +181,25 @@ func TestLandingRebasesUnitsInFlight(t *testing.T) {
 		}
 	}
 
-	// A unit past its seal whose rebase conflicts is left as it was, in
-	// the same state, and not reopened.
+	// A verifying unit whose rebase conflicts is left as it was, in the
+	// same state, and not reopened: no mechanic session is left to resolve
+	// a conflict, so S.vcs.16's exception does not reach it.
 	if now, _ := f.Repo.Commit(ctx, clash); now != clashBefore {
-		t.Errorf("the clashing implementing unit moved from %s to %s", clashBefore, now)
+		t.Errorf("the clashing verifying unit moved from %s to %s", clashBefore, now)
 	}
 	if got := parent(t, f, r, clash); got != clashBase {
-		t.Errorf("the clashing implementing unit sits on %s, want its old base %s", got, clashBase)
+		t.Errorf("the clashing verifying unit sits on %s, want its old base %s", got, clashBase)
 	}
-	if u, _ := f.Tracker.Unit(clash); u.State != unit.Implementing || u.Bounces != 0 {
-		t.Errorf("the clashing implementing unit = %+v, want implementing with no bounce", u)
+	if u, _ := f.Tracker.Unit(clash); u.State != unit.Verifying || u.Bounces != 0 {
+		t.Errorf("the clashing verifying unit = %+v, want verifying with no bounce", u)
 	}
 	dir, err = f.Repo.Workspace(ctx, clash)
 	must(t, err)
 	if got, _ := os.ReadFile(filepath.Join(dir, "greet.go")); string(got) != kindly {
-		t.Errorf("the clashing implementing unit's greet.go = %q, want its own %q", got, kindly)
+		t.Errorf("the clashing verifying unit's greet.go = %q, want its own %q", got, kindly)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "bye.go")); err == nil {
-		t.Error("the clashing implementing unit's workspace took the landing")
+		t.Error("the clashing verifying unit's workspace took the landing")
 	}
 	if n := checkpoints(t, f); n != 0 {
 		t.Errorf("%d checkpoints left behind", n)
@@ -741,7 +745,7 @@ func TestDeferredRebaseIsLogged(t *testing.T) {
 	}
 }
 
-//shed:proves S.vcs.15
+//shed:proves S.vcs.15 S.vcs.16
 func TestInterruptedSweepIsLogged(t *testing.T) {
 	r := project(t)
 	fake := newFake(t)
@@ -752,8 +756,8 @@ func TestInterruptedSweepIsLogged(t *testing.T) {
 	must2(t, f.Implement)(lander)
 	must2(t, f.Verify)(lander)
 
-	// A unit apart from the landing and one past its seal that clashes with
-	// it.
+	// A unit apart from the landing and a sealed one that clashes with it
+	// outside spec/: S.vcs.16 keeps its rebase, with the conflict stored.
 	idle := inFlight(t, f, fake, "wave", map[string]string{"wave.txt": "wave\n"})
 	clash := inFlight(t, f, fake, "hola", map[string]string{"bye.go": "package greet\n\n// Bye says adios.\nfunc Bye() string { return \"adios\" }\n"})
 
@@ -771,8 +775,8 @@ func TestInterruptedSweepIsLogged(t *testing.T) {
 	must(t, err)
 	t.Cleanup(func() { next.Close() })
 	for change, want := range map[string]string{
-		idle:  "rebased cleanly",
-		clash: "rebase undone: the rebase conflicted and the unit is past its seal or is a frame unit",
+		idle:  rebasedCleanly,
+		clash: rebasedConflict,
 	} {
 		if got := swept(t, next, change, lander); len(got) != 1 || got[0] != want {
 			t.Errorf("unit %s logs %q after the next process opened, want %q", unit.Short(change), got, want)
@@ -780,5 +784,188 @@ func TestInterruptedSweepIsLogged(t *testing.T) {
 		if u, _ := next.Tracker.Unit(change); u.State != unit.Sealed {
 			t.Errorf("unit %s is %s", unit.Short(change), u.State)
 		}
+	}
+	dir, err := next.Repo.Workspace(ctx, clash)
+	must(t, err)
+	if got, _ := os.ReadFile(filepath.Join(dir, "bye.go")); !strings.Contains(string(got), "<<<<<<<") {
+		t.Errorf("the clashing sealed unit's bye.go keeps no conflict:\n%s", got)
+	}
+}
+
+//shed:proves S.vcs.16
+func TestSealedAndImplementingUnitsKeepNonSpecConflicts(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[concurrency]\nin_flight = 0\n[vcs]\nremote = \"origin\"\n")
+	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
+
+	// The unit that lands touches greet.go.
+	lander := sealed(t, f, fake)
+	mechanic(t, fake)
+	fake.on(unit.Mechanic, "docs", func(turn session.Turn) session.Result {
+		write(t, turn.Dir, "greet.go", "package greet\n\n// Hello greets warmly.\nfunc Hello() string { return \"hello\" }\n")
+		return done("done")
+	})
+	fake.on(unit.Committee, "review", func(session.Turn) session.Result { return done("pass") })
+	must2(t, f.Implement)(lander)
+	must2(t, f.Verify)(lander)
+
+	// A sealed unit and an implementing unit both edit greet.go in a way
+	// that clashes with the landing, but neither touches spec/.
+	kindly := "package greet\n\n// Hello greets kindly.\nfunc Hello() string { return \"hello\" }\n"
+	sealedUnit := inFlight(t, f, fake, "hola", map[string]string{"greet.go": kindly})
+	sealedBefore, err := f.Tracker.Unit(sealedUnit)
+	must(t, err)
+
+	gently := strings.Replace(kindly, "kindly", "gently", 1)
+	implUnit := inFlight(t, f, fake, "nod", map[string]string{"greet.go": gently})
+	must(t, f.Tracker.Move(implUnit, unit.Implementing, unit.Shed, "a mechanic is dispatched"))
+	implBefore, err := f.Tracker.Unit(implUnit)
+	must(t, err)
+
+	out, err := f.Land(ctx, lander)
+	if err != nil || out != Landed {
+		t.Fatalf("land = %s, %v", out, err)
+	}
+	main, err := f.Repo.MainCommit(ctx)
+	must(t, err)
+
+	// Both units are on the new main, with the conflict stored and their
+	// state, seal and footprint unchanged (S.vcs.16).
+	for change, before := range map[string]tracker.Unit{sealedUnit: sealedBefore, implUnit: implBefore} {
+		u, err := f.Tracker.Unit(change)
+		must(t, err)
+		if u.State != before.State {
+			t.Errorf("unit %s is %s after the landing, want %s unchanged", unit.Short(change), u.State, before.State)
+		}
+		if !reflect.DeepEqual(u.Seal, before.Seal) {
+			t.Errorf("unit %s's seal = %+v, want %+v unchanged", unit.Short(change), u.Seal, before.Seal)
+		}
+		if !reflect.DeepEqual(u.Footprint, before.Footprint) {
+			t.Errorf("unit %s's footprint = %+v, want %+v unchanged", unit.Short(change), u.Footprint, before.Footprint)
+		}
+		if got := parent(t, f, r, change); got != main {
+			t.Errorf("unit %s sits on %s, want the new main %s", unit.Short(change), got, main)
+		}
+		dir, err := f.Repo.Workspace(ctx, change)
+		must(t, err)
+		if got, _ := os.ReadFile(filepath.Join(dir, "greet.go")); !strings.Contains(string(got), "<<<<<<<") {
+			t.Errorf("unit %s's greet.go keeps no conflict:\n%s", unit.Short(change), got)
+		}
+		if got := swept(t, f, change, lander); !slices.Equal(got, []string{rebasedConflict}) {
+			t.Errorf("unit %s logs %q, want %q", unit.Short(change), got, []string{rebasedConflict})
+		}
+	}
+
+	// The implementing unit's next mechanic session is told of the
+	// conflict, and leaves it unresolved.
+	const nodProof = "package greet\n\nimport \"testing\"\n\n//shed:proves S.nod.1\nfunc TestNod(t *testing.T) {}\n"
+	var toldBundle string
+	fake.on(unit.Mechanic, "proofs", func(turn session.Turn) session.Result {
+		toldBundle = turn.Bundle
+		write(t, turn.Dir, "nod_test.go", nodProof)
+		return done("done")
+	})
+	fake.on(unit.Mechanic, "implement", func(session.Turn) session.Result { return done("done") })
+	fake.on(unit.Mechanic, "docs", func(session.Turn) session.Result { return done("done") })
+	must2(t, f.Implement)(implUnit)
+	for _, want := range []string{"greet.go", "resolve", "sealed spec"} {
+		if !strings.Contains(toldBundle, want) {
+			t.Errorf("the mechanic's bundle does not name %q:\n%s", want, toldBundle)
+		}
+	}
+
+	// Left unresolved, it fails verification and returns to implementing,
+	// the same backstop a conflict stored at sealing gets (S.vcs.12).
+	reviewed := false
+	fake.on(unit.Committee, "review", func(session.Turn) session.Result { reviewed = true; return done("pass") })
+	out, err = f.Verify(ctx, implUnit)
+	must(t, err)
+	if out != Failed {
+		t.Fatalf("verify with the conflict unresolved = %s", out)
+	}
+	if u, _ := f.Tracker.Unit(implUnit); u.State != unit.Implementing {
+		t.Errorf("unit = %s, want implementing", u.State)
+	}
+	if reviewed {
+		t.Error("the reviewer ran although the unit holds an unresolved conflict")
+	}
+	notices, _ := f.Tracker.Notices(unit.Mechanic, true)
+	if len(notices) != 1 || !strings.Contains(notices[0].Body, "greet.go") {
+		t.Errorf("notices = %+v", notices)
+	}
+
+	// Once the mechanic resolves the file, the unit verifies normally.
+	fake.on(unit.Mechanic, "proofs", func(turn session.Turn) session.Result {
+		write(t, turn.Dir, "greet.go", "package greet\n\n// Hello greets kindly and warmly.\nfunc Hello() string { return \"hello\" }\n")
+		return done("done")
+	})
+	must2(t, f.Implement)(implUnit)
+	if out, err := f.Verify(ctx, implUnit); err != nil || out != Verified {
+		t.Fatalf("verify once resolved = %s, %v", out, err)
+	}
+	if u, _ := f.Tracker.Unit(implUnit); u.State != unit.Queued {
+		t.Errorf("unit = %s, want queued", u.State)
+	}
+}
+
+//shed:proves S.vcs.16
+func TestSpecConflictStillUndoesAnImplementingUnitsRebase(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[concurrency]\nin_flight = 0\n[vcs]\nremote = \"origin\"\n[shed]\nbounce_threshold = 10\n")
+	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
+
+	// A unit sealed on the old main, editing the same clause the landing
+	// edits, and moved past sealing to implementing.
+	hola, err := f.Repo.NewUnit(ctx, "Hola")
+	must(t, err)
+	must(t, f.Tracker.OpenUnit(hola, "Hola", unit.Painter))
+	dir, err := f.Repo.Workspace(ctx, hola)
+	must(t, err)
+	write(t, dir, "spec/core.md", strings.Replace(testrepo.Spec, "prints hello.", "prints hola.", 1))
+	must(t, f.Declare(ctx, hola, "", nil, []string{"H.greet.1"}, unit.Painter))
+	if out, err := f.Debate(ctx, hola); err != nil || out != Sealed {
+		t.Fatalf("debate of hola = %s, %v", out, err)
+	}
+	must(t, f.Tracker.Move(hola, unit.Implementing, unit.Shed, "a mechanic is dispatched"))
+	before, err := f.Repo.Commit(ctx, hola)
+	must(t, err)
+	base := parent(t, f, r, hola)
+
+	// The landing edits the very same line.
+	newline, err := f.Repo.NewUnit(ctx, "Newline")
+	must(t, err)
+	must(t, f.Tracker.OpenUnit(newline, "Newline", unit.Painter))
+	ndir, err := f.Repo.Workspace(ctx, newline)
+	must(t, err)
+	write(t, ndir, "spec/core.md", strings.Replace(testrepo.Spec, "prints hello.", "prints hello and a newline.", 1))
+	must(t, f.Declare(ctx, newline, "", nil, []string{"H.greet.1"}, unit.Painter))
+	if out, err := f.Debate(ctx, newline); err != nil || out != Sealed {
+		t.Fatalf("debate of newline = %s, %v", out, err)
+	}
+	for _, s := range []unit.State{unit.Implementing, unit.Verifying, unit.Queued} {
+		must(t, f.Tracker.Move(newline, s, unit.Shed, "by hand"))
+	}
+
+	out, err := f.Land(ctx, newline)
+	if err != nil || out != Landed {
+		t.Fatalf("land = %s, %v", out, err)
+	}
+
+	// The implementing unit's rebase conflicts under spec/, so S.vcs.16's
+	// exception does not apply: it is undone as S.vcs.10 says, left as it
+	// was.
+	if now, _ := f.Repo.Commit(ctx, hola); now != before {
+		t.Errorf("the implementing unit conflicting under spec/ moved from %s to %s", before, now)
+	}
+	if got := parent(t, f, r, hola); got != base {
+		t.Errorf("the implementing unit sits on %s, want its old base %s", got, base)
+	}
+	if u, _ := f.Tracker.Unit(hola); u.State != unit.Implementing {
+		t.Errorf("unit = %s, want implementing", u.State)
+	}
+	if got := swept(t, f, hola, newline); !slices.Equal(got, []string{rebaseUndone}) {
+		t.Errorf("the unit logs %q, want %q", got, []string{rebaseUndone})
 	}
 }

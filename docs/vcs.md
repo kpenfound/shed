@@ -100,14 +100,25 @@ conflict with main depends on how far the unit has come:
 - A proposed or contested unit keeps the rebase, conflicts and all. The
   conflict stays stored in the change's files, and the painter's next session
   sees it and resolves it before the committee debates the text.
-- A unit past its seal (sealed, implementing, verifying or queued), or a
-  proposed unit that `shed frame` opened, keeps the rebase only if the rebased change holds no conflict in any file. Otherwise
-  shed undoes that unit's rebase and leaves its change and workspace as they
-  were, so no mechanic, verifier or gate meets a conflict a landing brought
-  in, and a framing never holds a conflict no session would resolve. A unit
-  past its seal takes main's changes when a later landing rebases it cleanly,
-  or at its own landing, where the wheelbuilder resolves conflicts against
-  the sealed spec. A frame unit has no seal and no wheelbuilder to resolve a
+- A sealed or implementing unit keeps the rebase when its conflicts lie only
+  in files outside `spec/`: the conflicts stay stored in the change and its
+  workspace holds the rebased files, so the unit is on the new main. Its
+  state, seal and footprint are unchanged, and its next mechanic session's
+  bundle names each conflicted file and says to resolve it against the
+  sealed spec before any other work, the same as a conflict stored at
+  sealing. A conflict its mechanics leave unresolved fails its verification
+  and returns it to implementing. A rebase that leaves an unresolved conflict
+  in a file under `spec/` is undone instead, like any other conflict past the
+  seal.
+- A unit that is verifying or queued, or a proposed unit that `shed frame`
+  opened, keeps the rebase only if the rebased change holds no conflict in
+  any file. Otherwise shed undoes that unit's rebase and leaves its change
+  and workspace as they were, so no verifier or gate ever meets a conflict a
+  landing brought in unless a mechanic session was first told to resolve it,
+  and a framing never holds a conflict no session would resolve. A unit past
+  its seal takes main's changes when a later landing rebases it cleanly, or
+  at its own landing, where the wheelbuilder resolves conflicts against the
+  sealed spec. A frame unit has no seal and no wheelbuilder to resolve a
   conflict for it: `shed frame -accept` rebases it onto main itself and, on a
   conflict, undoes the rebase and refuses to land, leaving the unit proposed
   for the owner to accept again once main stops conflicting, or to discard
@@ -133,6 +144,7 @@ landed qpvuntsm on main as 3f2a9c1d7e4b5a6f8c9d0e1f2a3b4c5d6e7f8091
 footprint held
 zsxkmwqp proposed: rebased cleanly
 rlvkpnrz proposed: rebased with conflicts stored in its change
+wtsrvvxp implementing: rebased with conflicts stored in its change
 yostqsxw sealed: rebase undone: the rebase conflicted and the unit is past its seal or is a frame unit
 mzvwutvl implementing: deferred: a session is running
 kmnoplrs verifying: rebase failed: <reason>

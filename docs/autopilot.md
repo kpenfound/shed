@@ -274,7 +274,12 @@ Then shed rebases every other unit that is neither landed nor archived onto
 the new main, leaving its state alone. A proposed or contested unit,
 including one the horizon check just reopened, keeps any conflict stored in
 its files for its painter to resolve. A unit past its seal keeps the rebase
-only if it is free of conflicts; otherwise shed undoes it, and the unit takes
+only if it is free of conflicts, except that a sealed or implementing unit
+also keeps a rebase whose conflicts lie only in files outside `spec/`: those
+stay stored in its change for its mechanics to resolve, and a conflict they
+leave unresolved fails verification and returns the unit to implementing, the
+same as a conflict stored at sealing. Any other conflict past the seal, or
+one in a unit that is verifying or queued, is undone, and the unit takes
 main's changes later. A unit with a session running is rebased once its
 sessions end and are captured. `shed land` prints each unit's outcome, and each unit's log records it. See
 [version control](vcs.md#keeping-units-on-main).

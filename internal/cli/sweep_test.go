@@ -27,7 +27,7 @@ func sweepLog(t *testing.T, dir, change, lander string) []string {
 	return lines
 }
 
-//shed:proves S.vcs.15
+//shed:proves S.vcs.15 S.vcs.16
 func TestLandReportsTheSweep(t *testing.T) {
 	r := testrepo.Colocated(t)
 	r.Write(".shed/config.toml", "[vcs]\nremote = \"origin\"\n")
@@ -100,13 +100,17 @@ func TestLandReportsTheSweep(t *testing.T) {
 	}
 	commit := r.GitRemote("rev-parse", "main")
 	const undone = "rebase undone: the rebase conflicted and the unit is past its seal or is a frame unit"
+	const conflicted = "rebased with conflicts stored in its change"
 	want := []string{
 		"landed " + unit.Short(lander) + " on main as " + commit,
 		"footprint held",
 		unit.Short(clean) + " proposed: rebased cleanly",
 		`^` + unit.Short(ghost) + ` proposed: rebase failed: \S.*`,
-		unit.Short(proposed) + " proposed: rebased with conflicts stored in its change",
-		unit.Short(past) + " sealed: " + undone,
+		unit.Short(proposed) + " proposed: " + conflicted,
+		// A sealed unit whose clash is only outside spec/ keeps the rebase
+		// with the conflict stored (S.vcs.16); only the frame unit, which no
+		// session resolves, still has it undone.
+		unit.Short(past) + " sealed: " + conflicted,
 		unit.Short(framed) + " proposed: " + undone,
 		unit.Short(busy) + " proposed: deferred: a session is running",
 	}
@@ -130,8 +134,8 @@ func TestLandReportsTheSweep(t *testing.T) {
 	for change, outcome := range map[string]string{
 		clean:    "rebased cleanly",
 		ghost:    "rebase failed: ",
-		proposed: "rebased with conflicts stored in its change",
-		past:     undone,
+		proposed: conflicted,
+		past:     conflicted,
 		framed:   undone,
 		busy:     "deferred: a session is running",
 	} {
