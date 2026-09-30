@@ -26,6 +26,24 @@
 - **S.horizon.7** (H.hz.3) `shed trace` shows, for each horizon clause that
   refines another, the clause it refines, and for each distant or eventual
   clause, the clauses that refine it.
+- **S.horizon.8** (H.hz.2) The operator setting
+  `shed.horizon_owner_approval` in `config.toml` (S.config.1) is a boolean
+  and defaults to false. It is a known key, so S.config.2 does not refuse
+  it. While it is false, S.shed.16 and S.shed.17 work exactly as they would
+  without this clause and S.horizon.9.
+- **S.horizon.9** (H.hz.2) While `shed.horizon_owner_approval` is true, the
+  check of S.shed.16 treats a near or soon tier as it treats a distant or
+  eventual one: a proposal whose horizon amendment has any tier under
+  S.diff.4 moves to contested under S.shed.16, with the reason, actor, no
+  bounce and hold rules S.shed.16 gives, and that move is the one move to
+  contested the round makes. The owner approves it with `approve` under
+  S.shed.17, which is the only approval of a horizon amendment, and
+  declines it with `defer` (S.owner.5) or `reject` (S.owner.8) as for any
+  contested unit. A proposal with no tier, including one whose only horizon change is
+  gaining `realised` (S.owner.11, S.diff.4), is sealed or held as before.
+  The setting changes nothing else: S.shed.12, S.shed.14, S.shed.18 and the
+  seal of S.shed.17 take the tier or not exactly as they would without it.
+  Shed reads the setting when the round ends.
 - **S.horizon.10** (H.hz.3) `shed gap`, and the gap in the painter's bundle
   (S.paint.2), show for each listed clause that refines another (S.horizon.6)
   the ID and tier of the clause it refines. A listed clause with no

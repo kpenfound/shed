@@ -447,7 +447,10 @@ func (f *Factory) committeeTools(change string, member int, head *docs.Set) []se
 	}
 }
 
-// reply runs the painter's answer to the standing objections.
+// reply runs the painter's answer to the standing objections. A declaration
+// made during the reply is recorded only once the reply is captured, with
+// the clauses the captured files modify (S.shed.5); an invalid one stops the
+// debate and leaves the footprint as it was.
 func (f *Factory) reply(ctx context.Context, u tracker.Unit, round int, lane amendment) error {
 	type answerIn struct {
 		Objection string `json:"objection" jsonschema:"the objection's ID"`
@@ -625,8 +628,10 @@ func (f *Factory) amendmentTier(ctx context.Context, change string) (docs.Horizo
 
 // farTier takes the tier of a proposal's horizon amendment against the
 // latest main commit its change descends from, as shed diff gives it
-// (S.diff.4). A distant or eventual tier waits for the owner (S.shed.16):
-// farTier returns it with the reason naming it and each horizon clause
+// (S.diff.4). A distant or eventual tier always waits for the owner
+// (S.shed.16); while shed.horizon_owner_approval is true, a near or soon
+// tier waits for the owner too (S.horizon.8, S.horizon.9). farTier returns
+// the waiting tier with the reason naming it and each horizon clause
 // counted at it, in document order. A clause counted at the tier only
 // because of its refines tag is followed by the parents shed diff names for
 // it (S.shed.19). It returns "" for any other tier.
@@ -635,7 +640,9 @@ func (f *Factory) farTier(ctx context.Context, change string) (string, string, e
 	if err != nil {
 		return "", "", err
 	}
-	if d.Tier != "distant" && d.Tier != "eventual" {
+	far := d.Tier == "distant" || d.Tier == "eventual"
+	near := f.Operator.Shed.HorizonOwnerApproval && (d.Tier == "near" || d.Tier == "soon")
+	if !far && !near {
 		return "", "", nil
 	}
 	listed := map[clause.ID]docs.TieredHorizonChange{}

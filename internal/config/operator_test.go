@@ -118,6 +118,31 @@ func TestOperatorOwnerSampling(t *testing.T) {
 	}
 }
 
+//shed:proves S.horizon.8
+func TestOperatorHorizonOwnerApproval(t *testing.T) {
+	c, err := LoadOperator(filepath.Join(t.TempDir(), OperatorFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Shed.HorizonOwnerApproval {
+		t.Errorf("default shed.horizon_owner_approval = true, want false")
+	}
+
+	for toml, want := range map[string]bool{
+		"[shed]\nhorizon_owner_approval = true\n":  true,
+		"[shed]\nhorizon_owner_approval = false\n": false,
+	} {
+		c, err := LoadOperator(writeOperator(t, toml))
+		if err != nil {
+			t.Errorf("%q: a known key must not be refused: %v", toml, err)
+			continue
+		}
+		if c.Shed.HorizonOwnerApproval != want {
+			t.Errorf("%q: shed.horizon_owner_approval = %v, want %v", toml, c.Shed.HorizonOwnerApproval, want)
+		}
+	}
+}
+
 //shed:proves S.config.2
 func TestOperatorRefusesBadSettings(t *testing.T) {
 	for _, tc := range []struct{ toml, want string }{

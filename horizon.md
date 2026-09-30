@@ -265,7 +265,7 @@ distant and get promoted as the soon tier drains.
   amendments accept on consensus. Soon-tier amendments accept on zero dissent
   and wait for the owner on a split. Distant and eventual amendments always
   wait for the owner.
-- **H.hz.2** (soon) The operator can require owner approval at every tier.
+- **H.hz.2** (soon, realised) The operator can require owner approval at every tier.
 - **H.hz.3** (soon, realised) A near or soon clause names the distant or eventual
   clause it refines. An amendment that would change that parent is judged at
   the parent's tier.

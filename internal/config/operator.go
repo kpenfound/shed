@@ -112,6 +112,10 @@ type Debate struct {
 	// it contested.
 	BounceThreshold  int      `toml:"bounce_threshold"`
 	ContestedTimeout Duration `toml:"contested_timeout"`
+	// HorizonOwnerApproval makes a near or soon horizon amendment wait for
+	// owner approval the same way a distant or eventual one always does
+	// (S.horizon.8, S.horizon.9).
+	HorizonOwnerApproval bool `toml:"horizon_owner_approval"`
 }
 
 // Profile is how a role's sessions run. Every session runs in a Docker

@@ -259,7 +259,8 @@ shed answer qpvuntsm approve the new distant clause matches where shed is going
   entry cites as violated every charter clause the reason names, in the
   order they first appear and without repeats (S.owner.8).
 - `approve` moves a unit that shed contested because its horizon amendment
-  is distant or eventual tier (S.shed.16), or because its debate split over
+  is distant or eventual tier, or a near or soon tier `shed.horizon_owner_approval`
+  widened S.shed.16 to cover (S.shed.16), or because its debate split over
   a soon tier amendment (S.shed.18), back to `proposed`, with the owner
   as actor and the reason as the move's reason. Its next debate runs no
   round and seals it; a bounce before that seal ends the approval. Shed
@@ -355,6 +356,7 @@ max_rounds = 3
 amendment_rounds = 1    # the cap in the amendment lane; at most max_rounds
 bounce_threshold = 3
 contested_timeout = "72h"
+horizon_owner_approval = false  # wait for the owner on every horizon amendment, not just distant and eventual
 
 [profiles.default]
 agent = "claude"        # claude, codex, opencode or pi

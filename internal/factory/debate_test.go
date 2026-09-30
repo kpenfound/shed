@@ -916,6 +916,79 @@ func TestApprovedAmendmentSeals(t *testing.T) {
 	}
 }
 
+//shed:proves S.horizon.8 S.horizon.9
+func TestHorizonOwnerApprovalGate(t *testing.T) {
+	// While the gate is off, a near or soon amendment seals exactly as it
+	// would without S.horizon.8 and S.horizon.9.
+	fakeOff := newFake(t)
+	off := open(t, project(t), fakeOff, "[concurrency]\nin_flight = 10\n[shed]\nbounce_threshold = 10\nhorizon_owner_approval = false\n")
+	fakeOff.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
+	fakeOff.on(unit.Painter, "reply", func(session.Turn) session.Result { return done("replied") })
+	for _, h := range []string{nearHorizon, soonHorizon} {
+		change := proposeHorizon(t, off, h)
+		if out, err := off.Debate(ctx, change); err != nil || out != Sealed {
+			t.Fatalf("a near or soon amendment with the gate off = %s, %v", out, err)
+		}
+	}
+
+	// With the gate on, a near or soon amendment waits for the owner just
+	// like a distant or eventual one: it moves to contested with shed as
+	// actor, counting no bounce, and the reason names the tier.
+	fake := newFake(t)
+	f := open(t, project(t), fake, "[concurrency]\nin_flight = 10\n[shed]\nbounce_threshold = 10\nhorizon_owner_approval = true\n")
+	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
+	fake.on(unit.Painter, "reply", func(session.Turn) session.Result { return done("replied") })
+
+	contested := func(change, tier string) {
+		t.Helper()
+		u, err := f.Tracker.Unit(change)
+		must(t, err)
+		if u.State != unit.Contested || u.Bounces != 0 || u.Seal != nil {
+			t.Errorf("unit = %+v, want contested with no bounce and no seal", u)
+		}
+		ev := lastMoveOf(t, f, change)
+		if ev.From != unit.Proposed || ev.To != unit.Contested || ev.Actor != unit.Shed || ev.Bounce {
+			t.Errorf("the move = %+v, want shed moving it from proposed to contested", ev)
+		}
+		if !strings.Contains(ev.Reason, tier) {
+			t.Errorf("the reason does not name the tier %s: %q", tier, ev.Reason)
+		}
+	}
+
+	near := proposeHorizon(t, f, nearHorizon)
+	if out, err := f.Debate(ctx, near); err != nil || out != Contested {
+		t.Fatalf("a near-tier amendment with the gate on = %s, %v", out, err)
+	}
+	contested(near, "near")
+
+	soon := proposeHorizon(t, f, soonHorizon)
+	if out, err := f.Debate(ctx, soon); err != nil || out != Contested {
+		t.Fatalf("a soon-tier amendment with the gate on = %s, %v", out, err)
+	}
+	contested(soon, "soon")
+
+	// The owner approves it with approve (S.shed.17), exactly as for a
+	// distant or eventual amendment; approve is the only approval of a
+	// horizon amendment.
+	const why = "The bow is where the tool is going."
+	must(t, f.Tracker.Approve(near, why))
+	if u, err := f.Tracker.Unit(near); err != nil || u.State != unit.Proposed {
+		t.Errorf("after the approval = %+v, %v", u, err)
+	}
+	if out, err := f.Debate(ctx, near); err != nil || out != Sealed {
+		t.Fatalf("the approved near-tier amendment = %s, %v", out, err)
+	}
+
+	// A proposal with no tier, including one whose only horizon change is
+	// gaining realised, is sealed as before: the gate changes nothing
+	// about it.
+	realisedOnly := strings.Replace(testHorizon, "(soon) The tool says goodbye.", "(soon, realised) The tool says goodbye.", 1)
+	realised := proposeHorizon(t, f, realisedOnly)
+	if out, err := f.Debate(ctx, realised); err != nil || out != Sealed {
+		t.Fatalf("a realised-only change with the gate on = %s, %v", out, err)
+	}
+}
+
 //shed:proves S.shed.18 S.shed.17
 func TestSplitSoonAmendmentWaitsForTheOwner(t *testing.T) {
 	r := project(t)

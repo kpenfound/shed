@@ -219,7 +219,8 @@ agents in Docker Sandboxes, debates, implements, verifies and lands units,
 proposes from the gap, and serves all of it on its own under a budget.
 `shed inbox` lists contested units, horizon changes, charter questions
 from repeated rejections and sampled horizon amendments for the owner. A distant or eventual horizon amendment waits
-for the owner, and so does a soon one the committee splits over. `shed answer` retries, defers, rejects or approves a contested
+for the owner, and so does a soon one the committee splits over, or any tier if the operator's
+`shed.horizon_owner_approval` setting widens the wait to cover it. `shed answer` retries, defers, rejects or approves a contested
 unit, and keeps a charter clause to answer its question.
 `shed frame` breaks a distant or eventual horizon clause into near and soon
 clauses that refine it, recorded on a unit for the owner to read; `shed frame

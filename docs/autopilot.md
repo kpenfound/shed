@@ -101,6 +101,18 @@ counts no bounce, and its next debate starts afresh from round one, so the
 tier is taken again before it is sealed. A unit bounced for changing a
 clause outside an amendment's scope is not tiered (S.shed.16).
 
+The operator setting `shed.horizon_owner_approval`, a boolean that defaults
+to false, widens this: while it is true, a near or soon tier waits for the
+owner exactly as a distant or eventual one does, so any non-empty tier moves
+the unit to contested and needs `shed answer approve` to seal. A proposal
+with no tier, including one whose only horizon change is gaining
+`realised`, is sealed or held as before either way. The setting changes
+nothing else about this move or about `approve`: the reason, actor, no
+bounce and hold rules above still apply, and it is still the one move to
+contested the round makes. It leaves the amendment-lane scope bounce, the
+amendment-lane rejection and the split-soon path below unchanged, and shed
+reads the setting when the round ends (S.horizon.8, S.horizon.9).
+
 A soon tier accepts on zero dissent and waits for the owner on a split. A
 debate outside the amendment lane is split when it reaches its round cap
 with objections standing, every one of them a horizon objection, and at
