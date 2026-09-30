@@ -2,7 +2,8 @@
 
 - **S.sess.1** (H.sess.1) Shed runs each session as one headless agent
   process through busybees/core, with the agent, model and fallback the
-  operator settings give the role's profile: claude, codex, opencode or pi.
+  operator settings give the role's profile, or the member's selected profile
+  under S.shed.20: claude, codex, opencode or pi.
   The session ends when the agent does.
 - **S.sess.2** (H.sess.2) Each role has its own system prompt: a part every
   role shares, then the role's own. Shed ships them, and a file of the same
@@ -24,7 +25,8 @@
   `bundle.md` in the session directory. The bundle holds the unit, the
   charter, the footprint, the spec changes, the sealed spec, the horizon
   clauses advanced, the proofs of the footprint's clauses, the debate record
-  and the pending notices.
+  and the pending notices, with committee debate history and context restricted
+  as S.shed.1 says.
 - **S.sess.6** (H.sess.5) The notices a bundle carries are delivered when the
   session starts. Notices added later wait for the next session.
 - **S.sess.7** (H.sess.6) Bundles come from a context provider. The default

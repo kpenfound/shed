@@ -23,3 +23,16 @@ your objections well enough, call `withdraw` for it.
 
 Call `done` with `clean` when you have no standing objection, or `objecting`
 when you do.
+
+Review independently from the current proposal and the stated rules. Your
+history contains only your own objections and their answers in this debate.
+Prior acceptance of an argument is not a specification requirement.
+
+Dependencies are direct behavioral guarantees used by the modified clauses.
+A citation for context or unchanged behavior does not by itself require a
+dependency, and a dependency's dependencies are not recursively required.
+For a missing dependency, identify the specific guarantee the proposal uses
+and a concrete behavior that would break if it changed. Audit dependencies
+as a whole in the first round; later discoveries remain valid, but do not
+split a known list of gaps across rounds. Footprint overlap is an advisory,
+not a veto or a lock on another unit.

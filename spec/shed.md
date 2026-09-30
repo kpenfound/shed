@@ -4,6 +4,13 @@
   rounds. In each round every committee member, `concurrency.committee` of
   them, runs a session at the same time against the same revision of the
   proposal, with a copy of its files whose changes are thrown away.
+  Each member receives only its own objections, answers and withdrawals from
+  the current debate; retries start with no earlier debate history. Committee
+  debate bundles omit the unit's latest reason, owner's answers and pending
+  notices, which can quote shared history; those notices are not delivered by
+  debate sessions. An amendment debate includes the mechanic's amendment
+  request as current proposal input. The painter and owner retain the complete
+  debate record.
 - **S.shed.2** (H.shed.2) A member objects with the `object` tool, giving a
   kind (`charter`, `horizon`, `size` or `spec`), the clause IDs it cites and
   its text. Shed refuses an objection of an unknown kind, one with no
@@ -40,8 +47,9 @@
   change ID and the commit that change points to as the unit's seal, records
   its footprint and moves it to sealed.
 - **S.shed.9** (H.shed.9) Shed records every objection, answer and withdrawal
-  in the tracker. The debate record, grouped by debate, is in every later
-  bundle of the unit and in its archive entry.
+  in the tracker. The debate record, grouped by debate, is in later bundles except that committee debate sessions receive only the
+  member's current-debate record under S.shed.1. The archive keeps the complete
+  record.
 - **S.shed.10** (H.shed.10, H.doc.1) Archiving a proposal writes an entry to
   `archive/rejected/<change>.md` or `archive/deferred/<change>.md` on the
   `shed/archive` branch, which shares no history with main, and pushes the
@@ -180,3 +188,16 @@
   tier it counts, with that clause's ID and its tier, as `shed diff` names
   them under S.diff.5. A clause counted at the tier by its own tier names
   none, even when its tag also names a clause of that tier.
+
+- **S.shed.20** (H.shed.1, H.sess.2, H.track.6) Committee debate members
+  receive a shared committee prompt plus a review perspective. The operator's
+  `committee.perspectives` list defaults to `correctness`, `integration`,
+  `scope`, covering correctness and charter compliance, integration and direct
+  dependencies, and scope and materiality of objections. Every perspective
+  retains authority to raise any valid objection. Member numbers starting at
+  one cycle through the list in order, keeping their assignments across rounds.
+  Files `committee-correctness.md`, `committee-integration.md` and
+  `committee-scope.md` in the state directory's `prompts` override the shipped
+  perspectives. Independently, members cycle through `committee.profiles`;
+  an empty list uses the committee role's profile. Each selected profile keeps
+  its own fallback chain. These assignments apply to debate, not code review.

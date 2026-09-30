@@ -316,3 +316,22 @@ func TestCoreFailures(t *testing.T) {
 		t.Errorf("profiles by attempt = %v", profiles)
 	}
 }
+
+//shed:proves S.sess.1 S.sess.9 S.shed.20
+func TestMemberProfileFallback(t *testing.T) {
+	var profiles []string
+	c := testCore(t, func(_ context.Context, req agent.Request) (*agent.Result, error) {
+		profiles = append(profiles, req.Profile.Name)
+		return &agent.Result{ExitCode: 1, IsError: true}, nil
+	})
+	c.Operator.Profiles["member"] = config.Profile{Agent: "codex", Fallback: "backup"}
+	turn := Turn{Unit: change, Role: unit.Committee, Profile: "member", Dir: t.TempDir(), SessionDir: t.TempDir(), Outcomes: []string{"clean"}}
+	for attempt := 0; attempt < 2; attempt++ {
+		turn.Attempt = attempt
+		_, err := c.Run(ctx, turn)
+		must(t, err)
+	}
+	if !slices.Equal(profiles, []string{"member", "backup"}) {
+		t.Fatalf("member fallback: %v", profiles)
+	}
+}

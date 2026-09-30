@@ -160,3 +160,23 @@ func TestOperatorRefusesBadSettings(t *testing.T) {
 		t.Errorf("missing default formula: %v", err)
 	}
 }
+
+//shed:proves S.config.1 S.config.2 S.config.3 S.shed.20
+func TestCommitteeAssignments(t *testing.T) {
+	for _, input := range []string{
+		"[committee]\nperspectives = []",
+		"[committee]\nperspectives = [\"unknown\"]",
+		"[committee]\nprofiles = [\"unknown\"]",
+	} {
+		if _, err := LoadOperator(writeOperator(t, input)); err == nil {
+			t.Errorf("accepted %s", input)
+		}
+	}
+	c, err := LoadOperator(writeOperator(t, "[committee]\nperspectives = [\"scope\", \"correctness\"]\nprofiles = [\"default\"]"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(c.Committee.Perspectives, ",") != "scope,correctness" || strings.Join(c.Committee.Profiles, ",") != "default" {
+		t.Fatalf("assignments: %+v", c.Committee)
+	}
+}

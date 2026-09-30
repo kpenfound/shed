@@ -67,8 +67,10 @@ func (t Tool) Call(ctx context.Context, input any) (string, error) {
 
 // Turn is one session to run.
 type Turn struct {
-	Unit string
-	Role unit.Actor
+	// Profile overrides the role profile for this session and its fallback chain.
+	Profile string
+	Unit    string
+	Role    unit.Actor
 	// Step is the formula step or shed stage the session works on.
 	Step string
 	// Dir is the session's working directory: a plain directory of files.

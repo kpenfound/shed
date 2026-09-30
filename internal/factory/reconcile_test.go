@@ -334,22 +334,20 @@ func TestHorizonNoticesReachTheUnitsNextSession(t *testing.T) {
 	})
 	must2(t, f.Implement)(failing)
 
-	// The reopened unit's next session is a committee debate, and it
-	// carries the notice.
+	// A reopened unit's horizon notice reaches its next painter session.
 	must(t, f.Tracker.Reopen(reopened, unit.Owner, "rethink", false))
-	debates := len(fake.ran(unit.Committee))
+	fake.on(unit.Painter, "reply", func(turn session.Turn) session.Result {
+		if !carries(turn.Bundle) {
+			t.Errorf("painter bundle lacks horizon notice: %s", turn.Bundle)
+		}
+		return done("replied")
+	})
+	u, err := f.Tracker.Unit(reopened)
+	must(t, err)
+	must(t, f.reply(ctx, u, 1, amendment{}))
 	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
 	if _, err := f.Debate(ctx, reopened); err != nil {
 		t.Fatal(err)
-	}
-	found := false
-	for _, turn := range fake.ran(unit.Committee)[debates:] {
-		if turn.Unit == reopened && carries(turn.Bundle) {
-			found = true
-		}
-	}
-	if !found {
-		t.Error("no committee debate bundle for the reopened unit carries the horizon notice")
 	}
 	for _, turn := range fake.ran(unit.Wheelbuilder) {
 		if turn.Unit == reopened {

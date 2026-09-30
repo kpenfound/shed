@@ -120,6 +120,9 @@ func (c *Core) Grants(t Turn, p agent.Profile) (agent.Grants, error) {
 // role's fallback chain.
 func (c *Core) Run(ctx context.Context, t Turn) (Result, error) {
 	base, err := c.Profile(string(t.Role))
+	if t.Profile != "" {
+		base, err = c.profile(t.Profile, map[string]bool{})
+	}
 	if err != nil {
 		return Result{}, err
 	}

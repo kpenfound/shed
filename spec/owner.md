@@ -20,7 +20,7 @@
 - **S.owner.4** (H.owner.1) `shed answer <unit> retry <reason>` moves a
   contested unit to proposed with the owner as actor and the reason as the
   move's reason. The unit keeps its bounce count, so under S.unit.6 its
-  next bounce moves it back to contested. Every later bundle of the unit
+  next bounce moves it back to contested. Every later bundle of the unit except committee debate bundles (S.shed.1)
   holds the owner's answers to it, oldest first, each with its time, kind
   and reason.
 - **S.owner.5** (H.owner.1) `shed answer <unit> defer <reason>` archives a

@@ -110,7 +110,7 @@ func TestAnswerRetry(t *testing.T) {
 		t.Errorf("the retry's move = %+v", ev)
 	}
 
-	// The retried unit is debated with the answer in its bundle, sealed,
+	// The retried unit is debated independently, sealed,
 	// and its next bounce contests it again.
 	var bundles []string
 	debate := func() {
@@ -122,9 +122,6 @@ func TestAnswerRetry(t *testing.T) {
 		}
 	}
 	debate()
-	if len(bundles) == 0 || answerLine(bundles[len(bundles)-1], "retry", "narrow the scope") < 0 {
-		t.Errorf("the bundle after a retry lacks the answer:\n%s", bundles)
-	}
 	mustRun(t, r.Dir, "unit", "reopen", change, "still", "wrong")
 	if u := unitNow(t, r, change); u.State != unit.Contested || u.Bounces != 2 {
 		t.Errorf("the next bounce after a retry: %s with %d bounces, want contested with 2", u.State, u.Bounces)
@@ -133,11 +130,19 @@ func TestAnswerRetry(t *testing.T) {
 	mustRun(t, r.Dir, "answer", change, "retry", "split", "it", "in", "two")
 	bundles = nil
 	debate()
-	last := bundles[len(bundles)-1]
-	first, second := answerLine(last, "retry", "narrow the scope"), answerLine(last, "retry", "split it in two")
-	if first < 0 || second < 0 || first >= second {
-		t.Errorf("the bundle does not hold both answers oldest first (lines %d and %d):\n%s", first, second, last)
+	tr, err := tracker.Open(filepath.Join(r.Dir, DefaultStateDir), tracker.Options{})
+	if err != nil {
+		t.Fatal(err)
 	}
+	defer tr.Close()
+	answers, err := tr.Answers(change)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(answers) != 2 || answers[0].Reason != "narrow the scope" || answers[1].Reason != "split it in two" {
+		t.Fatalf("answer history: %+v", answers)
+	}
+
 }
 
 //shed:proves S.owner.5

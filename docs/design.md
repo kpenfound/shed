@@ -188,7 +188,10 @@ What you lose is incremental user feedback on a half-built feature. The frame bu
 
 Two footprints per unit, computed at sealing and recomputed on reconcile.
 
-The spec footprint is the clause IDs the unit modifies plus the ones it depends on. It says what changes. The horizon footprint is the horizon clause IDs the unit advances. It says why.
+The spec footprint is the clause IDs the unit modifies plus the unmodified
+clauses whose behavioral guarantees those modified clauses directly use.
+Dependencies do not recursively include dependencies of dependencies, and
+context citations or statements of unchanged behavior do not alone require them. It says what changes. The horizon footprint is the horizon clause IDs the unit advances. It says why.
 
 Size is measured in footprint, not tokens. A unit that costs $400 and touches three clauses is safe. A unit that costs $40 and touches thirty is dangerous, because it is entangled with everything and will be reopened every time a neighbour lands. When the frame builder says a proposal is too big, the split she demands is by footprint. Exposure time multiplied by footprint is the risk. Implementation cost barely matters to atomicity.
 
@@ -282,7 +285,10 @@ Every debate weighs the spec footprint. Too large, and the frame builder demands
 
 Committee members run in parallel on the same version of the proposal and collect their objections. The proposer answers once per round. Rounds are capped. Consensus means zero dissent after the cap, not a vote and not a confidence score.
 
-Every debate is recorded in the unit's bundle, and in the archive if the unit ends there.
+Every debate is recorded for the owner, painter and archive. Each committee
+member receives only its own objections and answers within the current debate.
+A retry starts an independent review. Members have distinct review perspectives
+and may run on different operator-selected profiles.
 
 Amendment requests from implementation (§8.3) take a fast lane. Same rules, shorter round cap, scoped to the sealed spec.
 

@@ -22,6 +22,7 @@ const OperatorFile = "config.toml"
 
 // Operator holds the settings that tune the factory on one machine.
 type Operator struct {
+	Committee   Committee          `toml:"committee"`
 	Budget      Budget             `toml:"budget"`
 	Concurrency Concurrency        `toml:"concurrency"`
 	Shed        Debate             `toml:"shed"`
@@ -32,6 +33,12 @@ type Operator struct {
 	Painter     Painter            `toml:"painter"`
 	Serve       Serve              `toml:"serve"`
 	Owner       Owner              `toml:"owner"`
+}
+
+// Committee assigns review perspectives and profiles by member number.
+type Committee struct {
+	Perspectives []string `toml:"perspectives"`
+	Profiles     []string `toml:"profiles"`
 }
 
 // Owner tunes what reaches the owner's inbox.
@@ -168,6 +175,7 @@ func Defaults() Operator {
 	}
 	return Operator{
 		Budget:      Budget{PerSessionUSD: 5, PerDayUSD: 50, OverrunMultiple: 3},
+		Committee:   Committee{Perspectives: []string{"correctness", "integration", "scope"}},
 		Concurrency: Concurrency{Units: 4, MechanicsPerUnit: 1, Committee: 3, InFlight: 1},
 		Shed: Debate{MaxRounds: 3, AmendmentRounds: 1, BounceThreshold: 3,
 			ContestedTimeout: Duration{72 * time.Hour}},
@@ -275,6 +283,19 @@ func (c Operator) Validate() error {
 			} else if fallbackLoops(c.Profiles, name) {
 				fail("profiles.%s.fallback loops back to itself", name)
 			}
+		}
+	}
+	if len(c.Committee.Perspectives) == 0 {
+		fail("committee.perspectives must not be empty")
+	}
+	for _, name := range c.Committee.Perspectives {
+		if !slices.Contains([]string{"correctness", "integration", "scope"}, name) {
+			fail("unknown committee perspective %q", name)
+		}
+	}
+	for _, name := range c.Committee.Profiles {
+		if _, ok := c.Profiles[name]; !ok {
+			fail("committee.profiles names unknown profile %q", name)
 		}
 	}
 	for _, name := range sortedKeys(c.Roles) {

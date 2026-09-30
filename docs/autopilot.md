@@ -446,3 +446,39 @@ sessions have failed for infrastructure reasons in a row. After a crash,
    ./shed doctor
    ./shed serve
    ```
+
+### Independent committee review
+
+Each debate member sees its own objections and the painter's answers from
+that debate. A retry starts a fresh review of the current proposal. Other
+members' objections, previous debates, owner-answer history, the unit's latest
+reason and pending notices are omitted from debate bundles. Notices stay
+pending for other sessions. Amendment debates include the mechanic's original
+amendment request as current proposal input. The painter and the owner's event log retain the
+complete history. Members review independently; earlier acceptance of an
+argument does not establish a new requirement.
+
+A footprint dependency is a behavioral guarantee a modified clause directly
+uses. Context citations and statements that behavior is unchanged do not alone
+create dependencies, and dependency lists do not recursively expand through
+other clauses. Members should audit the list together in their first round,
+and explain a concrete behavioral consequence for each missing dependency.
+
+The default perspectives are correctness, integration and scope. All members
+can raise any valid objection. Perspective and profile assignments cycle
+independently by member number and remain stable across rounds:
+
+```toml
+[committee]
+perspectives = ["correctness", "integration", "scope"]
+profiles = ["default", "second"]
+
+[profiles.second]
+agent = "codex"
+```
+
+An empty profiles list uses `roles.committee.profile`. Each assigned profile
+uses its own fallback chain. These assignments affect debate sessions only.
+Override a perspective in `.shed/prompts/committee-correctness.md`,
+`committee-integration.md` or `committee-scope.md`; the shared `committee.md`
+prompt still applies to every member.

@@ -277,6 +277,7 @@ func laneOf(events []tracker.Event) *tracker.Event {
 // seal. A unit outside the lane has no scope, and its cap is
 // shed.max_rounds.
 type amendment struct {
+	request   string
 	cap       int
 	scope     []string
 	footprint tracker.Footprint
@@ -295,6 +296,17 @@ func (f *Factory) amendmentOf(change string) (amendment, error) {
 		return amendment{cap: f.Operator.Shed.MaxRounds}, err
 	}
 	a := amendment{cap: f.Operator.Shed.AmendmentRounds, main: sealed.Seal.Main, commit: sealed.Seal.Commit}
+	events, err := f.Tracker.Events(change)
+	if err != nil {
+		return amendment{}, err
+	}
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i].Amendment && events[i].Bounce {
+			a.request = events[i].Reason
+			break
+		}
+	}
+
 	if fp := sealed.Footprint; fp != nil {
 		a.footprint = *fp
 		for _, id := range slices.Concat(fp.Modifies, fp.Depends) {
@@ -352,13 +364,20 @@ func (f *Factory) committeeRound(ctx context.Context, u tracker.Unit, round, max
 				errs[member-1] = err
 				return
 			}
+			perspectives := f.Operator.Committee.Perspectives
+			perspective := perspectives[(member-1)%len(perspectives)]
+			profile := ""
+			if profiles := f.Operator.Committee.Profiles; len(profiles) > 0 {
+				profile = profiles[(member-1)%len(profiles)]
+			}
 			res, err := f.session(ctx, work{
+				Member: member, Perspective: perspective, Profile: profile,
 				Unit: u, Role: unit.Committee, Prompt: roles.Committee,
 				Step:     fmt.Sprintf("debate round %d, member %d", round, member),
 				Task:     fmt.Sprintf("Debate the proposal %q. This is round %d of at most %d, and you are member %d.", u.Title, round, max, member) + lane.told(),
 				Tools:    func(_ string, head *docs.Set) []session.Tool { return f.committeeTools(u.Change, member, head) },
 				Outcomes: []string{outcomeClean, outcomeObjecting},
-				Extra:    []bundle.Section{{Title: "Your standing objections", Body: mine}},
+				Extra:    []bundle.Section{{Title: "Your standing objections", Body: mine}, {Title: "Amendment request", Body: lane.request}},
 			})
 			if err == nil && res.Failure != session.NoFailure {
 				err = fmt.Errorf("committee member %d: %s: %s", member, res.Failure, res.Reason)

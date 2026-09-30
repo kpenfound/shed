@@ -48,7 +48,9 @@ never used.
 
 ## Bundles and prompts
 
-Before each session shed writes its bundle: the unit, the charter, the
+Committee debate bundles isolate history and omit shared summaries as
+[Independent committee review](autopilot.md#independent-committee-review) describes.
+For other sessions, shed writes its bundle: the unit, the charter, the
 footprint, the spec changes, the sealed spec, the horizon clauses advanced,
 the proofs of the footprint's clauses, the debate record, the owner's
 answers to the unit, oldest first, and the notices pending for the role or

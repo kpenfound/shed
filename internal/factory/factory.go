@@ -97,11 +97,14 @@ func (f *Factory) Close() error { return f.Tracker.Close() }
 
 // work is one session on a unit.
 type work struct {
-	Unit   tracker.Unit
-	Role   unit.Actor
-	Prompt string
-	Step   string
-	Task   string
+	Member      int
+	Perspective string
+	Profile     string
+	Unit        tracker.Unit
+	Role        unit.Actor
+	Prompt      string
+	Step        string
+	Task        string
 	// Writable sessions change the unit's files; shed captures them onto
 	// the unit's change when the session ends.
 	Writable bool
@@ -146,6 +149,9 @@ func (f *Factory) session(ctx context.Context, w work) (session.Result, error) {
 		return session.Result{}, err
 	}
 	record, err := f.record(w.Unit.Change)
+	if w.Member > 0 {
+		record, err = f.memberRecord(w.Unit.Change, w.Member, w.Unit.Cycle)
+	}
 	if err != nil {
 		return session.Result{}, err
 	}
@@ -153,12 +159,23 @@ func (f *Factory) session(ctx context.Context, w work) (session.Result, error) {
 	if err != nil {
 		return session.Result{}, err
 	}
+	if w.Member > 0 {
+		// Free-form summaries can quote another member's debate history.
+		w.Unit.Reason = ""
+		answers = nil
+		pending = nil
+	}
 	b, err := f.Provider.Bundle(ctx, bundle.Request{Role: w.Role, Unit: w.Unit, Main: main, Head: head,
 		Proofs: proofs, Debate: record, Answers: answers, Notices: pending, Conflicts: conflicts, Kept: w.Writable, Extra: w.Extra})
 	if err != nil {
 		return session.Result{}, err
 	}
 	system, err := roles.System(f.State, w.Prompt)
+	if err == nil && w.Perspective != "" {
+		var focus string
+		focus, err = roles.Perspective(f.State, w.Perspective)
+		system += "\n" + focus
+	}
 	if err != nil {
 		return session.Result{}, err
 	}
@@ -173,7 +190,7 @@ func (f *Factory) session(ctx context.Context, w work) (session.Result, error) {
 		}
 	}
 	res, err := f.Sessions.Run(ctx, session.Turn{
-		Unit: w.Unit.Change, Role: w.Role, Step: w.Step, Dir: view, Writable: w.Writable,
+		Profile: w.Profile, Unit: w.Unit.Change, Role: w.Role, Step: w.Step, Dir: view, Writable: w.Writable,
 		SystemPrompt: system, Prompt: w.Task, Bundle: b.Render(), Notices: ids, Tools: tools,
 		Outcomes: w.Outcomes, Check: w.Check, StepDone: w.StepDone,
 	})
@@ -220,6 +237,28 @@ func onMain(main *docs.Set) func(clause.ID) bool {
 		_, ok := main.Lookup(id)
 		return ok
 	}
+}
+
+// memberRecord exposes only this member's contributions in this debate.
+func (f *Factory) memberRecord(change string, member, cycle int) (string, error) {
+	all, err := f.Tracker.Objections(change, cycle)
+	if err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	for _, o := range all {
+		if o.Member != member {
+			continue
+		}
+		fmt.Fprintf(&b, "- %s, round %d, %s, citing %s: %s\n", o.ID, o.Round, o.Kind, strings.Join(o.Citations, ", "), o.Text)
+		if o.Answer != "" {
+			fmt.Fprintf(&b, "  - Answer: %s\n", o.Answer)
+		}
+		if o.Withdrawn != "" {
+			fmt.Fprintf(&b, "  - Withdrawn: %s\n", o.Withdrawn)
+		}
+	}
+	return strings.TrimSpace(b.String()), nil
 }
 
 // record renders a unit's debate record: every objection of every debate,

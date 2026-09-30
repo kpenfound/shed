@@ -67,3 +67,13 @@ func load(stateDir, name string) (string, error) {
 	}
 	return string(data), nil
 }
+
+// Perspective loads a committee focus, including the operator's override.
+func Perspective(stateDir, name string) (string, error) {
+	switch name {
+	case "correctness", "integration", "scope":
+		return load(stateDir, "committee-"+name)
+	default:
+		return "", fmt.Errorf("unknown committee perspective %q", name)
+	}
+}

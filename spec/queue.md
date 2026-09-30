@@ -17,7 +17,7 @@
   unit with one or more changed clauses gets one notice
   naming the landed unit by its short change ID and giving, for each such
   clause in the order of the parent's horizon, its ID and its tag list and
-  text before and after. The notice is in the unit's next bundle as under
+  text before and after. The notice is in the unit's next non-debate bundle as under
   S.sess.6, appears in `shed unit log` for the unit, and moves nothing.
 - **S.queue.4** (H.queue.5) A unit covered by S.queue.3 whose recorded
   horizon clauses include one the landing removed from the horizon reopens,
