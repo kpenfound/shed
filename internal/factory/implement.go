@@ -543,28 +543,40 @@ func (f *Factory) LandReport(ctx context.Context, change string) (Outcome, []Reb
 	if err := unmarked(u, "landed"); err != nil {
 		return "", nil, err
 	}
-	// A unit already on main only needs recording.
-	if landed, err := f.Repo.OnMain(ctx, u.Change); err != nil || !landed {
+	// A unit already on main only needs rebasing when it is not there yet;
+	// either way, a conflict already stored in its change (S.vcs.16), even
+	// one a landing's sweep stored before this one began, is resolved here
+	// too (S.queue.2).
+	if landed, err := f.Repo.OnMain(ctx, u.Change); err != nil {
+		return "", nil, err
+	} else if !landed {
+		if _, err := f.Repo.Rebase(ctx, u.Change); err != nil {
+			return "", nil, err
+		}
+	}
+	files, _, err := f.unresolved(ctx, u.Change)
+	if err != nil {
+		return "", nil, err
+	}
+	if len(files) > 0 {
+		res, err := f.session(ctx, work{
+			Unit: u, Role: unit.Wheelbuilder, Prompt: roles.Wheelbuilder, Step: "resolve", Writable: true,
+			Task:     fmt.Sprintf("Resolve the conflicts between %q and main.", u.Title),
+			Tools:    f.testTools,
+			Outcomes: []string{outcomeResolved, outcomeUnresolvable},
+		})
 		if err != nil {
 			return "", nil, err
 		}
-		conflicted, err := f.Repo.Rebase(ctx, u.Change)
+		if res.Status != outcomeResolved {
+			return unreported(f.reopen(u, unit.Wheelbuilder, "the unit conflicts with main and the wheelbuilder could not resolve it: "+res.Note, false))
+		}
+		files, _, err = f.unresolved(ctx, u.Change)
 		if err != nil {
 			return "", nil, err
 		}
-		if conflicted {
-			res, err := f.session(ctx, work{
-				Unit: u, Role: unit.Wheelbuilder, Prompt: roles.Wheelbuilder, Step: "resolve", Writable: true,
-				Task:     fmt.Sprintf("Resolve the conflicts between %q and main.", u.Title),
-				Tools:    f.testTools,
-				Outcomes: []string{outcomeResolved, outcomeUnresolvable},
-			})
-			if err != nil {
-				return "", nil, err
-			}
-			if res.Status != outcomeResolved {
-				return unreported(f.reopen(u, unit.Wheelbuilder, "the unit conflicts with main and the wheelbuilder could not resolve it: "+res.Note, false))
-			}
+		if len(files) > 0 {
+			return unreported(f.reopen(u, unit.Wheelbuilder, "the wheelbuilder reported the conflicts resolved but left an unresolved conflict in: "+strings.Join(files, ", "), false))
 		}
 	}
 	commit, err := landing.Land(ctx, f.Tracker, f.Repo, u.Change, unit.Wheelbuilder)

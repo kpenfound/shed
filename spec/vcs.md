@@ -109,15 +109,22 @@
   the commit the change was rebased onto, and prints nothing. If shed
   stops partway through the sweep, `shed land` prints no line for the units
   it had not reached. None of these events changes a unit's state.
-- **S.vcs.16** (H.vcs.7) A unit that is sealed or implementing keeps a
-  rebase under S.vcs.10 or S.vcs.11 whose rebased change holds unresolved
-  conflicts (S.vcs.12) only in files outside `spec/`: the conflicts stay
-  stored in its change and its workspace holds the rebased files, so the
-  unit is on the new main. Its state, seal and footprint are unchanged, and
-  its next mechanic session's bundle names each conflicted file as S.vcs.10
-  says. A conflict its mechanics leave unresolved fails its verification and
-  returns it to implementing (S.vcs.12), as a conflict stored at its sealing
-  does. A rebase that leaves an unresolved conflict in any file under
-  `spec/`, or of a unit that is verifying or queued, is still undone as
-  S.vcs.10 says. `shed land` and the unit's log report a kept rebase as
-  rebased with conflicts stored in its change (S.vcs.15).
+- **S.vcs.16** (H.vcs.7) A unit that is sealed, implementing or queued
+  keeps a rebase under S.vcs.10 or S.vcs.11 whose rebased change holds
+  unresolved conflicts (S.vcs.12) only in files outside `spec/`: the
+  conflicts stay stored in its change and its workspace holds the rebased
+  files, so the unit is on the new main. Its state, seal and footprint are
+  unchanged. A sealed or implementing unit's next mechanic session's bundle
+  names each conflicted file as S.vcs.10 says, and a conflict its mechanics
+  leave unresolved fails its verification and returns it to implementing
+  (S.vcs.12), as a conflict stored at its sealing does. A queued unit's
+  conflicts are resolved at its landing: when its change holds an
+  unresolved conflict after the landing's rebase (S.queue.2), even one
+  stored before that landing began and even when main has not moved since,
+  the wheelbuilder session of S.queue.2 runs before anything lands, and if
+  it reports `unresolvable`, or any file still holds an unresolved conflict
+  once its directory is captured, the unit reopens and nothing lands. A
+  rebase that leaves an unresolved conflict in any file under `spec/`, or
+  of a unit that is verifying, is still undone as S.vcs.10 says. `shed
+  land` and the unit's log report a kept rebase as rebased with conflicts
+  stored in its change (S.vcs.15).

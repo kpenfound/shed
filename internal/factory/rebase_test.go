@@ -909,6 +909,144 @@ func TestSealedAndImplementingUnitsKeepNonSpecConflicts(t *testing.T) {
 	}
 }
 
+//shed:proves S.vcs.16 S.queue.2
+func TestQueuedUnitsKeepNonSpecConflictsForTheWheelbuilder(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[concurrency]\nin_flight = 0\n[vcs]\nremote = \"origin\"\n")
+	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
+
+	// The unit that lands touches greet.go.
+	lander := sealed(t, f, fake)
+	mechanic(t, fake)
+	fake.on(unit.Mechanic, "docs", func(turn session.Turn) session.Result {
+		write(t, turn.Dir, "greet.go", "package greet\n\n// Hello greets warmly.\nfunc Hello() string { return \"hello\" }\n")
+		return done("done")
+	})
+	fake.on(unit.Committee, "review", func(session.Turn) session.Result { return done("pass") })
+	must2(t, f.Implement)(lander)
+	must2(t, f.Verify)(lander)
+
+	// Three queued units each edit greet.go in a way that clashes with the
+	// landing, but none touches spec/ outside its own new clause.
+	queued := map[string]string{}
+	befores := map[string]tracker.Unit{}
+	for _, area := range []string{"hola", "nod", "wave"} {
+		proof := fmt.Sprintf("package greet\n\nimport \"testing\"\n\n//shed:proves S.%s.1\nfunc Test%s(t *testing.T) {}\n", area, strings.ToUpper(area[:1])+area[1:])
+		greet := fmt.Sprintf("package greet\n\n// Hello greets with a %s.\nfunc Hello() string { return \"hello\" }\n", area)
+		change := inFlight(t, f, fake, area, map[string]string{"greet.go": greet, area + "_test.go": proof})
+		for _, s := range []unit.State{unit.Implementing, unit.Verifying, unit.Queued} {
+			must(t, f.Tracker.Move(change, s, unit.Shed, "by hand"))
+		}
+		before, err := f.Tracker.Unit(change)
+		must(t, err)
+		queued[area], befores[change] = change, before
+	}
+
+	out, err := f.Land(ctx, lander)
+	if err != nil || out != Landed {
+		t.Fatalf("land = %s, %v", out, err)
+	}
+	main, err := f.Repo.MainCommit(ctx)
+	must(t, err)
+
+	// Each queued unit keeps its rebase with the conflict stored, on the new
+	// main, its state, seal and footprint unchanged (S.vcs.16).
+	for change, before := range befores {
+		u, err := f.Tracker.Unit(change)
+		must(t, err)
+		if u.State != unit.Queued {
+			t.Errorf("unit %s is %s after the landing, want queued", unit.Short(change), u.State)
+		}
+		if !reflect.DeepEqual(u.Seal, before.Seal) {
+			t.Errorf("unit %s's seal = %+v, want %+v unchanged", unit.Short(change), u.Seal, before.Seal)
+		}
+		if !reflect.DeepEqual(u.Footprint, before.Footprint) {
+			t.Errorf("unit %s's footprint = %+v, want %+v unchanged", unit.Short(change), u.Footprint, before.Footprint)
+		}
+		if got := parent(t, f, r, change); got != main {
+			t.Errorf("unit %s sits on %s, want the new main %s", unit.Short(change), got, main)
+		}
+		dir, err := f.Repo.Workspace(ctx, change)
+		must(t, err)
+		if got, _ := os.ReadFile(filepath.Join(dir, "greet.go")); !strings.Contains(string(got), "<<<<<<<") {
+			t.Errorf("unit %s's greet.go keeps no conflict:\n%s", unit.Short(change), got)
+		}
+		if got := swept(t, f, change, lander); !slices.Equal(got, []string{rebasedConflict}) {
+			t.Errorf("unit %s logs %q, want %q", unit.Short(change), got, []string{rebasedConflict})
+		}
+	}
+
+	// Main has not moved since the sweep stored those conflicts, so each
+	// landing's own rebase changes nothing; the wheelbuilder still runs on
+	// the stored conflict before anything lands (S.queue.2).
+	wheel := func(change string, resolve func(dir string) session.Result) *bool {
+		ran := false
+		fake.on(unit.Wheelbuilder, "resolve", func(turn session.Turn) session.Result {
+			if turn.Unit != change {
+				t.Errorf("the wheelbuilder ran for %s, want %s", unit.Short(turn.Unit), unit.Short(change))
+			}
+			ran = true
+			if got, _ := os.ReadFile(filepath.Join(turn.Dir, "greet.go")); !strings.Contains(string(got), "<<<<<<<") {
+				t.Errorf("the wheelbuilder's greet.go has no conflict markers:\n%s", got)
+			}
+			return resolve(turn.Dir)
+		})
+		return &ran
+	}
+	reopens := func(change, why string) {
+		t.Helper()
+		out, err := f.Land(ctx, change)
+		must(t, err)
+		if out != Reopened {
+			t.Errorf("land of the %s unit = %s, want reopened", why, out)
+		}
+		if u, _ := f.Tracker.Unit(change); u.State != unit.Proposed {
+			t.Errorf("the %s unit is %s, want proposed", why, u.State)
+		}
+		if now, _ := f.Repo.MainCommit(ctx); now != main {
+			t.Errorf("main moved to %s when the %s unit reopened, want %s", now, why, main)
+		}
+	}
+
+	// A wheelbuilder that reports unresolvable reopens the unit and nothing
+	// lands.
+	ran := wheel(queued["nod"], func(string) session.Result {
+		res := done("unresolvable")
+		res.Note = "both reword Hello's comment"
+		return res
+	})
+	reopens(queued["nod"], "unresolvable")
+	if !*ran {
+		t.Error("the wheelbuilder never ran for the unresolvable unit")
+	}
+
+	// A wheelbuilder that reports resolved but leaves the markers in place
+	// also reopens the unit, and nothing lands.
+	ran = wheel(queued["wave"], func(string) session.Result { return done("resolved") })
+	reopens(queued["wave"], "still conflicted")
+	if !*ran {
+		t.Error("the wheelbuilder never ran for the still-conflicted unit")
+	}
+
+	// A wheelbuilder that resolves the file lets the unit land.
+	ran = wheel(queued["hola"], func(dir string) session.Result {
+		write(t, dir, "greet.go", "package greet\n\n// Hello greets warmly with a hola.\nfunc Hello() string { return \"hello\" }\n")
+		return done("resolved")
+	})
+	if out, err := f.Land(ctx, queued["hola"]); err != nil || out != Landed {
+		t.Fatalf("land of the resolved unit = %s, %v", out, err)
+	}
+	if !*ran {
+		t.Error("the wheelbuilder never ran for the resolved unit")
+	}
+	landed, err := f.Repo.MainCommit(ctx)
+	must(t, err)
+	if got := r.Git("show", landed+":greet.go"); !strings.Contains(got, "warmly with a hola") || strings.Contains(got, "<<<<<<<") {
+		t.Errorf("main's greet.go = %q", got)
+	}
+}
+
 //shed:proves S.vcs.16
 func TestSpecConflictStillUndoesAnImplementingUnitsRebase(t *testing.T) {
 	r := project(t)

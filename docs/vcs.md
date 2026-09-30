@@ -100,29 +100,35 @@ conflict with main depends on how far the unit has come:
 - A proposed or contested unit keeps the rebase, conflicts and all. The
   conflict stays stored in the change's files, and the painter's next session
   sees it and resolves it before the committee debates the text.
-- A sealed or implementing unit keeps the rebase when its conflicts lie only
-  in files outside `spec/`: the conflicts stay stored in the change and its
-  workspace holds the rebased files, so the unit is on the new main. Its
-  state, seal and footprint are unchanged, and its next mechanic session's
-  bundle names each conflicted file and says to resolve it against the
-  sealed spec before any other work, the same as a conflict stored at
-  sealing. A conflict its mechanics leave unresolved fails its verification
-  and returns it to implementing. A rebase that leaves an unresolved conflict
-  in a file under `spec/` is undone instead, like any other conflict past the
-  seal.
-- A unit that is verifying or queued, or a proposed unit that `shed frame`
-  opened, keeps the rebase only if the rebased change holds no conflict in
-  any file. Otherwise shed undoes that unit's rebase and leaves its change
-  and workspace as they were, so no verifier or gate ever meets a conflict a
-  landing brought in unless a mechanic session was first told to resolve it,
-  and a framing never holds a conflict no session would resolve. A unit past
-  its seal takes main's changes when a later landing rebases it cleanly, or
-  at its own landing, where the wheelbuilder resolves conflicts against the
-  sealed spec. A frame unit has no seal and no wheelbuilder to resolve a
-  conflict for it: `shed frame -accept` rebases it onto main itself and, on a
-  conflict, undoes the rebase and refuses to land, leaving the unit proposed
-  for the owner to accept again once main stops conflicting, or to discard
-  (see [framing the horizon](autopilot.md#framing-the-horizon)).
+- A sealed, implementing or queued unit keeps the rebase when its conflicts
+  lie only in files outside `spec/`: the conflicts stay stored in the change
+  and its workspace holds the rebased files, so the unit is on the new main.
+  Its state, seal and footprint are unchanged. A sealed or implementing
+  unit's next mechanic session's bundle names each conflicted file and says
+  to resolve it against the sealed spec before any other work, the same as a
+  conflict stored at sealing, and a conflict its mechanics leave unresolved
+  fails its verification and returns it to implementing. A queued unit's
+  stored conflict waits instead for its own landing: the wheelbuilder session
+  there ([landing](#landing)) resolves whatever conflict the change still
+  holds, even one a sweep stored well before that landing began and even
+  when main has not moved since. If the wheelbuilder reports `unresolvable`,
+  or any file still holds an unresolved conflict once its directory is
+  captured, the unit reopens and nothing lands. A rebase that leaves an
+  unresolved conflict in a file under `spec/` is undone instead, like any
+  other conflict past the seal.
+- A unit that is verifying, or a proposed unit that `shed frame` opened,
+  keeps the rebase only if the rebased change holds no conflict in any file.
+  Otherwise shed undoes that unit's rebase and leaves its change and
+  workspace as they were, so no verifier ever meets a conflict a landing
+  brought in unless a mechanic session was first told to resolve it, and a
+  framing never holds a conflict no session would resolve. A verifying
+  unit takes main's changes when a later landing rebases it cleanly, or once
+  it reaches the queue and can keep a non-`spec/` conflict as above. A frame
+  unit has no seal and no wheelbuilder to resolve a conflict for it: `shed
+  frame -accept` rebases it onto main itself and, on a conflict, undoes the
+  rebase and refuses to land, leaving the unit proposed for the owner to
+  accept again once main stops conflicting, or to discard (see [framing the
+  horizon](autopilot.md#framing-the-horizon)).
 
 No unit changes state because of the rebase, and a rebase that conflicts, is
 undone or fails neither fails the landing nor stops the other units from

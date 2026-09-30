@@ -205,10 +205,11 @@ func (f *Factory) follow(ctx context.Context, change string) (string, bool) {
 		return failed(err), true
 	}
 	switch {
-	case u.State == unit.Sealed, u.State == unit.Implementing:
-		// A sealed or implementing unit keeps a rebase whose conflicts lie
-		// only outside spec/ (S.vcs.16); one that conflicts under spec/, like
-		// one that conflicts anywhere for a unit past that, is undone.
+	case u.State == unit.Sealed, u.State == unit.Implementing, u.State == unit.Queued:
+		// A sealed, implementing or queued unit keeps a rebase whose
+		// conflicts lie only outside spec/ (S.vcs.16); one that conflicts
+		// under spec/, like one that conflicts anywhere for a unit past
+		// that, is undone.
 		kept, conflicted, err := f.Repo.FollowUnless(ctx, change, specConflict)
 		switch {
 		case err != nil:
@@ -218,8 +219,8 @@ func (f *Factory) follow(ctx context.Context, change string) (string, bool) {
 		case conflicted:
 			return rebasedConflict, true
 		}
-	case u.State == unit.Verifying, u.State == unit.Queued:
-		// Past its seal, a unit keeps only a rebase that holds no conflict.
+	case u.State == unit.Verifying:
+		// A verifying unit keeps only a rebase that holds no conflict.
 		conflicted, err := f.Repo.FollowClean(ctx, change)
 		switch {
 		case err != nil:
