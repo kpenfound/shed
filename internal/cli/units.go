@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/kpenfound/shed/internal/bundle"
 	"github.com/kpenfound/shed/internal/config"
 	"github.com/kpenfound/shed/internal/factory"
 	"github.com/kpenfound/shed/internal/tracker"
@@ -163,6 +164,34 @@ func (e env) unitPath(args []string) int {
 			return e.fail(err)
 		}
 		fmt.Fprintln(e.stdout, dir)
+		return OK
+	})
+}
+
+// conflicts lists every in-flight unit whose change carries stored
+// conflicts, in the order the units opened, one line per unit: its short
+// change ID and its conflicted files (S.vcs.13).
+func (e env) conflicts(args []string) int {
+	if len(args) > 0 {
+		return e.misuse("conflicts takes no arguments")
+	}
+	return e.withRepo(func(t *tracker.Tracker, repo *vcs.Repo) int {
+		units, err := t.Units()
+		if err != nil {
+			return e.fail(err)
+		}
+		for _, u := range units {
+			if !u.State.InFlight() {
+				continue
+			}
+			files, err := repo.Conflicts(e.ctx, u.Change)
+			if err != nil {
+				return e.fail(err)
+			}
+			if len(files) > 0 {
+				fmt.Fprintln(e.stdout, bundle.ConflictLine(u.Change, files))
+			}
+		}
 		return OK
 	})
 }

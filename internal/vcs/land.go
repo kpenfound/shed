@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -440,4 +441,28 @@ func (r *Repo) Behind(ctx context.Context, change string) (bool, error) {
 func (r *Repo) Descends(ctx context.Context, change, commit string) (bool, error) {
 	out, err := r.log(ctx, fmt.Sprintf("%s & %s::", changeRevset(change), commit), "change_id")
 	return out != "", err
+}
+
+// Conflicts lists the files a unit's change carries stored conflicts in,
+// relative to the repository root and in path name order. It reads the
+// change as jj records it, without touching any working copy, and is empty
+// when the change has no conflicts.
+func (r *Repo) Conflicts(ctx context.Context, change string) ([]string, error) {
+	conflicted, err := r.log(ctx, changeRevset(change)+" & conflicts()", "change_id")
+	if err != nil || conflicted == "" {
+		return nil, err
+	}
+	out, err := r.jj(ctx, "file", "list", "-r", changeRevset(change),
+		"-T", `if(conflict, path ++ "\n")`)
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, line := range strings.Split(out, "\n") {
+		if line != "" {
+			files = append(files, filepath.ToSlash(line))
+		}
+	}
+	slices.Sort(files)
+	return files, nil
 }

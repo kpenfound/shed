@@ -114,11 +114,7 @@ func (f *Factory) Implement(ctx context.Context, change string) (Outcome, error)
 		if failures >= maxStepFailures {
 			return f.reopen(u, unit.Mechanic, fmt.Sprintf("the %s step failed %d times", step.Name, failures), false)
 		}
-		conflicts, err := f.conflictSection(ctx, u.Change)
-		if err != nil {
-			return "", err
-		}
-		extra := append(slices.Clone(amended), conflicts...)
+		extra := slices.Clone(amended)
 		res, err := f.session(ctx, work{
 			Unit: u, Role: unit.Mechanic, Prompt: roles.Mechanic, Step: step.Name, Writable: true,
 			Task:     fmt.Sprintf("Work on the %s step of %q.", step.Name, u.Title),

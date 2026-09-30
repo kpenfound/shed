@@ -58,6 +58,11 @@ type Request struct {
 	Answers []tracker.Answer
 	// Notices are the pending notices for the role about the unit.
 	Notices []tracker.Notice
+	// Conflicts are the files the unit's change carries stored conflicts
+	// in, in path name order.
+	Conflicts []string
+	// Kept marks a session whose work on the unit's files shed keeps.
+	Kept bool
 	// Extra are sections the caller adds, such as the gap for a painter.
 	Extra []Section
 }
@@ -79,15 +84,24 @@ const (
 	DebateSection    = "Debate record"
 	AnswersSection   = "Owner's answers"
 	NoticesSection   = "Notices"
+	ConflictsSection = "Stored conflicts"
 )
+
+// ConflictLine lists a unit's conflicted files as `shed conflicts` does: its
+// short change ID, then each file, separated by single spaces (S.vcs.13).
+func ConflictLine(change string, files []string) string {
+	return strings.Join(append([]string{unit.Short(change)}, files...), " ")
+}
 
 // Files is the default provider. It needs only the documents and the
 // tracker.
 type Files struct{}
 
-// Bundle builds the unit, charter, footprint, spec changes, sealed spec,
-// horizon, proofs, debate record, owner's answers and notices sections. The sweeper's bundle
-// carries no debate record.
+// Bundle builds the unit, stored conflicts, charter, footprint, spec
+// changes, sealed spec, horizon, proofs, debate record, owner's answers and notices sections.
+// The sweeper's bundle carries no debate record. The stored conflicts
+// section appears only for a change with stored conflicts, and tells a
+// session whose work is kept to resolve them first (S.vcs.14).
 func (Files) Bundle(_ context.Context, req Request) (Bundle, error) {
 	var b Bundle
 	add := func(title, body string) {
@@ -107,6 +121,18 @@ func (Files) Bundle(_ context.Context, req Request) (Bundle, error) {
 			fmt.Fprintf(&s, "- Latest reason: %s\n", u.Reason)
 		}
 		add(UnitSection, s.String())
+		if len(req.Conflicts) > 0 {
+			body := "The unit's change carries stored conflicts, marked in git's style, in these files:\n\n    " +
+				ConflictLine(u.Change, req.Conflicts) + "\n"
+			if req.Kept {
+				if unit.PastSeal(u.State) {
+					body += "\nThese files hold unresolved conflicts with main; resolve them against the sealed spec before any other work, removing every conflict marker.\n"
+				} else {
+					body += "\nBefore any other work, resolve each file under `spec/` or `horizon.md` by keeping main's text and re-applying the unit's own spec changes, and resolve any other file against the unit's proposed spec.\n"
+				}
+			}
+			add(ConflictsSection, body)
+		}
 	}
 	if req.Main != nil {
 		add(CharterSection, list(req.Main.Clauses(clause.Charter)))

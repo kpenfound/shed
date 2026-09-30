@@ -61,10 +61,9 @@
   main commit the seal records, so a sealed unit's change is always based on
   its seal's main, whatever base it had before. A conflict that rebase leaves
   only in files outside `spec/` is stored and the unit is sealed, to be
-  resolved against the sealed spec by its mechanics (S.vcs.12): every
-  mechanic session of a unit whose change holds an unresolved conflict
-  (S.vcs.12) has a bundle that names each file holding one and says to
-  resolve it against the sealed spec before other work. If that rebase
+  resolved against the sealed spec by its mechanics, whose bundles name each
+  file holding an unresolved conflict (S.vcs.12) and say to resolve it first,
+  as S.vcs.14 says. If that rebase
   fails, or leaves an unresolved conflict (S.vcs.12) in any file under
   `spec/`, nothing is sealed: the unit bounces to its painter as under
   S.shed.6, counting a bounce except as S.vcs.17 says and, unless the
@@ -77,9 +76,9 @@
   pushed, and a failure or stop after that never undoes the landing. Shed
   checkpoints each unit's rebase under S.vcs.10 on its own and restores only
   that unit's rebase if it fails or shed stops partway. The next shed process
-  to open the repository rebases, as S.vcs.10 says, every unit that is
-  neither landed nor archived, has no running session and whose change does
-  not descend from main, so an interrupted sweep finishes.
+  to open the repository rebases, as S.vcs.10 says, every unit that is neither
+  landed nor archived, has no running session and whose change does not
+  descend from main, so an interrupted sweep finishes.
 - **S.vcs.12** (H.vcs.9) A file on a unit's change holds an unresolved
   conflict while jj stores it as conflicted, or while it still holds any
   line of the conflict markers shed wrote into it when it gave a session a
@@ -92,6 +91,31 @@
   the queue or lands holding a conflict nobody resolved. The check at
   sealing under S.vcs.10 uses the same test, so markers a painter left in a
   file under `spec/` block the seal as a stored conflict would.
+- **S.vcs.13** (H.vcs.8) `shed conflicts` lists every unit that is neither
+  landed nor archived and whose change carries stored conflicts, in the order
+  the units opened. Each unit takes one line: its short change ID, then the
+  path of every conflicted file in it, relative to the repository root and in
+  path name order, separated by single spaces. Whether a change is conflicted,
+  and which of its files are, comes from the change in jj alone, never from
+  the tracker, so a file whose only conflict is marker lines left in it after
+  capture (S.vcs.12) is not listed, though bundles (S.vcs.14) and verification
+  (S.vcs.12) still count it. With no such unit it prints nothing and exits
+  zero.
+- **S.vcs.14** (H.vcs.9) When a session starts on a unit whose change holds an
+  unresolved conflict (S.vcs.12) in any file, the session's bundle names every
+  such file, relative to the repository root and in path name order, separated
+  by single spaces. When the session's work on the unit's files is kept
+  (S.sess.3), the bundle also says to resolve those conflicts before any other
+  work, and against what, by the unit's state (S.unit.2). For a unit past its
+  seal (sealed, implementing, verifying or queued) it says to resolve them
+  against the sealed spec; for a mechanic this is the bundle S.vcs.10
+  requires, given once. For a proposed or contested unit, which has no sealed
+  spec, it says to resolve a file under `spec/` or `horizon.md` by keeping
+  main's text and re-applying the unit's own spec changes, and any other file
+  against the unit's proposed spec. A session whose copy of the files is
+  thrown away, such as a committee member's or a verifier's reviewer, gets the
+  list without that instruction. A bundle for a unit whose change holds no
+  unresolved conflict says nothing about conflicts.
 - **S.vcs.15** (H.vcs.7) After the rebase sweep that follows a landing
   (S.vcs.10), `shed land` prints one line for every other unit that is
   neither landed nor archived, naming it by its short change ID and its

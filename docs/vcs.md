@@ -49,6 +49,38 @@ are deleted, executable bits and symlinks are kept, and any `.git` or `.jj`
 the session made is ignored. Then shed snapshots the workspace onto the
 unit's change.
 
+## Stored conflicts
+
+jj stores a conflict inside a change instead of stopping the rebase that
+caused it, so a unit's change can carry conflicts while its work goes on.
+`shed conflicts` lists every unit that is neither landed nor archived and
+whose change carries stored conflicts, in the order the units opened. Each
+unit takes one line: its short change ID, then its conflicted files,
+relative to the repository root and in path name order:
+
+```
+qpvuntsmwlqt internal/greet/greet.go spec/greet.md
+```
+
+It asks jj which changes and files are conflicted, never the tracker, so a
+file whose only conflict is marker lines left over after a capture (see
+[unresolved conflicts](#unresolved-conflicts)) is not listed here, even
+though a session's bundle and verification still count it. With no
+conflicted unit it prints nothing.
+
+A session on a unit with an unresolved conflict finds every such file in its
+bundle, under "Stored conflicts", in the same form `shed conflicts` prints.
+When the session's work on the unit's files is kept, the bundle also says to
+resolve those conflicts before any other work, and against what depends on
+the unit's state: past its seal (sealed, implementing, verifying or queued)
+it says to resolve them against the sealed spec, which for a mechanic is the
+one bundle instruction the unit needs; proposed or contested, which has no
+sealed spec, it says to keep main's text for any file under `spec/` or
+`horizon.md` and re-apply the unit's own spec changes, and to resolve any
+other file against the unit's proposed spec. A committee member or a
+verifier's reviewer gets the list without that instruction, since what it
+writes is thrown away. See [sessions](sessions.md#bundles-and-prompts).
+
 ## Landing
 
 `shed land <unit>` lands a queued, sealed unit, and refuses one marked for

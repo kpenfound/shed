@@ -130,7 +130,8 @@ func (f *Factory) session(ctx context.Context, w work) (session.Result, error) {
 		return session.Result{}, err
 	}
 	defer os.RemoveAll(view)
-	if err := f.recordMarkers(ctx, w.Unit.Change, view); err != nil {
+	conflicts, err := f.recordMarkers(ctx, w.Unit.Change, view)
+	if err != nil {
 		return session.Result{}, err
 	}
 
@@ -153,7 +154,7 @@ func (f *Factory) session(ctx context.Context, w work) (session.Result, error) {
 		return session.Result{}, err
 	}
 	b, err := f.Provider.Bundle(ctx, bundle.Request{Role: w.Role, Unit: w.Unit, Main: main, Head: head,
-		Proofs: proofs, Debate: record, Answers: answers, Notices: pending, Extra: w.Extra})
+		Proofs: proofs, Debate: record, Answers: answers, Notices: pending, Conflicts: conflicts, Kept: w.Writable, Extra: w.Extra})
 	if err != nil {
 		return session.Result{}, err
 	}

@@ -57,14 +57,16 @@ landing changed a horizon clause the unit advances. A
 mechanic's bundle after a reseal out of the amendment lane also gives the
 amendment's diff, or, when the amendment was rejected, says the sealed spec
 stands as written and gives the objections that stood at the cap. A
-mechanic's bundle for a unit whose change holds an unresolved conflict names
-each file holding one and says to resolve it against the sealed spec before
-any other work. The frame builder works on no unit: its bundle holds
-the charter, the horizon, the clause to frame with the clauses that refine it
-and the spec clauses that advance it, and the units in flight with their
-footprints. Notices count as delivered once a session starts, except in
-a wheelbuilder's horizon review, whose bundle shows them without delivering
-them. Bundles
+session's bundle names each file holding an unresolved conflict. When its
+work is kept, it says to resolve those conflicts first: against the sealed
+spec for a unit past its seal, or against the proposed spec otherwise,
+keeping main's spec and horizon text and re-applying the unit's changes.
+
+The frame builder works on no unit: its bundle holds the charter, the
+horizon, the clause to frame with the clauses that refine it and the spec
+clauses that advance it, and the units in flight with their footprints.
+Notices count as delivered once a session starts, except in a wheelbuilder's
+horizon review, whose bundle shows them without delivering them. Bundles
 come from a context provider; the default one uses only the documents, the
 tracker and the debate record.
 

@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/kpenfound/shed/internal/bundle"
 	"github.com/kpenfound/shed/internal/clause"
 )
 
@@ -55,22 +54,25 @@ func (f *Factory) loadMarkers(change string) (markerRecord, error) {
 // recordMarkers records the marker lines of every file jj stores as
 // conflicted that shed wrote into dir, a session's directory of a unit's
 // files (S.vcs.12). Files recorded before that no longer hold any of their
-// marker lines are dropped from the record.
-func (f *Factory) recordMarkers(ctx context.Context, change, dir string) error {
+// marker lines are dropped from the record. It returns, sorted, each file on
+// the change that holds an unresolved conflict (S.vcs.12) as of dir: every
+// file jj stores as conflicted, plus every file the updated record still
+// holds a marker line of.
+func (f *Factory) recordMarkers(ctx context.Context, change, dir string) ([]string, error) {
 	conflicted, err := f.Repo.Conflicted(ctx, change)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	markers.Lock()
 	defer markers.Unlock()
 	old, err := f.loadMarkers(change)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	rec := markerRecord{}
 	for name, lines := range old {
 		if holds, err := holdsAny(filepath.Join(dir, filepath.FromSlash(name)), lines); err != nil {
-			return err
+			return nil, err
 		} else if holds {
 			rec[name] = lines
 		}
@@ -81,7 +83,7 @@ func (f *Factory) recordMarkers(ctx context.Context, change, dir string) error {
 			continue
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
 		lines := rec[name]
 		for _, line := range strings.Split(string(src), "\n") {
@@ -96,18 +98,28 @@ func (f *Factory) recordMarkers(ctx context.Context, change, dir string) error {
 	path := f.markersPath(change)
 	if len(rec) == 0 {
 		if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return err
+			return nil, err
 		}
-		return nil
+	} else {
+		data, err := json.Marshal(rec)
+		if err != nil {
+			return nil, err
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			return nil, err
+		}
 	}
-	data, err := json.Marshal(rec)
-	if err != nil {
-		return err
+	files := slices.Clone(conflicted)
+	for name := range rec {
+		if !slices.Contains(files, name) {
+			files = append(files, name)
+		}
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0o644)
+	slices.Sort(files)
+	return files, nil
 }
 
 // holdsAny reports whether a file holds any of lines as a whole line.
@@ -234,20 +246,4 @@ func (f *Factory) recordPainterCapture(ctx context.Context, change string) error
 		return err
 	}
 	return f.Tracker.RecordPainterCapture(change, conflicts != "")
-}
-
-// conflictSection tells a unit's mechanic of each file on its change that
-// holds an unresolved conflict (S.vcs.10, S.vcs.12), or returns nil when
-// none does.
-func (f *Factory) conflictSection(ctx context.Context, change string) ([]bundle.Section, error) {
-	files, _, err := f.unresolved(ctx, change)
-	if err != nil || len(files) == 0 {
-		return nil, err
-	}
-	var b strings.Builder
-	b.WriteString("These files hold unresolved conflicts with main. Before any other work, resolve each against the sealed spec, removing every conflict marker:\n\n")
-	for _, name := range files {
-		fmt.Fprintf(&b, "- %s\n", name)
-	}
-	return []bundle.Section{{Title: "Conflicts", Body: b.String()}}, nil
 }

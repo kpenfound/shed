@@ -86,6 +86,7 @@ Units:
   unit declare [-title t] [-depends ids] [-advances ids] <unit>
                                           record what a proposal depends on and advances
   debate <unit>                           debate a proposed unit in the shed
+  conflicts                               list in-flight units with stored conflicts and their files
   land <unit>                             land a queued unit on main
   run <unit>                              take a unit through the shed to main
   serve [-once]                           run the factory: propose, debate, implement, verify, land
@@ -167,6 +168,8 @@ func RunWith(ctx context.Context, args []string, stdout, stderr io.Writer, runne
 		return e.answer(rest)
 	case "unit":
 		return e.unit(rest)
+	case "conflicts":
+		return e.conflicts(rest)
 	case "land":
 		return e.land(rest)
 	case "debate":

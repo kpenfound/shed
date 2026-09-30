@@ -108,9 +108,9 @@ distant and get promoted as the soon tier drains.
 - **H.vcs.6** (soon, realised) Nothing but landing moves main.
 - **H.vcs.7** (soon, realised) After every landing shed rebases every in-flight unit
   onto the new main. Conflicts are stored in the change and block nothing.
-- **H.vcs.8** (soon) Shed lists the in-flight units that carry stored
+- **H.vcs.8** (soon, realised) Shed lists the in-flight units that carry stored
   conflicts, and their files, from jj alone.
-- **H.vcs.9** (soon) The bundle of a unit with stored conflicts names the
+- **H.vcs.9** (soon, realised) The bundle of a unit with stored conflicts names the
   conflicted files and says to resolve them against the sealed spec first.
 
 ## Sessions

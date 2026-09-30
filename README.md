@@ -204,6 +204,7 @@ shed run <unit>                    # debate, implement, verify, land
 | `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: retry it in the shed, defer or reject it to the archive, or approve its distant, eventual or split soon horizon amendment. |
 | `shed answer <clause> keep <reason>` | Answers a charter question by keeping the clause as it stands. |
 | `shed unit open\|declare\|move\|reopen\|log\|path` | Drives units by hand. |
+| `shed conflicts` | Lists the in-flight units whose changes carry stored conflicts, and their conflicted files. |
 | `shed debate\|land\|run <unit>` | Runs one stage of a unit, or all of them. |
 | `shed frame <clause>`, `shed frame -accept\|-discard <unit>` | Breaks a distant or eventual horizon clause into near and soon clauses that refine it, recorded on a unit for you to read; accepts and lands such a unit, or discards it. |
 | `shed serve [-once]` | Runs the factory. |
