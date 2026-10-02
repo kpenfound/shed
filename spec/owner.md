@@ -131,3 +131,8 @@
   the tag names on the recorded commit, then the one it names on main. A
   listed clause whose `refines` tag is the same on both commits, or that
   carries none on either, names none. `-peek` lists the same names.
+- **S.owner.14** (H.owner.1) `shed inbox`, including `-peek`, lists every
+  proposed framing in opening order, with its short change ID, title, and
+  commands to review its workspace, accept it or discard it. Reading the
+  inbox does not dismiss a framing; it stays listed until accepted or
+  discarded.

@@ -63,3 +63,20 @@
   S.vcs.10 and S.vcs.11 say, and `shed frame -accept` prints and logs each
   unit's sweep outcome as S.vcs.15 says `shed land` does. It prints the
   landed commit before those lines.
+- **S.frame.5** (H.hz.7, H.sched.2) When main has no unrealised near or
+  soon clause, `shed serve` starts one frame builder session at a time,
+  after the other controllers. It chooses unrealised distant clauses before
+  eventual ones, in document order within each tier, skipping any clause
+  with a proposed framing. Clauses already assigned to in-flight units still
+  count as unrealised until main marks them realised. Before dispatch, shed
+  records the chosen clause and main commit in the event log. Each pair is
+  attempted at most once automatically, including across restarts and tracker
+  rebuilds, even if the attempt is interrupted, fails, reports nothing or
+  produces an invalid framing. A new main revision permits another attempt;
+  `shed frame <clause>` remains available for an explicit retry. The daily
+  budget applies, and framing starts neither alongside another framing nor
+  while a painter or lander stage is running. The resulting draft follows
+  S.frame.2 to S.frame.4 and waits for owner acceptance, since its new
+  refining clauses count at their parent's tier under S.diff.4. Waiting
+  framings do not prevent attempts on other parents. `serve` logs the outcome,
+  including the unit and acceptance command when a draft is kept.

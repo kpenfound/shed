@@ -250,6 +250,7 @@ func (f *Factory) controllers() []controller {
 			})
 			return nil
 		}},
+		{name: "frame-builder", start: f.startFraming},
 	}
 }
 
@@ -355,6 +356,9 @@ func (f *Factory) explainIdle(ctx context.Context, now time.Time, w io.Writer) {
 		for _, u := range units {
 			if u.State == unit.Proposed && len(u.Footprint.Advances) == 0 && u.OpenedBy != unit.FrameBuilder {
 				fmt.Fprintf(w, "  %s is a draft: declare the horizon clauses it advances with shed unit declare\n", unit.Short(u.Change))
+			}
+			if u.State == unit.Proposed && u.OpenedBy == unit.FrameBuilder {
+				fmt.Fprintf(w, "  %s waits for owner acceptance: shed frame -accept %s\n", unit.Short(u.Change), unit.Short(u.Change))
 			}
 			if u.State == unit.Contested {
 				fmt.Fprintf(w, "  %s is contested and waits for the owner\n", unit.Short(u.Change))

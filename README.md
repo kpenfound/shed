@@ -64,7 +64,7 @@ Each role is an agent session, run by a small, deterministic Go scheduler.
 
 | Role | Does |
 | --- | --- |
-| Frame builder | Breaks a distant or eventual horizon clause into near and soon clauses that refine it, when you run `shed frame`. |
+| Frame builder | Breaks a distant or eventual horizon clause into near and soon clauses that refine it, automatically when near/soon work is exhausted or when you run `shed frame`. |
 | Painter | Reads the gap and proposes the next small increment as a spec diff. |
 | Committee | Debates each proposal in parallel rounds, citing clause IDs. A charter objection is a veto: the proposal is rejected. A proposal that does not move toward the horizon is deferred. Later, a committee member who did not build the unit reviews its code. |
 | Mechanic | Implements a sealed unit step by step: proofs first, then code, then docs. |
@@ -222,7 +222,9 @@ from repeated rejections and sampled horizon amendments for the owner. A distant
 for the owner, and so does a soon one the committee splits over, or any tier if the operator's
 `shed.horizon_owner_approval` setting widens the wait to cover it. `shed answer` retries, defers, rejects or approves a contested
 unit, and keeps a charter clause to answer its question.
-`shed frame` breaks a distant or eventual horizon clause into near and soon
+`shed serve` replenishes exhausted near/soon work by drafting refinements of
+distant and eventual clauses. Pending framings appear in `shed inbox` for
+owner acceptance. `shed frame` explicitly breaks a distant or eventual horizon clause into near and soon
 clauses that refine it, recorded on a unit for the owner to read; `shed frame
 -accept` lands it and `shed frame -discard` drops it.
 

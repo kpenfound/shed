@@ -62,6 +62,17 @@ func (e env) inbox(args []string) int {
 			}
 		}
 
+		units, err := t.Units()
+		if err != nil {
+			return e.fail(err)
+		}
+		for _, u := range units {
+			if u.State == unit.Proposed && u.OpenedBy == unit.FrameBuilder {
+				fmt.Fprintf(e.stdout, "\nFraming %s: %s\n  Review: shed unit path %s\n  Accept: shed frame -accept %s\n  Discard: shed frame -discard %s\n",
+					unit.Short(u.Change), u.Title, unit.Short(u.Change), unit.Short(u.Change), unit.Short(u.Change))
+			}
+		}
+
 		fmt.Fprintln(e.stdout)
 		switch {
 		case last == "":

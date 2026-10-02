@@ -486,6 +486,8 @@ func apply(tx *sql.Tx, e Event) error {
 		return setMeta(tx, "inbox_seq", e.ReadSeq)
 	case ClauseKept:
 		return setMeta(tx, keptKey+e.Clause, e.ReadSeq)
+	case FrameAttempted:
+		return setMeta(tx, frameAttemptKey+e.Clause+":"+e.Commit, e.Seq)
 	}
 	return fmt.Errorf("unknown event kind %q", e.Kind)
 }

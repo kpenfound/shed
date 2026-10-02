@@ -52,6 +52,7 @@ const (
 	ObjectionAnswer = "debate.answer"
 	InboxRead       = "inbox.read"
 	ClauseKept      = "clause.kept"
+	FrameAttempted  = "frame.attempted"
 )
 
 // Event is one line of the event log. The log is the tracker's source of
@@ -95,7 +96,7 @@ type Event struct {
 	// ReadSeq is the sequence number of the latest event an inbox read, or
 	// the latest event before the owner kept a charter clause.
 	ReadSeq int64 `json:"read_seq,omitempty"`
-	// Clause is the charter clause the owner kept.
+	// Clause is the charter clause kept or the horizon clause being framed.
 	Clause string `json:"clause,omitempty"`
 	// Actual and Drift are set when a unit lands: its actual footprint and
 	// how that differs from the footprint recorded at its seal.

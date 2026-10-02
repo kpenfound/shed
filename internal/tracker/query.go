@@ -401,6 +401,8 @@ func Describe(e Event) string {
 		fmt.Fprintf(&b, "inbox read at main %s", shortHash(e.Commit))
 	case ClauseKept:
 		fmt.Fprintf(&b, "charter clause %s kept", e.Clause)
+	case FrameAttempted:
+		fmt.Fprintf(&b, "framing %s at main %s", e.Clause, shortHash(e.Commit))
 	default:
 		b.WriteString(e.Kind)
 	}

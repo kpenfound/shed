@@ -16,10 +16,11 @@
   advances. `declare` refuses a horizon clause outside it.
 - **S.serve.1** (H.sched.2) `shed serve` runs a controller for each role
   that has work: the painter, the shed, the mechanic, the verifier and the
-  wheelbuilder, all sharing the tracker. With `-once` it stops when no stage
-  is running and no controller has anything to start; if it started nothing
+  wheelbuilder, plus the frame builder under S.frame.5, all sharing the
+  tracker. With `-once` it stops when no stage is running and no controller has anything to start; if it started nothing
   at all, it says why: drafts waiting to be declared, contested units, a
-  full in-flight cap, or what holds the painter back.
+  full in-flight cap, framings waiting for owner acceptance with the
+  command to accept each, or what holds the painter back.
 - **S.serve.2** (H.sched.3) Every pass reads the tracker's current state, so
   a controller acts on units however they got there. A stage that ends wakes
   every controller, and `serve.tick` wakes them when nothing else does.
@@ -28,13 +29,12 @@
   when it ends and wakes the controllers.
 - **S.serve.4** (H.sched.5) At most `concurrency.units` units are
   implementing or verifying at once. Each pass starts work downstream first:
-  landing, verification, implementation, debate, then proposals. One unit
-  lands at a time, one debate runs at a time, and no unit ever has two stages
+  landing, verification, implementation, debate, proposals, then framing.
+  One unit lands at a time, one debate runs at a time, and no unit ever has two stages
   running. A proposal that declares no horizon clause is a draft and is not
   debated.
-- **S.serve.5** (H.sched.6) The painter, the only controller that creates
-  work, is throttled by its results. After a proposal that is sealed it
-  proposes again as soon as `painter.max_proposed` allows. After a proposal
+- **S.serve.5** (H.sched.6) The painter is throttled by its results. After a
+  proposal that is sealed it proposes again as soon as `painter.max_proposed` allows. After a proposal
   that goes nowhere, archived or contested without being sealed, it waits
   `painter.interval`, doubling for each further one in a row up to
   `painter.max_interval`; the next sealed proposal ends the streak. A

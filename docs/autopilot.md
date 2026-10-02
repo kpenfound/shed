@@ -332,20 +332,20 @@ land` prints each unit's outcome, and each unit's log records it. See
 | mechanic | implementation | a unit is implementing, or sealed while fewer than `concurrency.units` units implement or verify |
 | shed | debate | a proposal declares a horizon clause and fewer than `concurrency.in_flight` units are sealed through queued; one debate at a time |
 | painter | a proposal | the gap is not empty, fewer than `painter.max_proposed` units are proposed, and the painter is not backing off |
+| frame builder | a horizon framing | no unrealised near/soon clauses remain on main; one session at a time |
 
 Units opened by `shed frame` never count toward `painter.max_proposed`, and
 `shed serve -once` does not report them as drafts waiting to be declared.
 
 Each pass starts work downstream first, so work in flight finishes before new
 work starts: horizon reviews, landing, verification, implementation, debate,
-then proposals. Controllers start stages in the background and never wait on
-a session; a stage that ends wakes them all, and `serve.tick` wakes them
+then proposals and framing. Controllers start stages in the background and
+never wait on a session; a stage that ends wakes them all, and `serve.tick` wakes them
 anyway. `shed serve -once` stops when nothing is running and nothing can
 start.
 
-The painter is the only controller that creates work, so it is the one
-throttled, by how its proposals fare. While they are being sealed it
-proposes again as soon as `painter.max_proposed` allows; with the default
+The painter is throttled by how its proposals fare. While they are being
+sealed it proposes again as soon as `painter.max_proposed` allows; with the default
 of one, that is when its last proposal leaves the shed. After a proposal
 that goes nowhere, archived or contested without being sealed, it waits
 `painter.interval`, doubling for each further one in a row up to
@@ -361,6 +361,20 @@ breaking into near or soon clauses, by editing the horizon, before the
 painter proposes against them. `shed frame` drafts that breakdown.
 
 ## Framing the horizon
+
+When main has no unrealised near or soon clause, `shed serve` automatically
+frames distant clauses first, then eventual ones, in document order within
+each tier. A clause assigned to a unit still counts until realised on main.
+Each parent is attempted once per main revision, recorded before dispatch so
+restarts and tracker rebuilds cannot cause a retry loop. Empty, invalid,
+failed and interrupted attempts wait for another main revision; use
+`shed frame <clause>` for an explicit retry. Sessions run one at a time under
+the daily budget, and a parent with a pending framing is skipped.
+
+New refining clauses are amendments at their parent's tier, so their drafts
+wait for owner acceptance. `shed inbox` lists pending framings with commands
+to review, accept or discard them. Other parents can still be framed while
+a draft waits. Once accepted, the painter can propose against the new clauses.
 
 `shed frame <clause>` runs one frame builder session on a horizon clause of
 main that is distant or eventual and not realised. It refuses any other

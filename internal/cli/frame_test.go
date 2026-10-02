@@ -678,3 +678,35 @@ func TestFrameAcceptRefusesAFramingThatNoLongerFits(t *testing.T) {
 		})
 	}
 }
+
+//shed:proves S.owner.14
+func TestInboxListsPendingFramingsUntilResolved(t *testing.T) {
+	r := frameRepo(t)
+	f := &framer{t: t, frame: writing(t, "framed", map[string]string{"horizon.md": framedHorizon("- **H.greet.8** (soon, refines H.greet.3) The tool greets in French.")})}
+	if out, errOut, code := runFramer(t, r.Dir, f, "frame", "H.greet.3"); code != OK {
+		t.Fatalf("frame: %s %s", out, errOut)
+	}
+	units := allUnits(t, r)
+	if len(units) != 1 {
+		t.Fatalf("units = %+v", units)
+	}
+	id := unit.Short(units[0].Change)
+	for _, args := range [][]string{{"inbox", "-peek"}, {"inbox"}, {"inbox"}} {
+		out, stderr, code := run(t, r.Dir, args...)
+		if code != OK {
+			t.Fatalf("inbox: %s %s", out, stderr)
+		}
+		for _, want := range []string{"Framing " + id, units[0].Title, "shed unit path " + id, "shed frame -accept " + id, "shed frame -discard " + id} {
+			if !strings.Contains(out, want) {
+				t.Errorf("inbox lacks %q: %s", want, out)
+			}
+		}
+	}
+	if out, errOut, code := runFramer(t, r.Dir, f, "frame", "-discard", id); code != OK {
+		t.Fatalf("discard: %s %s", out, errOut)
+	}
+	out, stderr, code := run(t, r.Dir, "inbox", "-peek")
+	if code != OK || strings.Contains(out, "Framing "+id) {
+		t.Fatalf("inbox after discard: %s %s", out, stderr)
+	}
+}

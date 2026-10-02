@@ -27,6 +27,7 @@ func painter(t *testing.T, fake *fakeRunner) {
 
 // everyone plays every role so that a proposal goes all the way to main.
 func everyone(t *testing.T, fake *fakeRunner) {
+	fake.on(unit.FrameBuilder, "frame", func(session.Turn) session.Result { return done("nothing") })
 	painter(t, fake)
 	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
 	fake.on(unit.Committee, "review", func(session.Turn) session.Result { return done("pass") })
