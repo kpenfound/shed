@@ -205,6 +205,25 @@ distant and get promoted as the soon tier drains.
 - **H.impl.6** (distant) Steps whose needs are met run at the same time, each
   in its own jj workspace descending from the unit change. A wheelbuilder
   scoped to the unit squashes them back into it.
+- **H.impl.7** (near, refines H.impl.5) Every proposal declares an estimate in
+  USD of what taking the unit from sealed to landed will cost. Shed refuses a
+  proposal without one, the committee may object to it like any other part of
+  the proposal, and sealing records it with the seal. A seal out of the
+  amendment lane keeps the estimate it had. The estimate never orders or sizes
+  work.
+- **H.impl.8** (near, refines H.impl.5) `shed status` shows each unit's
+  recorded estimate beside its cost since the seal that recorded that
+  estimate.
+- **H.impl.9** (soon, refines H.impl.5) When a unit's cost since the seal that
+  recorded its estimate passes `budget.overrun_multiple` times that estimate,
+  shed starts no further session on the unit, lets running sessions finish,
+  and reopens it with a reason naming the cost, the estimate and the multiple.
+  The reopen counts a bounce. A multiple of zero turns this off. Shed never
+  ends a session, pauses a unit or archives a unit on its cost alone.
+- **H.impl.10** (soon, refines H.impl.5) The debate bundle of a unit reopened
+  for an overrun shows its cost per step and per session against its estimate.
+  The committee may keep the scope with a revised estimate or split the unit
+  by footprint (H.shed.7), and the next seal records the new estimate.
 
 ## Verification
 
