@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS units (
 	cycle INTEGER NOT NULL DEFAULT 0,
 	contested_seq INTEGER NOT NULL DEFAULT 0,
 	contested_reason TEXT NOT NULL DEFAULT '',
+	contested_at TEXT NOT NULL DEFAULT '',
 	archived_seq INTEGER NOT NULL DEFAULT 0,
 	sampled_seq INTEGER NOT NULL DEFAULT 0,
 	opened_seq INTEGER NOT NULL,
@@ -183,7 +184,7 @@ var tables = []string{"units", "seals", "footprints", "actual_footprints", "sess
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 12
+const schemaVersion = 13
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -371,7 +372,7 @@ func apply(tx *sql.Tx, e Event) error {
 			}
 		}
 		if e.To == unit.Contested {
-			if err := exec(`UPDATE units SET contested_seq = ?, contested_reason = ? WHERE change = ?`, e.Seq, e.Reason, e.Unit); err != nil {
+			if err := exec(`UPDATE units SET contested_seq = ?, contested_reason = ?, contested_at = ? WHERE change = ?`, e.Seq, e.Reason, at, e.Unit); err != nil {
 				return err
 			}
 		}

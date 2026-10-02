@@ -121,6 +121,20 @@ unit in the order the units became contested, each with its short change ID,
 bounce count, title and the reason it was contested. A unit that has left
 `contested` drops off the list (S.owner.1).
 
+Beside each contested unit, both `shed inbox` and `shed status` show how long
+it has waited: the time from its latest move to `contested` to the moment the
+inbox or status is read. The tracker keeps that time with the unit when it
+records the move to `contested`, so it needs no scan of the event log and
+`shed tracker rebuild` restores it along with the rest of the unit's state.
+The wait is rendered rounded down to the whole minute, such as `26h5m`; the
+rounding is only cosmetic. A unit is marked `overdue` when its unrounded wait
+is strictly longer than `shed.contested_timeout` (see
+[Operator settings](#operator-settings)), so a wait exactly equal to the
+timeout is not overdue. A `shed.contested_timeout` of zero turns expiry off,
+so no unit is ever marked overdue. `shed inbox -peek` shows the same waits
+and marks without recording anything. Units that are not contested show
+neither a wait nor an overdue mark in `shed status` (S.owner.15, S.track.11).
+
 A contested unit is marked `new` when it became contested after the previous
 recorded `shed inbox` read the list, so the owner can see at a glance what
 they have not seen yet. "After" means event order, not wall-clock time: each
@@ -197,7 +211,7 @@ Sampling moves no unit and never holds back or fails a landing.
 
 ```
 Contested units:
-  qpvuntsm  new  bounces 4  Say goodbye: bounced 4 times, over the threshold of 3
+  qpvuntsm  new  bounces 4  wait 75h3m  overdue  Say goodbye: bounced 4 times, over the threshold of 3
 
 Horizon changes since main at 3f2a9c1d7e4b:
   changed  H.greet.2  near
@@ -313,8 +327,8 @@ answer with an empty reason. A refused answer records nothing (S.owner.10).
 
 | Command | Does |
 | --- | --- |
-| `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost and title, then the notices waiting for the owner. |
-| `shed inbox [-peek]` | Lists contested units, the horizon changes on main, the charter questions from repeated rejections and the sampled horizon amendments, marking what is new since the last inbox. `-peek` records nothing. |
+| `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost, wait and title; a contested unit's line also carries an `overdue` mark once its wait passes `shed.contested_timeout`. Then it lists the notices waiting for the owner. |
+| `shed inbox [-peek]` | Lists contested units with their wait and, once overdue, an `overdue` mark, the horizon changes on main, the charter questions from repeated rejections and the sampled horizon amendments, marking what is new since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
 | `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: moves it back to `proposed`, defers or rejects it to the archive, or approves its distant, eventual or split soon horizon amendment. |
 | `shed answer <clause> keep <reason>` | Answers a charter question by keeping the clause, clearing the question until two more rejections cite it. |
@@ -355,7 +369,7 @@ in_flight = 1           # units from sealed through queued; 0 for no cap
 max_rounds = 3
 amendment_rounds = 1    # the cap in the amendment lane; at most max_rounds
 bounce_threshold = 3
-contested_timeout = "72h"
+contested_timeout = "72h"  # how long a unit may sit contested before shed inbox/status mark it overdue; 0 turns expiry off
 horizon_owner_approval = false  # wait for the owner on every horizon amendment, not just distant and eventual
 
 [profiles.default]

@@ -3,9 +3,11 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kpenfound/shed/internal/testrepo"
 	"github.com/kpenfound/shed/internal/tracker"
@@ -65,13 +67,18 @@ func TestStatus(t *testing.T) {
 	seal(t, state, a)
 	mustRun(t, r.Dir, "unit", "reopen", "-amendment", a[:6], "the spec is ambiguous")
 
-	want := "UNIT          STATE      BOUNCES  AMENDMENTS  COST   TITLE\n" +
-		unit.Short(a) + "  contested  1        1           $0.00  Say goodbye\n" +
-		unit.Short(b) + "  proposed   0        0           $0.00  Wave\n" +
-		"\nWaiting for the owner:\n" +
-		"  " + unit.Short(a) + "  Unit " + unit.Short(a) + " is contested: bounced 1 time, over the threshold of 0.\n"
-	if out := mustRun(t, r.Dir, "status"); out != want {
-		t.Errorf("status =\n%s\nwant\n%s", out, want)
+	// The wait and overdue columns are checked in detail by
+	// TestStatusShowsWaitAndOverdue; here the contested unit's wait renders
+	// as under an hour and the proposed unit shows neither.
+	want := []string{
+		"UNIT STATE BOUNCES AMENDMENTS COST WAIT OVERDUE TITLE",
+		unit.Short(a) + " contested 1 1 $0.00 0h0m Say goodbye",
+		unit.Short(b) + " proposed 0 0 $0.00 Wave",
+		"Waiting for the owner:",
+		unit.Short(a) + " Unit " + unit.Short(a) + " is contested: bounced 1 time, over the threshold of 0.",
+	}
+	if got := collapsed(mustRun(t, r.Dir, "status")); !reflect.DeepEqual(got, want) {
+		t.Errorf("status =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 
 	// Another state directory holds another tracker.
@@ -82,6 +89,74 @@ func TestStatus(t *testing.T) {
 	t.Setenv("SHED_STATE", other)
 	if out := mustRun(t, r.Dir, "status"); out != "no units\n" {
 		t.Errorf("status in $SHED_STATE = %q", out)
+	}
+}
+
+// TestStatusShowsWaitAndOverdue checks that shed status shows a contested
+// unit's wait and, once it passes shed.contested_timeout, an overdue mark on
+// its line, reckoned against an injected clock the same way shed inbox
+// reckons them (S.owner.15), and that a unit in another state shows neither.
+//
+//shed:proves S.track.11
+func TestStatusShowsWaitAndOverdue(t *testing.T) {
+	r := testrepo.Colocated(t)
+	state := filepath.Join(r.Dir, DefaultStateDir)
+	r.Write(".shed/config.toml", "[shed]\nbounce_threshold = 0\ncontested_timeout = \"72h\"\n")
+	a := openUnit(t, r.Dir, "Say goodbye")
+	b := openUnit(t, r.Dir, "Wave")
+
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	contestToAt(t, state, a, base)
+
+	row := func(wait string, overdue bool) string {
+		mark := ""
+		if overdue {
+			mark = " overdue"
+		}
+		return unit.Short(a) + " contested 1 0 $0.00 " + wait + mark + " Say goodbye"
+	}
+	notice := unit.Short(a) + " Unit " + unit.Short(a) + " is contested: bounced 1 time, over the threshold of 0."
+	status := func(now time.Time) []string {
+		t.Helper()
+		return collapsed(runAt(t, r.Dir, state, now, env.status))
+	}
+
+	// Under the timeout: the contested unit's wait renders and it is not
+	// overdue; the proposed unit shows neither.
+	want := []string{
+		"UNIT STATE BOUNCES AMENDMENTS COST WAIT OVERDUE TITLE",
+		row("26h0m", false),
+		unit.Short(b) + " proposed 0 0 $0.00 Wave",
+		"Waiting for the owner:",
+		notice,
+	}
+	if got := status(base.Add(26 * time.Hour)); !reflect.DeepEqual(got, want) {
+		t.Errorf("status under the timeout =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+
+	// Beyond the timeout: the unit is marked overdue.
+	want = []string{
+		"UNIT STATE BOUNCES AMENDMENTS COST WAIT OVERDUE TITLE",
+		row("100h0m", true),
+		unit.Short(b) + " proposed 0 0 $0.00 Wave",
+		"Waiting for the owner:",
+		notice,
+	}
+	if got := status(base.Add(100 * time.Hour)); !reflect.DeepEqual(got, want) {
+		t.Errorf("status beyond the timeout =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+
+	// A zero timeout marks no unit overdue however long the wait.
+	r.Write(".shed/config.toml", "[shed]\nbounce_threshold = 0\ncontested_timeout = \"0s\"\n")
+	want = []string{
+		"UNIT STATE BOUNCES AMENDMENTS COST WAIT OVERDUE TITLE",
+		row("1000h0m", false),
+		unit.Short(b) + " proposed 0 0 $0.00 Wave",
+		"Waiting for the owner:",
+		notice,
+	}
+	if got := status(base.Add(1000 * time.Hour)); !reflect.DeepEqual(got, want) {
+		t.Errorf("status with a zero timeout =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
 

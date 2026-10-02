@@ -34,3 +34,7 @@
   owner.
 - **S.track.10** (H.track.2) `shed unit log <unit>` prints a unit's events,
   oldest first, with sequence number, time, actor and what happened.
+- **S.track.11** (H.unit.8) On the line of each contested unit it lists
+  under S.track.9, `shed status` shows the unit's wait and, when the unit
+  is overdue, the `overdue` mark, both written and reckoned as under
+  S.owner.15 at the moment the status is read. Units in other states show neither.

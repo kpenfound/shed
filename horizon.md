@@ -91,7 +91,7 @@ distant and get promoted as the soon tier drains.
 - **H.unit.7** (distant) The frame builder may archive a contested unit the
   owner has not answered within the configured timeout. Only the frame builder
   discards units.
-- **H.unit.8** (near, refines H.unit.7) `shed inbox` and `shed status` show how
+- **H.unit.8** (near, refines H.unit.7, realised) `shed inbox` and `shed status` show how
   long each contested unit has waited since its latest move to contested, and
   mark it overdue once that wait passes `shed.contested_timeout`. A timeout of
   zero turns expiry off, and no unit is ever overdue.

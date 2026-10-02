@@ -21,7 +21,9 @@ import (
 // questions that gained a unit, since the last recorded inbox as new
 // (S.owner.7), and records the main commit and the latest event it read
 // unless it is a peek (S.owner.3). Each horizon clause names the parents
-// its refines tag has it judged at (S.owner.13).
+// its refines tag has it judged at (S.owner.13). Beside each contested unit
+// it shows how long it has waited and marks it overdue once that wait
+// passes shed.contested_timeout (S.owner.15).
 func (e env) inbox(args []string) int {
 	fs := e.flags("inbox")
 	peek := fs.Bool("peek", false, "list the inbox without recording that it was read")
@@ -31,6 +33,11 @@ func (e env) inbox(args []string) int {
 	if fs.NArg() != 0 {
 		return e.misuse("inbox takes no arguments")
 	}
+	op, err := e.operator()
+	if err != nil {
+		return e.fail(err)
+	}
+	now := e.clock()
 	return e.withRepo(func(t *tracker.Tracker, repo *vcs.Repo) int {
 		contested, seq, err := t.Contested()
 		if err != nil {
@@ -55,7 +62,13 @@ func (e env) inbox(args []string) int {
 				if u.New {
 					mark = "new"
 				}
-				fmt.Fprintf(w, "  %s\t%s\tbounces %d\t%s: %s\n", unit.Short(u.Change), mark, u.Bounces, u.Title, u.ContestedReason)
+				wait, overdue := contestedWait(u.Unit, op.Shed.ContestedTimeout.Duration, now)
+				overdueMark := ""
+				if overdue {
+					overdueMark = "overdue"
+				}
+				fmt.Fprintf(w, "  %s\t%s\tbounces %d\twait %s\t%s\t%s: %s\n",
+					unit.Short(u.Change), mark, u.Bounces, wait, overdueMark, u.Title, u.ContestedReason)
 			}
 			if err := w.Flush(); err != nil {
 				return e.fail(err)

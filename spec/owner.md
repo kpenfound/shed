@@ -136,3 +136,17 @@
   commands to review its workspace, accept it or discard it. Reading the
   inbox does not dismiss a framing; it stays listed until accepted or
   discarded.
+- **S.owner.15** (H.unit.8) Beside each contested unit it lists under
+  S.owner.1, `shed inbox` shows how long the unit has waited: the time from
+  its latest move to contested, as recorded in the event log (S.track.3),
+  to the moment the inbox is read. The tracker keeps that time with the
+  unit when it records the move, so `shed tracker rebuild` (S.track.5)
+  restores it and reading it needs no scan of the log. The wait is written
+  rounded down to the whole minute, as a duration such as `26h5m`; the
+  rounding applies only to what is written. The inbox marks the unit
+  `overdue` when the unrounded wait is strictly longer than the operator
+  setting `shed.contested_timeout`, a duration such as `72h` that defaults
+  to 72 hours, so a wait equal to the timeout is not overdue. When the
+  timeout is zero, expiry is off and no unit is ever marked overdue.
+  `-peek` shows the same waits and marks. Showing a wait or an overdue
+  mark moves no unit and starts no session.

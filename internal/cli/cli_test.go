@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kpenfound/shed/internal/testrepo"
 )
@@ -17,6 +18,32 @@ func run(t *testing.T, dir string, args ...string) (stdout, stderr string, code 
 	var out, errOut bytes.Buffer
 	code = Run(context.Background(), append([]string{"-C", dir}, args...), &out, &errOut)
 	return out.String(), errOut.String(), code
+}
+
+// runAt runs cmd (env.inbox or env.status) directly, with a fixed clock
+// injected as "now", so a test can control the moment the command reads
+// instead of the real one.
+func runAt(t *testing.T, root, state string, now time.Time, cmd func(env, []string) int, args ...string) string {
+	t.Helper()
+	var out, errOut bytes.Buffer
+	e := env{ctx: context.Background(), root: root, state: state, stdout: &out, stderr: &errOut, now: func() time.Time { return now }}
+	if code := cmd(e, args); code != OK {
+		t.Fatalf("command %v at %s = %d: %s", args, now, code, errOut.String())
+	}
+	return out.String()
+}
+
+// collapsed splits out into its non-blank lines, each with runs of
+// whitespace collapsed to one space, so a comparison does not depend on
+// tabwriter's column widths.
+func collapsed(out string) []string {
+	var lines []string
+	for _, line := range strings.Split(out, "\n") {
+		if f := strings.Fields(line); len(f) > 0 {
+			lines = append(lines, strings.Join(f, " "))
+		}
+	}
+	return lines
 }
 
 // project is a repository with documents, a Go module and a passing proof.

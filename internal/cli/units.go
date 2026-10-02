@@ -70,6 +70,11 @@ func (e env) status(args []string) int {
 	if len(args) > 0 {
 		return e.misuse("status takes no arguments")
 	}
+	op, err := e.operator()
+	if err != nil {
+		return e.fail(err)
+	}
+	now := e.clock()
 	return e.withTracker(func(t *tracker.Tracker) int {
 		units, err := t.Units()
 		if err != nil {
@@ -80,10 +85,18 @@ func (e env) status(args []string) int {
 			return OK
 		}
 		w := tabwriter.NewWriter(e.stdout, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(w, "UNIT\tSTATE\tBOUNCES\tAMENDMENTS\tCOST\tTITLE")
+		fmt.Fprintln(w, "UNIT\tSTATE\tBOUNCES\tAMENDMENTS\tCOST\tWAIT\tOVERDUE\tTITLE")
 		for _, u := range units {
-			fmt.Fprintf(w, "%s\t%s\t%d\t%d\t$%.2f\t%s\n",
-				unit.Short(u.Change), u.State, u.Bounces, u.Amendments, u.CostUSD, u.Title)
+			var wait, overdueMark string
+			if u.State == unit.Contested {
+				var overdue bool
+				wait, overdue = contestedWait(u, op.Shed.ContestedTimeout.Duration, now)
+				if overdue {
+					overdueMark = "overdue"
+				}
+			}
+			fmt.Fprintf(w, "%s\t%s\t%d\t%d\t$%.2f\t%s\t%s\t%s\n",
+				unit.Short(u.Change), u.State, u.Bounces, u.Amendments, u.CostUSD, wait, overdueMark, u.Title)
 		}
 		if err := w.Flush(); err != nil {
 			return e.fail(err)
@@ -103,6 +116,22 @@ func (e env) status(args []string) int {
 		}
 		return OK
 	})
+}
+
+// contestedWait returns a contested unit's wait rendered rounded down to
+// the whole minute, and whether it is overdue: the unrounded wait is
+// strictly longer than timeout, a zero timeout turning overdue off
+// (S.owner.15, S.track.11).
+func contestedWait(u tracker.Unit, timeout time.Duration, now time.Time) (wait string, overdue bool) {
+	elapsed := now.Sub(u.ContestedAt)
+	return formatWait(elapsed), timeout > 0 && elapsed > timeout
+}
+
+// formatWait renders a duration rounded down to the whole minute as
+// "<hours>h<minutes>m", such as "26h5m".
+func formatWait(d time.Duration) string {
+	d = d.Truncate(time.Minute)
+	return fmt.Sprintf("%dh%dm", int64(d/time.Hour), int64(d%time.Hour/time.Minute))
 }
 
 func (e env) unit(args []string) int {

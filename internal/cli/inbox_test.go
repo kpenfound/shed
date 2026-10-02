@@ -7,11 +7,30 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kpenfound/shed/internal/testrepo"
 	"github.com/kpenfound/shed/internal/tracker"
 	"github.com/kpenfound/shed/internal/unit"
 )
+
+// contestToAt opens the tracker directly with a clock fixed at at, seals
+// change and reopens it, so the bounce that makes it contested (with
+// bounce_threshold 0) lands at exactly at.
+func contestToAt(t *testing.T, state, change string, at time.Time) {
+	t.Helper()
+	tr, err := tracker.Open(state, tracker.Options{Now: func() time.Time { return at }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Close()
+	if err := tr.Seal(change, "main1", "unitcommit", tracker.Footprint{}, unit.Committee, "consensus", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Reopen(change, unit.Owner, "the spec is wrong", false); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // inboxEntries returns the inbox's contested units and horizon changes, one
 // per line with runs of whitespace collapsed. A contested unit new since the
@@ -146,8 +165,8 @@ func TestInboxListsContestedUnits(t *testing.T) {
 
 	contested, _ = inboxEntries(mustRun(t, r.Dir, "inbox"))
 	wantEntries(t, "contested units", contested,
-		unit.Short(b)+" new bounces 1 Wave: bounced 1 time, over the threshold of 0",
-		unit.Short(a)+" new bounces 2 Say goodbye: bounced 2 times, over the threshold of 1")
+		unit.Short(b)+" new bounces 1 wait 0h0m Wave: bounced 1 time, over the threshold of 0",
+		unit.Short(a)+" new bounces 2 wait 0h0m Say goodbye: bounced 2 times, over the threshold of 1")
 }
 
 //shed:proves S.owner.2
@@ -318,7 +337,7 @@ func TestInboxRecordsWhatItRead(t *testing.T) {
 	peeked := mustRun(t, r.Dir, "inbox", "-peek")
 	contested, horizon := inboxEntries(peeked)
 	wantEntries(t, "peeked contested units", contested,
-		unit.Short(a)+" bounces 1 Say goodbye: bounced 1 time, over the threshold of 0")
+		unit.Short(a)+" bounces 1 wait 0h0m Say goodbye: bounced 1 time, over the threshold of 0")
 	wantEntries(t, "peeked horizon changes", horizon,
 		"changed H.greet.4 eventual",
 		"removed H.greet.3 distant")
@@ -367,7 +386,7 @@ func TestInboxMarksNewContestedUnits(t *testing.T) {
 		if bounces == 1 {
 			times = "time"
 		}
-		return fmt.Sprintf("%s %sbounces %d %s: bounced %d %s, over the threshold of 0", unit.Short(change), mark, bounces, title, bounces, times)
+		return fmt.Sprintf("%s %sbounces %d wait 0h0m %s: bounced %d %s, over the threshold of 0", unit.Short(change), mark, bounces, title, bounces, times)
 	}
 	inbox := func(what string, args []string, want ...string) {
 		t.Helper()
@@ -401,6 +420,53 @@ func TestInboxMarksNewContestedUnits(t *testing.T) {
 	mustRun(t, r.Dir, "tracker", "rebuild")
 	inbox("inbox after another rebuild", nil,
 		line(b, "Wave", 1, false), line(a, "Say goodbye", 2, false))
+}
+
+// TestInboxShowsWaitAndOverdue checks the wait shed inbox renders beside a
+// contested unit and the overdue mark, against an injected clock for both
+// the moment the unit became contested and the moment the inbox is read: a
+// wait well under shed.contested_timeout renders and is not overdue; a wait
+// exactly at the timeout renders the same whole minute as one 30 seconds
+// beyond it, is not overdue, while the one 30 seconds beyond is; -peek and a
+// full read agree; and a zero timeout marks no unit overdue however long the
+// wait.
+//
+//shed:proves S.owner.15
+func TestInboxShowsWaitAndOverdue(t *testing.T) {
+	r := testrepo.Colocated(t)
+	state := filepath.Join(r.Dir, DefaultStateDir)
+	r.Write(".shed/config.toml", "[shed]\nbounce_threshold = 0\ncontested_timeout = \"72h\"\n")
+	a := openUnit(t, r.Dir, "Say goodbye")
+
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	contestToAt(t, state, a, base)
+
+	line := func(wait string, overdue bool) string {
+		mark := ""
+		if overdue {
+			mark = " overdue"
+		}
+		return unit.Short(a) + " new bounces 1 wait " + wait + mark + " Say goodbye: bounced 1 time, over the threshold of 0"
+	}
+	peek := func(now time.Time) []string {
+		t.Helper()
+		contested, _ := inboxEntries(runAt(t, r.Dir, state, now, env.inbox, "-peek"))
+		return contested
+	}
+
+	wantEntries(t, "well under the timeout", peek(base.Add(26*time.Hour+5*time.Minute+10*time.Second)), line("26h5m", false))
+	wantEntries(t, "exactly at the timeout", peek(base.Add(72*time.Hour)), line("72h0m", false))
+	wantEntries(t, "30s beyond the timeout, same rendered minute", peek(base.Add(72*time.Hour+30*time.Second)), line("72h0m", true))
+
+	// A zero timeout turns expiry off, however long the wait.
+	r.Write(".shed/config.toml", "[shed]\nbounce_threshold = 0\ncontested_timeout = \"0s\"\n")
+	wantEntries(t, "a zero timeout", peek(base.Add(1000*time.Hour)), line("1000h0m", false))
+	r.Write(".shed/config.toml", "[shed]\nbounce_threshold = 0\ncontested_timeout = \"72h\"\n")
+
+	// A full read shows the same wait and mark as a peek, with nothing yet
+	// recorded against this unit becoming contested.
+	contested, _ := inboxEntries(runAt(t, r.Dir, state, base.Add(72*time.Hour+30*time.Second), env.inbox))
+	wantEntries(t, "a full read", contested, line("72h0m", true))
 }
 
 // sampledEntries returns the lines of the inbox's sampled amendments, with

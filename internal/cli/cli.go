@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/kpenfound/shed/internal/clause"
 	"github.com/kpenfound/shed/internal/config"
@@ -110,6 +111,10 @@ type env struct {
 	runner session.Runner
 	stdout io.Writer
 	stderr io.Writer
+	// now returns the moment a command treats as "now", such as when it
+	// reckons how long a contested unit has waited (S.owner.15, S.track.11).
+	// Nil uses the real clock.
+	now func() time.Time
 }
 
 // Run runs the command line and returns its exit code. Sessions run in
@@ -196,6 +201,16 @@ func RunWith(ctx context.Context, args []string, stdout, stderr io.Writer, runne
 	fmt.Fprintf(stderr, "shed: unknown command %q\n", cmd)
 	fs.Usage()
 	return Misused
+}
+
+// clock returns the moment a command treats as "now", such as when it
+// reckons how long a contested unit has waited (S.owner.15, S.track.11). It
+// defaults to the real clock.
+func (e env) clock() time.Time {
+	if e.now != nil {
+		return e.now()
+	}
+	return time.Now()
 }
 
 func (e env) misuse(format string, args ...any) int {
