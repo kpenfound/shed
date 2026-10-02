@@ -91,6 +91,33 @@ distant and get promoted as the soon tier drains.
 - **H.unit.7** (distant) The frame builder may archive a contested unit the
   owner has not answered within the configured timeout. Only the frame builder
   discards units.
+- **H.unit.8** (near, refines H.unit.7) `shed inbox` and `shed status` show how
+  long each contested unit has waited since its latest move to contested, and
+  mark it overdue once that wait passes `shed.contested_timeout`. A timeout of
+  zero turns expiry off, and no unit is ever overdue.
+- **H.unit.9** (near, refines H.unit.7) A shed command runs one frame builder
+  session on an overdue contested unit and refuses any other unit. Its bundle
+  holds the charter, the horizon, the unit's spec diff, debate record, bounce
+  reasons and owner answers. The session reports `archive` with a shelf, or
+  `keep`. An archive on the rejected shelf cites the charter clauses violated,
+  and one on the deferred shelf says what would change the decision. Shed
+  archives the unit as S.shed.10 does, with the frame builder as actor and an
+  entry that records the timeout and how long the unit waited. A `keep`, or a
+  session that ends without an outcome, leaves the unit contested.
+- **H.unit.10** (soon, refines H.unit.7) `shed serve` starts the session of
+  H.unit.9 for overdue contested units, one at a time, oldest first, under the
+  daily budget. It records the unit and its latest move to contested before
+  dispatch and attempts each such pair at most once, even across restarts and
+  tracker rebuilds. A unit that is kept is tried again only after it leaves
+  contested and becomes contested again.
+- **H.unit.11** (soon, refines H.unit.7) A contested unit leaves contested only
+  through an owner answer or a frame builder archive under H.unit.9. Shed
+  refuses a move out of contested by any other actor or role outcome, naming
+  the unit and the actor.
+- **H.unit.12** (soon, refines H.unit.7) `shed inbox` lists each unit the frame
+  builder archived on timeout since the previous recorded `shed inbox`, with
+  its short change ID, title, shelf, the frame builder's reason and how long
+  it had waited. `-peek` lists the same units.
 
 ## Version control
 
