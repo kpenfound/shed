@@ -85,7 +85,7 @@ func (e env) status(args []string) int {
 			return OK
 		}
 		w := tabwriter.NewWriter(e.stdout, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(w, "UNIT\tSTATE\tBOUNCES\tAMENDMENTS\tCOST\tWAIT\tOVERDUE\tTITLE")
+		fmt.Fprintln(w, "UNIT\tSTATE\tBOUNCES\tAMENDMENTS\tCOST\tESTIMATE\tWAIT\tOVERDUE\tTITLE")
 		for _, u := range units {
 			var wait, overdueMark string
 			if u.State == unit.Contested {
@@ -95,8 +95,12 @@ func (e env) status(args []string) int {
 					overdueMark = "overdue"
 				}
 			}
-			fmt.Fprintf(w, "%s\t%s\t%d\t%d\t$%.2f\t%s\t%s\t%s\n",
-				unit.Short(u.Change), u.State, u.Bounces, u.Amendments, u.CostUSD, wait, overdueMark, u.Title)
+			var estimate string
+			if u.Footprint.Estimate > 0 {
+				estimate = fmt.Sprintf("$%.2f of $%.2f", u.EstimateCostUSD, u.Footprint.Estimate)
+			}
+			fmt.Fprintf(w, "%s\t%s\t%d\t%d\t$%.2f\t%s\t%s\t%s\t%s\n",
+				unit.Short(u.Change), u.State, u.Bounces, u.Amendments, u.CostUSD, estimate, wait, overdueMark, u.Title)
 		}
 		if err := w.Flush(); err != nil {
 			return e.fail(err)

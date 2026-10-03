@@ -101,6 +101,8 @@ CREATE TABLE IF NOT EXISTS units (
 	bounces INTEGER NOT NULL DEFAULT 0,
 	uncounted_bounces INTEGER NOT NULL DEFAULT 0,
 	estimate REAL NOT NULL DEFAULT 0,
+	estimate_cost REAL NOT NULL DEFAULT 0,
+	in_lane INTEGER NOT NULL DEFAULT 0,
 	painter_captured INTEGER NOT NULL DEFAULT 0,
 	painter_spec_conflict INTEGER NOT NULL DEFAULT 0,
 	amendments INTEGER NOT NULL DEFAULT 0,
@@ -185,7 +187,7 @@ var tables = []string{"units", "seals", "footprints", "actual_footprints", "sess
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 14
+const schemaVersion = 15
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -358,6 +360,15 @@ func apply(tx *sql.Tx, e Event) error {
 			e.To, boolInt(e.Bounce), boolInt(e.Bounce), boolInt(e.Amendment), e.Shelf, e.Reason, e.Commit, at, e.Bounce || e.Tier != "", e.Unit); err != nil {
 			return err
 		}
+		// in_lane tracks whether the unit's latest reopen requested an
+		// amendment (S.shed.11), so the next seal can tell whether it
+		// carries the estimate forward (S.impl.7) and so the cost-since-seal
+		// window should keep adding rather than start afresh (S.impl.8).
+		if e.To == unit.Proposed && e.Bounce {
+			if err := exec(`UPDATE units SET in_lane = ? WHERE change = ?`, boolInt(e.Amendment), e.Unit); err != nil {
+				return err
+			}
+		}
 		// A unit that leaves sealed, implementing, verifying and queued
 		// leaves horizon review with them.
 		if !unit.PastSeal(e.To) {
@@ -415,6 +426,20 @@ func apply(tx *sql.Tx, e Event) error {
 			}
 		}
 		if e.Footprint != nil {
+			// Only a seal sets a footprint on a UnitMoved event. It starts
+			// the cost-since-seal window afresh unless it carries the
+			// estimate forward from a unit in the amendment lane with a
+			// positive estimate already recorded (S.impl.7, S.impl.8).
+			var inLane int
+			var oldEstimate float64
+			if err := tx.QueryRow(`SELECT in_lane, estimate FROM units WHERE change = ?`, e.Unit).Scan(&inLane, &oldEstimate); err != nil {
+				return err
+			}
+			if carriedForward := inLane != 0 && oldEstimate > 0; !carriedForward {
+				if err := exec(`UPDATE units SET estimate_cost = 0 WHERE change = ?`, e.Unit); err != nil {
+					return err
+				}
+			}
 			if err := writeFootprint(tx, "footprints", e.Unit, *e.Footprint); err != nil {
 				return err
 			}
@@ -437,6 +462,11 @@ func apply(tx *sql.Tx, e Event) error {
 		s := e.Session
 		if err := exec(`UPDATE sessions SET status = ?, outcome = ?, cost_usd = ?, finished_at = ? WHERE id = ?`,
 			s.Status, s.Outcome, e.CostUSD, at, s.ID); err != nil {
+			return err
+		}
+		// A finished session adds to the cost since the seal that set the
+		// unit's estimate (S.impl.8); a session still running adds nothing.
+		if err := exec(`UPDATE units SET estimate_cost = estimate_cost + ? WHERE change = ?`, e.CostUSD, e.Unit); err != nil {
 			return err
 		}
 		if s.StepDone {

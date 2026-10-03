@@ -83,6 +83,22 @@ previous seal, whatever was declared meanwhile; see
 estimate back too, giving back with no estimate a seal recorded before shed
 tracked them.
 
+`shed status` shows a unit's estimate beside its cost since the seal that
+set it: the unit's most recent seal that did not carry its estimate forward
+from the seal before it. A seal out of the amendment lane that carries the
+estimate forward therefore leaves that window where it was, so a
+mechanic-requested amendment does not reset it; any other seal starts it
+afresh. The window counts the cost of every session that finished after that
+seal, in any role and whatever state the unit has since moved to, so a unit
+reopened after that seal keeps adding to the window until a seal sets the
+estimate again. A session still running adds nothing until it finishes. Both
+amounts render in USD to the cent in their own `ESTIMATE` column, cost since
+the seal first, as `$1.20 of $5.00`. This is separate from the unconditional
+`COST` column, which keeps showing the unit's whole cost so far
+(S.track.9). A unit that was never sealed, or whose most recent seal
+recorded no estimate, leaves `ESTIMATE` empty. `shed tracker rebuild` gives
+back the same amounts in both columns.
+
 Landing records the unit's actual footprint beside the sealed one: the spec
 clauses the landed commit adds, changes or removes against its parent, with
 the dependencies and horizon clauses recorded at the last seal. The drift is
@@ -341,7 +357,7 @@ answer with an empty reason. A refused answer records nothing (S.owner.10).
 
 | Command | Does |
 | --- | --- |
-| `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost, wait and title; a contested unit's line also carries an `overdue` mark once its wait passes `shed.contested_timeout`. Then it lists the notices waiting for the owner. |
+| `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost, estimate (with the cost since the seal that set it), wait and title; a contested unit's line also carries an `overdue` mark once its wait passes `shed.contested_timeout`. Then it lists the notices waiting for the owner. |
 | `shed inbox [-peek]` | Lists contested units with their wait and, once overdue, an `overdue` mark, the horizon changes on main, the charter questions from repeated rejections and the sampled horizon amendments, marking what is new since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
 | `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: moves it back to `proposed`, defers or rejects it to the archive, or approves its distant, eventual or split soon horizon amendment. |

@@ -76,7 +76,7 @@ func TestStatus(t *testing.T) {
 	// TestStatusShowsWaitAndOverdue; here the contested unit's wait renders
 	// as under an hour and the proposed unit shows neither.
 	want := []string{
-		"UNIT STATE BOUNCES AMENDMENTS COST WAIT OVERDUE TITLE",
+		"UNIT STATE BOUNCES AMENDMENTS COST ESTIMATE WAIT OVERDUE TITLE",
 		unit.Short(a) + " contested 1 1 $0.00 0h0m Say goodbye",
 		unit.Short(b) + " proposed 0 0 $0.00 Wave",
 		"Waiting for the owner:",
@@ -129,7 +129,7 @@ func TestStatusShowsWaitAndOverdue(t *testing.T) {
 	// Under the timeout: the contested unit's wait renders and it is not
 	// overdue; the proposed unit shows neither.
 	want := []string{
-		"UNIT STATE BOUNCES AMENDMENTS COST WAIT OVERDUE TITLE",
+		"UNIT STATE BOUNCES AMENDMENTS COST ESTIMATE WAIT OVERDUE TITLE",
 		row("26h0m", false),
 		unit.Short(b) + " proposed 0 0 $0.00 Wave",
 		"Waiting for the owner:",
@@ -141,7 +141,7 @@ func TestStatusShowsWaitAndOverdue(t *testing.T) {
 
 	// Beyond the timeout: the unit is marked overdue.
 	want = []string{
-		"UNIT STATE BOUNCES AMENDMENTS COST WAIT OVERDUE TITLE",
+		"UNIT STATE BOUNCES AMENDMENTS COST ESTIMATE WAIT OVERDUE TITLE",
 		row("100h0m", true),
 		unit.Short(b) + " proposed 0 0 $0.00 Wave",
 		"Waiting for the owner:",
@@ -154,7 +154,7 @@ func TestStatusShowsWaitAndOverdue(t *testing.T) {
 	// A zero timeout marks no unit overdue however long the wait.
 	r.Write(".shed/config.toml", "[shed]\nbounce_threshold = 0\ncontested_timeout = \"0s\"\n")
 	want = []string{
-		"UNIT STATE BOUNCES AMENDMENTS COST WAIT OVERDUE TITLE",
+		"UNIT STATE BOUNCES AMENDMENTS COST ESTIMATE WAIT OVERDUE TITLE",
 		row("1000h0m", false),
 		unit.Short(b) + " proposed 0 0 $0.00 Wave",
 		"Waiting for the owner:",

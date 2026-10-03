@@ -48,3 +48,22 @@
   move between states, so two units that differ only in which positive
   estimate they record, and whose debates receive the same objections,
   answers and withdrawals, move the same way.
+- **S.impl.8** (H.impl.8) On each unit's line under S.track.9, `shed status`
+  shows, in a column headed `ESTIMATE` of its own, the estimate recorded at
+  the unit's most recent seal (S.impl.7) beside the unit's cost since the
+  seal that set that estimate: the unit's most recent seal that did not
+  carry its estimate forward from the seal before it under S.impl.7. A seal
+  out of the amendment lane (S.shed.11), including the seal of S.shed.14,
+  that carries the estimate forward therefore leaves the cost where it was,
+  while any other seal starts it afresh. The cost is the summed cost of the
+  unit's sessions that finished after the seal that set the estimate in the
+  event log (S.track.3), in any role and whatever state the unit has moved
+  to since, so a unit reopened after that seal keeps adding to it until a
+  seal sets the estimate again. A session still running adds nothing until
+  it finishes. Both amounts are written in USD to the cent, cost since that
+  seal first, as `$1.20 of $5.00`. The column adds to the line and replaces
+  nothing on it: the cost so far of S.track.9 keeps its own column, headed
+  `COST`, on every unit's line. A unit that was never sealed, or whose most
+  recent seal recorded no estimate, leaves its `ESTIMATE` column empty and
+  still shows its cost so far. After `shed tracker rebuild` (S.track.5)
+  every unit shows the same amounts as before it.

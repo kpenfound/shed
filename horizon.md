@@ -238,7 +238,7 @@ distant and get promoted as the soon tier drains.
   the proposal, and sealing records it with the seal. A seal out of the
   amendment lane keeps the estimate it had. The estimate never orders or sizes
   work.
-- **H.impl.8** (near, refines H.impl.5) `shed status` shows each unit's
+- **H.impl.8** (near, refines H.impl.5, realised) `shed status` shows each unit's
   recorded estimate beside its cost since the seal that recorded that
   estimate.
 - **H.impl.9** (soon, refines H.impl.5) When a unit's cost since the seal that

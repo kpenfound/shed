@@ -55,6 +55,11 @@ type Unit struct {
 	Actual *Footprint
 	// CostUSD is the total cost of the unit's sessions so far.
 	CostUSD float64
+	// EstimateCostUSD is the summed cost of the unit's sessions that
+	// finished after the seal that set Footprint.Estimate: the unit's most
+	// recent seal that did not carry its estimate forward from the seal
+	// before it (S.impl.7, S.impl.8).
+	EstimateCostUSD float64
 	// Review is set while the unit is marked for horizon review
 	// (S.queue.5).
 	Review bool
@@ -170,10 +175,10 @@ func loadUnit(q querier, change string) (Unit, error) {
 	var opened, updated, contestedAt, shelf, state, openedBy string
 	var actual bool
 	var estimate float64
-	err := q.QueryRow(`SELECT title, opened_by, state, bounces, amendments, round, cycle, reason, shelf, landed, actual, review, opened_at, updated_at, contested_at, contested_seq, estimate,
+	err := q.QueryRow(`SELECT title, opened_by, state, bounces, amendments, round, cycle, reason, shelf, landed, actual, review, opened_at, updated_at, contested_at, contested_seq, estimate, estimate_cost,
 		(SELECT COALESCE(SUM(cost_usd), 0) FROM sessions WHERE change = units.change)
 		FROM units WHERE change = ?`, change).
-		Scan(&u.Title, &openedBy, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Cycle, &u.Reason, &shelf, &u.Landed, &actual, &u.Review, &opened, &updated, &contestedAt, &u.ContestedSeq, &estimate, &u.CostUSD)
+		Scan(&u.Title, &openedBy, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Cycle, &u.Reason, &shelf, &u.Landed, &actual, &u.Review, &opened, &updated, &contestedAt, &u.ContestedSeq, &estimate, &u.EstimateCostUSD, &u.CostUSD)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Unit{}, fmt.Errorf("unit %s: %w", unit.Short(change), ErrNotFound)
 	}
