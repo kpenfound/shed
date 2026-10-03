@@ -29,7 +29,8 @@
   when it ends and wakes the controllers.
 - **S.serve.4** (H.sched.5) At most `concurrency.units` units are
   implementing or verifying at once. Each pass starts work downstream first:
-  landing, verification, implementation, debate, proposals, then framing.
+  landing, verification, implementation, debate, proposals, then
+  expiry (S.frame.8) and framing.
   One unit lands at a time, one debate runs at a time, and no unit ever has two stages
   running. A proposal that declares no horizon clause is a draft and is not
   debated.

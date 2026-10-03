@@ -228,10 +228,11 @@ collapsed. An entry whose proposal changes no horizon clause has no such
 section (S.shed.15). A contested unit the owner defers or rejects with
 `shed answer` goes to the deferred or rejected shelf the same way, and its
 entry also holds the owner's answers. A rejected one cites the charter
-clauses the owner's reason names. A contested unit the frame builder expires
-by hand (see [expiring a contested unit by hand](#expiring-a-contested-unit-by-hand))
-goes to the shelf it reported the same way too, with an added "Expired:"
-line giving `shed.contested_timeout` and how long the unit had waited.
+clauses the owner's reason names. A contested unit the frame builder expires,
+whether by hand (see [expiring a contested unit by hand](#expiring-a-contested-unit-by-hand))
+or automatically (see [automatic expiry](#automatic-expiry)), goes to the
+shelf it reported the same way too, with an added "Expired:" line giving
+`shed.contested_timeout` and how long the unit had waited.
 
 ## Implementation
 
@@ -352,6 +353,7 @@ land` prints each unit's outcome, and each unit's log records it. See
 | mechanic | implementation | a unit is implementing, or sealed while fewer than `concurrency.units` units implement or verify |
 | shed | debate | a proposal declares a horizon clause and an estimate, and fewer than `concurrency.in_flight` units are sealed through queued; one debate at a time |
 | painter | a proposal | the gap is not empty, fewer than `painter.max_proposed` units are proposed, and the painter is not backing off |
+| frame builder | an expiry session (see [automatic expiry](#automatic-expiry)) | a contested unit `shed inbox` would mark overdue; oldest first, one session at a time, before framing |
 | frame builder | a horizon framing | no unrealised near/soon clauses remain on main; one session at a time |
 
 Units opened by `shed frame` never count toward `painter.max_proposed`, and
@@ -359,7 +361,7 @@ Units opened by `shed frame` never count toward `painter.max_proposed`, and
 
 Each pass starts work downstream first, so work in flight finishes before new
 work starts: horizon reviews, landing, verification, implementation, debate,
-then proposals and framing. Controllers start stages in the background and
+then proposals, expiry and framing. Controllers start stages in the background and
 never wait on a session; a stage that ends wakes them all, and `serve.tick` wakes them
 anyway. `shed serve -once` stops when nothing is running and nothing can
 start.
@@ -473,6 +475,36 @@ way, after the landed commit.
 
 The in-flight cap defaults to one, so only one unit is ever between sealed
 and landed and nothing needs reconciling.
+
+## Automatic expiry
+
+`shed serve` automatically runs the session of
+[`shed frame -expire`](#expiring-a-contested-unit-by-hand) on every contested
+unit that `shed inbox` would mark overdue at that moment (see
+[the owner inbox](tracker.md#the-owner-inbox)); with `shed.contested_timeout`
+set to zero it starts none, since expiry is off. It starts them one at a
+time, oldest first: the unit whose latest move to `contested` has the lowest
+event sequence number goes first. Each is a frame builder session, so no
+expiry session runs alongside another expiry session or a framing session
+(see [framing the horizon](#framing-the-horizon)), in either order, and when
+both are due in the same pass, expiry starts first. No expiry session starts
+while the daily budget pauses stages.
+
+Before dispatch, shed records the unit and the event sequence number of its
+latest move to `contested` in the event log. Each such pair is attempted at
+most once automatically, including across restarts and tracker rebuilds,
+even if the session is interrupted, fails, ends without an outcome, or
+reports `keep`. A kept unit is attempted again only once it leaves
+`contested` and moves to `contested` again, which gives it a new pair;
+`shed frame -expire <unit>` remains available for an explicit retry in the
+meantime.
+
+The session's report is applied the same way a `shed frame -expire`
+session's report is (see
+[expiring a contested unit by hand](#expiring-a-contested-unit-by-hand)), and
+`shed serve` logs the unit's short change ID with the outcome: archived with
+its shelf, kept, ended without an outcome, or left alone because the unit
+left `contested` or moved to `contested` again while the session ran.
 
 ## Expiring a contested unit by hand
 

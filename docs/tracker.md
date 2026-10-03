@@ -265,8 +265,10 @@ shelf (`rejected` or `deferred`), the frame builder's reason and how long it
 had waited from its latest move to `contested` to the archive, written
 rounded down to the whole minute just as a contested unit's wait is. A unit
 archived by the owner or any other actor is not listed here, only one the
-frame builder archived under `shed frame -expire` (see
-[expiring a contested unit by hand](autopilot.md#expiring-a-contested-unit-by-hand)).
+frame builder archived on timeout, whether dispatched by hand with
+`shed frame -expire` or automatically by `shed serve` (see
+[expiring a contested unit by hand](autopilot.md#expiring-a-contested-unit-by-hand)
+and [automatic expiry](autopilot.md#automatic-expiry)).
 `-peek` lists the same expired units. Listing one moves no unit and changes
 no archive entry (S.owner.16).
 
@@ -314,8 +316,10 @@ session or proposal.
 ## Answering contested units
 
 The owner takes a unit out of `contested` with `shed answer`. The only other
-way out is a frame builder session archiving an overdue one by hand, with
-[`shed frame -expire`](autopilot.md#expiring-a-contested-unit-by-hand). Shed
+way out is a frame builder session archiving an overdue one, whether
+dispatched by hand with
+[`shed frame -expire`](autopilot.md#expiring-a-contested-unit-by-hand) or
+automatically by [`shed serve`](autopilot.md#automatic-expiry). Shed
 refuses any other move out of `contested`, whatever its target state,
 including one by the frame builder to `proposed`, one by the painter,
 committee, mechanic, wheelbuilder or sweeper as the outcome of a session, and

@@ -64,7 +64,7 @@ Each role is an agent session, run by a small, deterministic Go scheduler.
 
 | Role | Does |
 | --- | --- |
-| Frame builder | Breaks a distant or eventual horizon clause into near and soon clauses that refine it, automatically when near/soon work is exhausted or when you run `shed frame`. Archives an overdue contested unit by hand when you run `shed frame -expire`. |
+| Frame builder | Breaks a distant or eventual horizon clause into near and soon clauses that refine it, automatically when near/soon work is exhausted or when you run `shed frame`. Archives an overdue contested unit automatically, or by hand when you run `shed frame -expire`. |
 | Painter | Reads the gap and proposes the next small increment as a spec diff. |
 | Committee | Debates each proposal in parallel rounds, citing clause IDs. A charter objection is a veto: the proposal is rejected. A proposal that does not move toward the horizon is deferred. Later, a committee member who did not build the unit reviews its code. |
 | Mechanic | Implements a sealed unit step by step: proofs first, then code, then docs. |
@@ -224,10 +224,11 @@ from repeated rejections, sampled horizon amendments and units the frame
 builder archived on timeout, for the owner. A distant or eventual horizon amendment waits
 for the owner, and so does a soon one the committee splits over, or any tier if the operator's
 `shed.horizon_owner_approval` setting widens the wait to cover it. `shed answer` retries, defers, rejects or approves a contested
-unit, and keeps a charter clause to answer its question. `shed frame -expire`
-runs a frame builder session by hand on a contested unit overdue for an
-answer, and archives it on the shelf the session reports, or leaves it
-contested.
+unit, and keeps a charter clause to answer its question. `shed serve`
+automatically expires overdue contested units, one at a time, oldest first,
+archiving each on the shelf its session reports or leaving it contested;
+`shed frame -expire` runs the same frame builder session by hand for an
+explicit retry.
 `shed serve` replenishes exhausted near/soon work by drafting refinements of
 distant and eventual clauses. Pending framings appear in `shed inbox` for
 owner acceptance. `shed frame` explicitly breaks a distant or eventual horizon clause into near and soon

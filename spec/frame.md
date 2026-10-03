@@ -115,3 +115,23 @@
   has left contested or moved to contested again since the session started,
   shed moves nothing and writes no archive entry, the unit stays as it is,
   and `shed frame -expire` says which of these happened.
+- **S.frame.8** (H.unit.10) `shed serve` starts the session of S.frame.6
+  on each contested unit that `shed inbox` would mark overdue at that
+  moment under S.owner.15, so with `shed.contested_timeout` zero it starts
+  none. It starts them one at a time, oldest first: the unit whose latest
+  move to contested has the lowest event sequence number goes first. Each
+  is a frame builder session, so no expiry session runs alongside another
+  expiry session or a framing session of S.frame.5, in either order, and
+  when both are due in the same pass the expiry session starts first. No expiry
+  session starts while S.serve.6 pauses stages. Before dispatch, shed
+  records in the event log the unit and the event sequence number of its
+  latest move to contested. Each such pair is attempted at most once
+  automatically, including across restarts and tracker rebuilds, even if
+  the session is interrupted, fails, ends without an outcome or reports
+  `keep`. A kept unit is therefore attempted again only after it leaves
+  contested and moves to contested again, which gives it a new pair;
+  `shed frame -expire <unit>` remains available for an explicit retry. The
+  session's report is applied as S.frame.7 says, and `serve` logs the
+  unit's short change ID with the outcome: archived with its shelf, kept,
+  ended without an outcome, or left alone because the unit left contested
+  or moved to contested again while the session ran.

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -232,4 +233,66 @@ func checkExpiry(main *docs.Set, tiered bool, status, note string) error {
 		return nil
 	}
 	return fmt.Errorf("an outcome is keep, rejected or deferred, not %q", status)
+}
+
+// startExpiry dispatches ExpireContested's session on the oldest contested
+// unit shed inbox would mark overdue at now, one at a time, before framing
+// (S.frame.8, S.serve.4). It shares frameBuilderKey with startFraming, so no
+// expiry session ever runs alongside another expiry session or a framing
+// session, in either order; S.serve.6's pause is enforced by Serve skipping
+// the whole pass, so no claim is recorded while it holds.
+func (f *Factory) startExpiry(ctx context.Context, s *scheduler, units []tracker.Unit) error {
+	if s.isBusy(frameBuilderKey) {
+		return nil
+	}
+	timeout := f.Operator.Shed.ContestedTimeout.Duration
+	if timeout <= 0 {
+		return nil
+	}
+	now := s.now()
+	var overdue []tracker.Unit
+	for _, u := range units {
+		if u.State == unit.Contested && now.Sub(u.ContestedAt) > timeout {
+			overdue = append(overdue, u)
+		}
+	}
+	sort.Slice(overdue, func(i, j int) bool { return overdue[i].ContestedSeq < overdue[j].ContestedSeq })
+	for _, u := range overdue {
+		claimed, err := f.Tracker.ClaimExpiry(u.Change, u.ContestedSeq)
+		if err != nil {
+			return err
+		}
+		if !claimed {
+			continue
+		}
+		change := u.Change
+		s.run(ctx, frameBuilderKey, unit.Short(change)+" expire", func(ctx context.Context) (string, error) {
+			ex, err := f.ExpireContested(ctx, change, s.now())
+			if err != nil {
+				return "", err
+			}
+			return describeExpiry(ex), nil
+		})
+		return nil
+	}
+	return nil
+}
+
+// describeExpiry renders an expiry's outcome for serve's log: archived with
+// its shelf, kept, ended without an outcome, or left alone because the unit
+// left contested or moved to contested again while the session ran
+// (S.frame.8).
+func describeExpiry(ex Expiry) string {
+	switch ex.Outcome {
+	case ExpiryArchived:
+		return fmt.Sprintf("archived on the %s shelf: %s", ex.Shelf, ex.Reason)
+	case ExpiryKept:
+		return "kept"
+	case ExpiryLeft:
+		return "left alone: the unit left contested while the session ran"
+	case ExpiryAgain:
+		return fmt.Sprintf("left alone: the unit moved to contested again while the session ran: %s", ex.Reason)
+	default:
+		return "ended without an outcome: " + ex.Reason
+	}
 }

@@ -14,7 +14,8 @@ The sandbox sees only what the session is granted:
   but shed captures it onto the unit only for the painter, mechanic,
   wheelbuilder, and a frame builder framing a horizon clause; what a
   committee member writes there is thrown away, and so is what a frame
-  builder expiring an overdue contested unit by hand writes there;
+  builder expiring an overdue contested unit writes there, whether dispatched
+  by hand or automatically by `shed serve`;
 - its session directory, where shed writes `bundle.md` and core writes the
   transcript and result;
 - any extra mounts the operator adds to the role's profile.
@@ -69,9 +70,12 @@ keeping main's spec and horizon text and re-applying the unit's changes.
 A frame builder framing a horizon clause works on no unit: its bundle holds
 the charter, the horizon, the clause to frame with the clauses that refine
 it and the spec clauses that advance it, and the units in flight with their
-footprints. A frame builder expiring an overdue contested unit by hand
-instead works on that unit, with a bundle of its own
-(see [expiring a contested unit by hand](autopilot.md#expiring-a-contested-unit-by-hand)).
+footprints. A frame builder expiring an overdue contested unit
+instead works on that unit, with a bundle of its own, whether the session was
+dispatched by hand with `shed frame -expire` or automatically by
+`shed serve` (see
+[expiring a contested unit by hand](autopilot.md#expiring-a-contested-unit-by-hand)
+and [automatic expiry](autopilot.md#automatic-expiry)).
 Notices count as delivered once a session starts, except in a wheelbuilder's
 horizon review, whose bundle shows them without delivering them. Bundles
 come from a context provider; the default one uses only the documents, the

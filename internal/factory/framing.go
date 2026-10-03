@@ -14,7 +14,7 @@ import (
 // startFraming replenishes an exhausted near/soon tier. Work already
 // assigned to a painter still counts until it is realised on main.
 func (f *Factory) startFraming(ctx context.Context, s *scheduler, units []tracker.Unit) error {
-	if s.isBusy("frame-builder") || s.isBusy(painterKey) || s.isBusy(landerKey) {
+	if s.isBusy(frameBuilderKey) || s.isBusy(painterKey) || s.isBusy(landerKey) {
 		return nil
 	}
 	commit, err := f.Repo.MainCommit(ctx)
@@ -49,7 +49,7 @@ func (f *Factory) startFraming(ctx context.Context, s *scheduler, units []tracke
 			if !claimed {
 				continue
 			}
-			s.run(ctx, "frame-builder", "frame "+id, func(ctx context.Context) (string, error) {
+			s.run(ctx, frameBuilderKey, "frame "+id, func(ctx context.Context) (string, error) {
 				fr, err := f.Frame(ctx, id)
 				if err != nil {
 					return "", err

@@ -53,6 +53,10 @@ const (
 	InboxRead       = "inbox.read"
 	ClauseKept      = "clause.kept"
 	FrameAttempted  = "frame.attempted"
+	// ExpiryAttempted records an automatic expiry session before it starts,
+	// keyed by the unit and the sequence number of its latest move to
+	// contested (S.frame.8).
+	ExpiryAttempted = "expiry.attempted"
 )
 
 // Event is one line of the event log. The log is the tracker's source of
@@ -103,6 +107,10 @@ type Event struct {
 	// ReadSeq is the sequence number of the latest event an inbox read, or
 	// the latest event before the owner kept a charter clause.
 	ReadSeq int64 `json:"read_seq,omitempty"`
+	// ContestSeq is set on an expiry attempt (ExpiryAttempted) for the
+	// sequence number of the unit's latest move to contested being claimed
+	// (S.frame.8).
+	ContestSeq int64 `json:"contest_seq,omitempty"`
 	// Clause is the charter clause kept or the horizon clause being framed.
 	Clause string `json:"clause,omitempty"`
 	// Actual and Drift are set when a unit lands: its actual footprint and

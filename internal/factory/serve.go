@@ -129,6 +129,10 @@ const (
 	painterKey = "painter"
 	landerKey  = "lander"
 	debateKey  = "debate"
+	// frameBuilderKey is shared by startExpiry and startFraming, since no
+	// expiry session ever runs alongside another expiry session or a
+	// framing session, in either order (S.frame.8).
+	frameBuilderKey = "frame-builder"
 )
 
 // controllers are in the order each pass runs them: downstream first, so
@@ -250,6 +254,7 @@ func (f *Factory) controllers() []controller {
 			})
 			return nil
 		}},
+		{name: "expiry", start: f.startExpiry},
 		{name: "frame-builder", start: f.startFraming},
 	}
 }

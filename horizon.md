@@ -104,7 +104,7 @@ distant and get promoted as the soon tier drains.
   archives the unit as S.shed.10 does, with the frame builder as actor and an
   entry that records the timeout and how long the unit waited. A `keep`, or a
   session that ends without an outcome, leaves the unit contested.
-- **H.unit.10** (soon, refines H.unit.7) `shed serve` starts the session of
+- **H.unit.10** (soon, refines H.unit.7, realised) `shed serve` starts the session of
   H.unit.9 for overdue contested units, one at a time, oldest first, under the
   daily budget. It records the unit and its latest move to contested before
   dispatch and attempts each such pair at most once, even across restarts and

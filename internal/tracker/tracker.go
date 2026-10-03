@@ -529,6 +529,8 @@ func apply(tx *sql.Tx, e Event) error {
 		return setMeta(tx, keptKey+e.Clause, e.ReadSeq)
 	case FrameAttempted:
 		return setMeta(tx, frameAttemptKey+e.Clause+":"+e.Commit, e.Seq)
+	case ExpiryAttempted:
+		return setMeta(tx, expiryAttemptKey+e.Unit+":"+strconv.FormatInt(e.ContestSeq, 10), e.Seq)
 	}
 	return fmt.Errorf("unknown event kind %q", e.Kind)
 }
