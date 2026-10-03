@@ -114,7 +114,7 @@ distant and get promoted as the soon tier drains.
   through an owner answer or a frame builder archive under H.unit.9. Shed
   refuses a move out of contested by any other actor or role outcome, naming
   the unit and the actor.
-- **H.unit.12** (soon, refines H.unit.7) `shed inbox` lists each unit the frame
+- **H.unit.12** (soon, refines H.unit.7, realised) `shed inbox` lists each unit the frame
   builder archived on timeout since the previous recorded `shed inbox`, with
   its short change ID, title, shelf, the frame builder's reason and how long
   it had waited. `-peek` lists the same units.

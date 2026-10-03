@@ -150,3 +150,14 @@
   timeout is zero, expiry is off and no unit is ever marked overdue.
   `-peek` shows the same waits and marks. Showing a wait or an overdue
   mark moves no unit and starts no session.
+- **S.owner.16** (H.unit.12) `shed inbox` then lists expired units: each
+  unit the frame builder archived under S.frame.7 whose move to archived
+  has a higher event sequence number than the one stored by the previous
+  recorded `shed inbox` (S.owner.7), or every such unit when no
+  `shed inbox` has been recorded, in the order they were archived. Each is
+  listed with its short change ID, title, shelf, rejected or deferred, the
+  frame builder's reason, and how long it had waited from its latest move
+  to contested to the archive, as recorded by S.frame.7 and written as
+  under S.owner.15. Units archived by any other actor are not listed here.
+  `-peek` lists the same expired units. Listing an expired unit moves no
+  unit and changes no archive entry.

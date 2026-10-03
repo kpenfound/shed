@@ -124,6 +124,61 @@ func (t *Tracker) Rejected() ([]RejectedUnit, error) {
 	return out, nil
 }
 
+// ExpiredUnit is a unit the frame builder archived on timeout (S.frame.7).
+type ExpiredUnit struct {
+	Unit
+	// ArchivedSeq is the sequence number of the unit's move to archived.
+	ArchivedSeq int64
+	// Wait is how long the unit had waited from its latest move to
+	// contested to the archive.
+	Wait time.Duration
+}
+
+// Expired returns every unit the frame builder archived on timeout
+// (S.frame.7) whose move to archived came after the latest event the last
+// recorded inbox read, or every such unit when no inbox has been recorded,
+// in the order they were archived (S.owner.16). A unit archived by any
+// other actor is not returned.
+func (t *Tracker) Expired() ([]ExpiredUnit, error) {
+	tx, err := t.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	since, err := inboxSeq(tx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(`SELECT change, archived_seq, wait FROM units WHERE state = ? AND expired = 1 AND archived_seq > ? ORDER BY archived_seq`,
+		unit.Archived, since)
+	if err != nil {
+		return nil, err
+	}
+	var out []ExpiredUnit
+	for rows.Next() {
+		var e ExpiredUnit
+		var wait int64
+		if err := rows.Scan(&e.Change, &e.ArchivedSeq, &wait); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		e.Wait = time.Duration(wait)
+		out = append(out, e)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		u, err := loadUnit(tx, out[i].Change)
+		if err != nil {
+			return nil, err
+		}
+		out[i].Unit = u
+	}
+	return out, nil
+}
+
 // horizonAmendmentsKey is the meta key counting the landings recorded as
 // horizon amendments.
 const horizonAmendmentsKey = "horizon_amendments"

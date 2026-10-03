@@ -238,6 +238,18 @@ order, each marked added, changed or removed. A clause the commit only
 marked realised is left out. `-peek` lists the same amendments (S.owner.12).
 Sampling moves no unit and never holds back or fails a landing.
 
+Last come units the frame builder archived on timeout (S.frame.7) since the
+previous recorded `shed inbox`, or every such unit when no inbox has been
+recorded, in the order they were archived. Each shows its short change ID,
+shelf (`rejected` or `deferred`), the frame builder's reason and how long it
+had waited from its latest move to `contested` to the archive, written
+rounded down to the whole minute just as a contested unit's wait is. A unit
+archived by the owner or any other actor is not listed here, only one the
+frame builder archived under `shed frame -expire` (see
+[expiring a contested unit by hand](autopilot.md#expiring-a-contested-unit-by-hand)).
+`-peek` lists the same expired units. Listing one moves no unit and changes
+no archive entry (S.owner.16).
+
 ```
 Contested units:
   qpvuntsm  new  bounces 4  wait 75h3m  overdue  Say goodbye: bounced 4 times, over the threshold of 3
@@ -259,6 +271,9 @@ Sampled amendments:
   xtnwkqpl  9c41d07a2be5  Sing along
     added    H.greet.4
     changed  H.greet.2
+
+Expired units:
+  zvxnqwto  rejected  wait 80h5m  Say goodbye: Goodbye is rude, breaks C2
 ```
 
 Every `shed inbox` records the main commit it read, and the event sequence
@@ -270,7 +285,7 @@ re-cloned, the inbox says so and lists no horizon changes, and the commit it
 records becomes the new starting point. `shed inbox -peek` lists the same
 entries, with the same parents, marks new units and questions against the previous recorded inbox
 just as a recording read does, and records nothing (S.owner.3, S.owner.7,
-S.owner.9, S.owner.12, S.owner.13).
+S.owner.9, S.owner.12, S.owner.13, S.owner.16).
 
 Reading the inbox never moves a unit and never starts or stops a stage. The
 factory does not wait for it, and listing a charter question holds back no
@@ -358,7 +373,7 @@ answer with an empty reason. A refused answer records nothing (S.owner.10).
 | Command | Does |
 | --- | --- |
 | `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost, estimate (with the cost since the seal that set it), wait and title; a contested unit's line also carries an `overdue` mark once its wait passes `shed.contested_timeout`. Then it lists the notices waiting for the owner. |
-| `shed inbox [-peek]` | Lists contested units with their wait and, once overdue, an `overdue` mark, the horizon changes on main, the charter questions from repeated rejections and the sampled horizon amendments, marking what is new since the last inbox. `-peek` records nothing. |
+| `shed inbox [-peek]` | Lists contested units with their wait and, once overdue, an `overdue` mark, the horizon changes on main, the charter questions from repeated rejections, the sampled horizon amendments and the units the frame builder archived on timeout, marking what is new since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
 | `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: moves it back to `proposed`, defers or rejects it to the archive, or approves its distant, eventual or split soon horizon amendment. |
 | `shed answer <clause> keep <reason>` | Answers a charter question by keeping the clause, clearing the question until two more rejections cite it. |

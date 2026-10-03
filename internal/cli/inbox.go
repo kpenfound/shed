@@ -23,7 +23,10 @@ import (
 // unless it is a peek (S.owner.3). Each horizon clause names the parents
 // its refines tag has it judged at (S.owner.13). Beside each contested unit
 // it shows how long it has waited and marks it overdue once that wait
-// passes shed.contested_timeout (S.owner.15).
+// passes shed.contested_timeout (S.owner.15). It then lists the units the
+// frame builder archived on timeout since the last recorded inbox, with
+// their shelf, the frame builder's reason and how long they had waited
+// (S.owner.16).
 func (e env) inbox(args []string) int {
 	fs := e.flags("inbox")
 	peek := fs.Bool("peek", false, "list the inbox without recording that it was read")
@@ -169,6 +172,25 @@ func (e env) inbox(args []string) int {
 				for _, c := range landing.AmendedHorizon(e.root, u.Landed) {
 					fmt.Fprintf(w, "    %s\t%s\n", c.Change, c.ID)
 				}
+			}
+			if err := w.Flush(); err != nil {
+				return e.fail(err)
+			}
+		}
+
+		expired, err := t.Expired()
+		if err != nil {
+			return e.fail(err)
+		}
+		fmt.Fprintln(e.stdout)
+		if len(expired) == 0 {
+			fmt.Fprintln(e.stdout, "No expired units.")
+		} else {
+			fmt.Fprintln(e.stdout, "Expired units:")
+			w := tabwriter.NewWriter(e.stdout, 0, 4, 2, ' ', 0)
+			for _, u := range expired {
+				fmt.Fprintf(w, "  %s\t%s\twait %s\t%s: %s\n",
+					unit.Short(u.Change), u.Shelf, tracker.FormatWait(u.Wait), u.Title, u.Reason)
 			}
 			if err := w.Flush(); err != nil {
 				return e.fail(err)

@@ -510,7 +510,9 @@ the reported shelf the same way `shed answer ... defer` or `reject` does,
 with the frame builder as actor and the session's reason as the move's
 reason. The archive entry's header also carries an "Expired:" line with
 `shed.contested_timeout` and how long the unit had waited, and the move
-records the same in the event log, so `shed tracker rebuild` keeps them.
+records the same in the event log, so `shed tracker rebuild` keeps them. The
+unit then appears among the expired units of the next `shed inbox` (see
+[the owner inbox](tracker.md#the-owner-inbox)).
 
 When the session reports `keep`, or ends without an outcome, or the unit has
 left `contested` or moved to `contested` again since the session started,

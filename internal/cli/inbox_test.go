@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kpenfound/shed/internal/session"
 	"github.com/kpenfound/shed/internal/testrepo"
 	"github.com/kpenfound/shed/internal/tracker"
 	"github.com/kpenfound/shed/internal/unit"
@@ -593,4 +594,102 @@ func TestInboxListsSampledAmendments(t *testing.T) {
 	sampled("peeked sampled amendments after a rebuild", []string{"-peek"}, whistle, "changed H.greet.4")
 	sampled("sampled amendments after a rebuild", nil, whistle, "changed H.greet.4")
 	sampled("sampled amendments with none since, again", nil)
+}
+
+// expiredEntries returns the lines of the inbox's expired units, with runs
+// of whitespace collapsed: one line per unit holding its short change ID,
+// shelf, wait and title, in the order the inbox lists them.
+func expiredEntries(out string) []string {
+	var entries []string
+	in := false
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.Join(strings.Fields(line), " ")
+		switch {
+		case line == "Expired units:":
+			in = true
+		case line == "":
+			in = false
+		case in:
+			entries = append(entries, line)
+		}
+	}
+	return entries
+}
+
+// expireAt runs shed frame -expire on change at now, with a frame builder
+// session that reports status with note as its reason, and fails the test
+// if the expiry itself is refused.
+func expireAt(t *testing.T, dir, state string, now time.Time, change, status, note string) {
+	t.Helper()
+	f := &frameExpirer{t: t, run: func(session.Turn) session.Result {
+		return session.Result{Status: status, Note: note, CostUSD: 0.1}
+	}}
+	if _, errOut, code := runFrameExpireAt(t, dir, state, now, f, "frame", "-expire", unit.Short(change)); code != OK {
+		t.Fatalf("frame -expire %s %s = %d, %q", unit.Short(change), status, code, errOut)
+	}
+}
+
+// TestInboxListsExpiredUnits checks that shed inbox lists the units the
+// frame builder archived on timeout (S.frame.7), each with its shelf, the
+// frame builder's reason and how long it had waited (written as under
+// S.owner.15); that a unit archived by any other actor is not listed; that
+// -peek lists the same units; that, with no inbox recorded, every expired
+// unit is listed, in the order they were archived; that a later inbox lists
+// only what expired since; and that the recorded sequence survives a
+// tracker rebuild.
+//
+//shed:proves S.owner.16
+func TestInboxListsExpiredUnits(t *testing.T) {
+	r := testrepo.Colocated(t)
+	state := filepath.Join(r.Dir, DefaultStateDir)
+	r.Write(".shed/config.toml", expireConfig("72h"))
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	rejectedReason := "Goodbye is rude, breaks C2"
+	rejectedChange := openUnit(t, r.Dir, "Say goodbye")
+	contestToAt(t, state, rejectedChange, base)
+	expireAt(t, r.Dir, state, base.Add(80*time.Hour+5*time.Minute), rejectedChange, "rejected", rejectedReason)
+
+	deferredReason := "the amendment can wait for the next horizon cycle"
+	deferredChange := openUnit(t, r.Dir, "Wave")
+	contestToAt(t, state, deferredChange, base)
+	expireAt(t, r.Dir, state, base.Add(100*time.Hour), deferredChange, "deferred", deferredReason)
+
+	// A unit the owner archives by hand, however long it had waited, is not
+	// listed here (S.owner.16).
+	ownerChange := openUnit(t, r.Dir, "Shrug")
+	contestToAt(t, state, ownerChange, base)
+	if _, errOut, code := run(t, r.Dir, "answer", ownerChange, "defer", "the owner decided by hand"); code != OK {
+		t.Fatalf("answer defer = %d, %q", code, errOut)
+	}
+
+	line := func(change, title string, shelf unit.Shelf, wait, reason string) string {
+		return unit.Short(change) + " " + string(shelf) + " wait " + wait + " " + title + ": " + reason
+	}
+
+	// With no inbox recorded, every expired unit is listed, in the order
+	// they were archived, and a peek lists the same.
+	want := []string{
+		line(rejectedChange, "Say goodbye", unit.Rejected, "80h5m", rejectedReason),
+		line(deferredChange, "Wave", unit.Deferred, "100h0m", deferredReason),
+	}
+	wantEntries(t, "peeked expired units", expiredEntries(mustRun(t, r.Dir, "inbox", "-peek")), want...)
+	wantEntries(t, "expired units", expiredEntries(mustRun(t, r.Dir, "inbox")), want...)
+
+	// Nothing has expired since the recorded inbox.
+	wantEntries(t, "expired units with none since", expiredEntries(mustRun(t, r.Dir, "inbox")))
+	wantEntries(t, "peeked expired units with none since", expiredEntries(mustRun(t, r.Dir, "inbox", "-peek")))
+
+	// A unit expired after the recorded inbox is listed alone, not the
+	// units already read.
+	thirdReason := "it is off the horizon now"
+	thirdChange := openUnit(t, r.Dir, "Nod")
+	contestToAt(t, state, thirdChange, base)
+	expireAt(t, r.Dir, state, base.Add(90*time.Hour), thirdChange, "deferred", thirdReason)
+	wantEntries(t, "expired units after a new expiry", expiredEntries(mustRun(t, r.Dir, "inbox")),
+		line(thirdChange, "Nod", unit.Deferred, "90h0m", thirdReason))
+
+	// The recorded sequence survives a rebuild of the tracker.
+	mustRun(t, r.Dir, "tracker", "rebuild")
+	wantEntries(t, "expired units after a rebuild with none since", expiredEntries(mustRun(t, r.Dir, "inbox")))
 }

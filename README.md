@@ -200,7 +200,7 @@ shed run <unit>                    # debate, implement, verify, land
 | `shed show <citation>...` | Prints the clauses citations name, at any revision. |
 | `shed diff <from> [<to>]` | Lists spec and horizon clauses added, changed and removed between revisions, the parent each refining clause is judged at, and the horizon amendment's tier. |
 | `shed status` | Lists units, what waits for the owner, and whether the factory is paused. |
-| `shed inbox [-peek]` | Lists contested units, the horizon changes, the charter clauses that keep getting proposals rejected, and sampled horizon amendments, marking what is new since you last looked. |
+| `shed inbox [-peek]` | Lists contested units, the horizon changes, the charter clauses that keep getting proposals rejected, sampled horizon amendments and units the frame builder archived on timeout, marking what is new since you last looked. |
 | `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: retry it in the shed, defer or reject it to the archive, or approve its distant, eventual or split soon horizon amendment. |
 | `shed answer <clause> keep <reason>` | Answers a charter question by keeping the clause as it stands. |
 | `shed unit open\|declare\|move\|reopen\|log\|path` | Drives units by hand. |
@@ -219,7 +219,8 @@ tracks units through their states, keeps each unit on a jj change, runs
 agents in Docker Sandboxes, debates, implements, verifies and lands units,
 proposes from the gap, and serves all of it on its own under a budget.
 `shed inbox` lists contested units, horizon changes, charter questions
-from repeated rejections and sampled horizon amendments for the owner. A distant or eventual horizon amendment waits
+from repeated rejections, sampled horizon amendments and units the frame
+builder archived on timeout, for the owner. A distant or eventual horizon amendment waits
 for the owner, and so does a soon one the committee splits over, or any tier if the operator's
 `shed.horizon_owner_approval` setting widens the wait to cover it. `shed answer` retries, defers, rejects or approves a contested
 unit, and keeps a charter clause to answer its question. `shed frame -expire`
