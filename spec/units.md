@@ -31,3 +31,13 @@
   sealing, landing, archiving and any move out of contested; the owner
   takes a unit out of contested only with `shed answer` (S.owner.4,
   S.owner.5).
+- **S.unit.9** (H.unit.11) A unit leaves contested only by a move with the
+  owner as actor, which `shed answer` makes (S.owner.4, S.owner.5,
+  S.owner.8, S.shed.17), or by a move to archived with the frame builder as
+  actor, which S.frame.7 makes. Shed refuses any other move out of
+  contested, whatever its target state, including one by the frame builder
+  to proposed, one by the painter, committee, mechanic, wheelbuilder or
+  sweeper as the outcome of a session, and one with shed as actor. The
+  refusal names the unit and the actor, records no event and leaves the
+  unit contested with its bounce count, amendment count and latest move to
+  contested unchanged.

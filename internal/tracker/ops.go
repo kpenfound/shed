@@ -312,6 +312,10 @@ func (t *Tracker) moveThen(change string, e Event, then []Event, onMain ...func(
 		if !unit.CanMove(from, e.To) {
 			return nil, fmt.Errorf("unit %s cannot move from %s to %s", unit.Short(change), from, e.To)
 		}
+		if from == unit.Contested && !contestedExit(e.Actor, e.To) {
+			return nil, fmt.Errorf("unit %s is contested; only the owner, or the frame builder archiving it, takes it out, not %s to %s",
+				unit.Short(change), e.Actor, e.To)
+		}
 		if e.Bounce != unit.IsReopen(from, e.To) {
 			if e.Bounce {
 				return nil, fmt.Errorf("unit %s is %s; only sealed, implementing, verifying and queued units reopen", unit.Short(change), from)
@@ -354,6 +358,22 @@ func (t *Tracker) moveThen(change string, e Event, then []Event, onMain ...func(
 		return append(events, then...), nil
 	})
 	return err
+}
+
+// contestedExit reports whether an actor may take a unit out of contested
+// to a state: the owner to proposed or archived, as `shed answer` makes
+// (S.owner.4, S.owner.5, S.owner.8, S.shed.17), or the frame builder to
+// archived, as S.frame.7 makes. Every other actor, and the frame builder
+// moving to any state but archived, is refused (S.unit.9).
+func contestedExit(actor unit.Actor, to unit.State) bool {
+	switch actor {
+	case unit.Owner:
+		return to == unit.Proposed || to == unit.Archived
+	case unit.FrameBuilder:
+		return to == unit.Archived
+	default:
+		return false
+	}
 }
 
 // overThreshold returns the events that make a unit contested when the

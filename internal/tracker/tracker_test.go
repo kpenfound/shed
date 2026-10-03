@@ -530,6 +530,91 @@ func TestContestedPastTheThreshold(t *testing.T) {
 	}
 }
 
+//shed:proves S.unit.9
+func TestOnlyTheOwnerOrTheFrameBuilderTakesAUnitOutOfContested(t *testing.T) {
+	dir := t.TempDir()
+	tr := open(t, dir, Options{BounceThreshold: 1})
+
+	contest := func(change string) {
+		t.Helper()
+		must(t, tr.OpenUnit(change, "Say goodbye", unit.Painter))
+		through(t, tr, change, unit.Sealed)
+		must(t, tr.Reopen(change, unit.Committee, "first", false))
+		through(t, tr, change, unit.Sealed)
+		must(t, tr.Reopen(change, unit.Committee, "second", false))
+		if u := get(t, tr, change); u.State != unit.Contested {
+			t.Fatalf("unit %s is %s, want contested", unit.Short(change), u.State)
+		}
+	}
+
+	// Every actor but the owner is refused a move out of contested,
+	// whatever its target state: a role as the outcome of a session, and
+	// shed itself. The frame builder, which may only archive, is also
+	// refused a move to proposed.
+	contest(unitA)
+	before := get(t, tr, unitA)
+	logBefore, err := os.ReadFile(filepath.Join(dir, LogFile))
+	must(t, err)
+
+	for _, bad := range []struct {
+		actor unit.Actor
+		to    unit.State
+	}{
+		{unit.Painter, unit.Proposed}, {unit.Painter, unit.Archived},
+		{unit.Committee, unit.Proposed}, {unit.Committee, unit.Archived},
+		{unit.Mechanic, unit.Proposed}, {unit.Mechanic, unit.Archived},
+		{unit.Wheelbuilder, unit.Proposed}, {unit.Wheelbuilder, unit.Archived},
+		{unit.Sweeper, unit.Proposed}, {unit.Sweeper, unit.Archived},
+		{unit.Shed, unit.Proposed}, {unit.Shed, unit.Archived},
+		{unit.FrameBuilder, unit.Proposed},
+	} {
+		var moveErr error
+		if bad.to == unit.Archived {
+			moveErr = tr.Archive(unitA, unit.Deferred, bad.actor, "trying anyway")
+		} else {
+			moveErr = tr.Move(unitA, bad.to, bad.actor, "trying anyway")
+		}
+		if moveErr == nil {
+			t.Errorf("%s moved a contested unit to %s", bad.actor, bad.to)
+			continue
+		}
+		if !strings.Contains(moveErr.Error(), unit.Short(unitA)) || !strings.Contains(moveErr.Error(), string(bad.actor)) {
+			t.Errorf("refusal of %s to %s = %q; want it to name the unit and the actor", bad.actor, bad.to, moveErr)
+		}
+	}
+
+	after := get(t, tr, unitA)
+	if after.State != unit.Contested || after.Bounces != before.Bounces || after.Amendments != before.Amendments ||
+		after.ContestedSeq != before.ContestedSeq || !after.ContestedAt.Equal(before.ContestedAt) {
+		t.Errorf("a refusal changed the unit: before %+v, after %+v", before, after)
+	}
+	logAfter, err := os.ReadFile(filepath.Join(dir, LogFile))
+	must(t, err)
+	if string(logBefore) != string(logAfter) {
+		t.Errorf("a refusal recorded an event:\n%s", logAfter[len(logBefore):])
+	}
+
+	// The owner takes a unit out of contested, to proposed or to archived.
+	must(t, tr.Move(unitA, unit.Proposed, unit.Owner, "answered"))
+	if u := get(t, tr, unitA); u.State != unit.Proposed {
+		t.Errorf("after the owner's retry: %s, want proposed", u.State)
+	}
+
+	contest(unitB)
+	must(t, tr.Archive(unitB, unit.Deferred, unit.Owner, "the owner defers it"))
+	if u := get(t, tr, unitB); u.State != unit.Archived || u.Shelf != unit.Deferred {
+		t.Errorf("after the owner's defer: %s on shelf %q, want archived on the deferred shelf", u.State, u.Shelf)
+	}
+
+	// The frame builder also takes a unit out of contested, but only to
+	// archived.
+	contest(unitC)
+	must(t, tr.Archive(unitC, unit.Rejected, unit.FrameBuilder, "overdue and off the charter"))
+	if u := get(t, tr, unitC); u.State != unit.Archived || u.Shelf != unit.Rejected {
+		t.Errorf("after the frame builder's archive: %s on shelf %q, want archived on the rejected shelf", u.State, u.Shelf)
+	}
+}
+
 //shed:proves S.unit.7
 func TestDependenciesMustBeOnMain(t *testing.T) {
 	tr := open(t, t.TempDir(), Options{})

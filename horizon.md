@@ -110,7 +110,7 @@ distant and get promoted as the soon tier drains.
   dispatch and attempts each such pair at most once, even across restarts and
   tracker rebuilds. A unit that is kept is tried again only after it leaves
   contested and becomes contested again.
-- **H.unit.11** (soon, refines H.unit.7) A contested unit leaves contested only
+- **H.unit.11** (soon, refines H.unit.7, realised) A contested unit leaves contested only
   through an owner answer or a frame builder archive under H.unit.9. Shed
   refuses a move out of contested by any other actor or role outcome, naming
   the unit and the actor.

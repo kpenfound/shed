@@ -49,8 +49,11 @@ proposed -> sealed -> implementing -> verifying -> queued -> landed
   painter, moves it on to `contested`. So does a debate that reaches
   consensus on a distant or eventual horizon amendment, or splits at its
   round cap over a soon one, without counting a bounce. Shed leaves a notice for the owner and keeps working on other
-  units. A unit leaves `contested` only on the owner's answer: back to
-  `proposed`, or to the deferred or rejected shelf.
+  units. A unit leaves `contested` only by the owner's answer, back to
+  `proposed` or to the deferred or rejected shelf, or by the frame builder
+  archiving it after a timeout. Shed refuses any other move out of
+  `contested`, naming the unit and the actor, and leaves the unit as it was
+  (S.unit.9).
 - A sealing bounce for a `spec/` conflict a landing brought in after the
   painter's latest session saw `spec/` clean counts no bounce toward
   `bounce_threshold`, since the painter never had the conflict to leave.
@@ -295,7 +298,13 @@ session or proposal.
 
 The owner takes a unit out of `contested` with `shed answer`. The only other
 way out is a frame builder session archiving an overdue one by hand, with
-[`shed frame -expire`](autopilot.md#expiring-a-contested-unit-by-hand).
+[`shed frame -expire`](autopilot.md#expiring-a-contested-unit-by-hand). Shed
+refuses any other move out of `contested`, whatever its target state,
+including one by the frame builder to `proposed`, one by the painter,
+committee, mechanic, wheelbuilder or sweeper as the outcome of a session, and
+one with shed as actor. The refusal names the unit and the actor and changes
+nothing: no event is recorded, and the unit stays `contested` with its bounce
+count, amendment count and latest move to `contested` unchanged (S.unit.9).
 
 ```
 shed answer qpvuntsm retry the painter has the missing clause now
@@ -390,7 +399,8 @@ A unit argument is any prefix of its change ID that names one unit.
 Sealing, landing and archiving each produce a record of their own, so they
 cannot be done by hand with `unit move`. `shed land` is the only way a unit
 becomes landed. `shed unit open`, `move` and `reopen` never move a unit out
-of `contested`; `shed answer` does that.
+of `contested`; only `shed answer` or a frame builder archive does that
+(S.unit.8, S.unit.9).
 
 ## Operator settings
 
