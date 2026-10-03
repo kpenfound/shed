@@ -57,7 +57,7 @@ func TestOwnerDrivesAUnitToMain(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "spec", "core.md"), []byte(testrepo.Spec+"- **S.core.2** (H.greet.2) Running the tool with --bye prints goodbye.\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out, stderr, code := runWith(t, r.Dir, "unit", "declare", "-depends", "S.core.1", "-advances", "H.greet.2", change)
+	out, stderr, code := runWith(t, r.Dir, "unit", "declare", "-depends", "S.core.1", "-advances", "H.greet.2", "-estimate", "100", change)
 	if code != OK || out != unit.Short(change)+" modifies S.core.2; depends on S.core.1; advances H.greet.2\n" {
 		t.Fatalf("declare = %d, %q, %q", code, out, stderr)
 	}

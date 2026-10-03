@@ -33,7 +33,7 @@ func inFlight(t *testing.T, f *Factory, fake *fakeRunner, area string, files map
 	for name, content := range files {
 		write(t, dir, name, content)
 	}
-	must(t, f.Declare(ctx, change, "", nil, []string{"H.greet.3"}, unit.Painter))
+	must(t, f.Declare(ctx, change, "", nil, []string{"H.greet.3"}, unit.Painter, 100))
 	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
 	if out, err := f.Debate(ctx, change); err != nil || out != Sealed {
 		t.Fatalf("debate of %s = %s, %v", area, out, err)
@@ -365,7 +365,7 @@ func TestSealingRebasesOntoTheSealsMain(t *testing.T) {
 	must(t, err)
 	write(t, dir, "spec/wave.md", "# Wave\n\n- **S.wave.1** (H.greet.3) Running the tool with --wave waves.\n")
 	write(t, dir, "greet.go", "package greet\n\n// Hello greets kindly.\nfunc Hello() string { return \"hello\" }\n")
-	must(t, f.Declare(ctx, code, "", nil, []string{"H.greet.3"}, unit.Painter))
+	must(t, f.Declare(ctx, code, "", nil, []string{"H.greet.3"}, unit.Painter, 100))
 	main = landOther(t, f, "Warmly", map[string]string{
 		"greet.go": "package greet\n\n// Hello greets warmly.\nfunc Hello() string { return \"hello\" }\n"})
 	if out, err := f.Debate(ctx, code); err != nil || out != Sealed {
@@ -393,7 +393,7 @@ func TestSealingRebasesOntoTheSealsMain(t *testing.T) {
 	dir, err = f.Repo.Workspace(ctx, hola)
 	must(t, err)
 	write(t, dir, "spec/core.md", strings.Replace(testrepo.Spec, "prints hello.", "prints hola.", 1))
-	must(t, f.Declare(ctx, hola, "", nil, []string{"H.greet.1"}, unit.Painter))
+	must(t, f.Declare(ctx, hola, "", nil, []string{"H.greet.1"}, unit.Painter, 100))
 	main = landOther(t, f, "Newline", map[string]string{
 		"spec/core.md": strings.Replace(testrepo.Spec, "prints hello.", "prints hello and a newline.", 1)})
 	if out, err := f.Debate(ctx, hola); err != nil || out != Bounced {
@@ -546,7 +546,7 @@ func TestUnresolvedConflictsFailVerification(t *testing.T) {
 	must(t, err)
 	write(t, dir, "spec/wave.md", "# Wave\n\n- **S.wave.1** (H.greet.3) Running the tool with --wave waves.\n")
 	write(t, dir, "docs/greet.md", "Hello greets kindly.\n")
-	must(t, f.Declare(ctx, change, "", nil, []string{"H.greet.3"}, unit.Painter))
+	must(t, f.Declare(ctx, change, "", nil, []string{"H.greet.3"}, unit.Painter, 100))
 	landOther(t, f, "Warmly", map[string]string{"docs/greet.md": "Hello greets warmly.\n"})
 	if out, err := f.Debate(ctx, change); err != nil || out != Sealed {
 		u, _ := f.Tracker.Unit(change)
@@ -634,7 +634,7 @@ func TestPainterMarkersBlockTheSeal(t *testing.T) {
 	dir, err := f.Repo.Workspace(ctx, hola)
 	must(t, err)
 	write(t, dir, "spec/core.md", strings.Replace(testrepo.Spec, "prints hello.", "prints hola.", 1))
-	must(t, f.Declare(ctx, hola, "", nil, []string{"H.greet.1"}, unit.Painter))
+	must(t, f.Declare(ctx, hola, "", nil, []string{"H.greet.1"}, unit.Painter, 100))
 	landOther(t, f, "Newline", map[string]string{
 		"spec/core.md": strings.Replace(testrepo.Spec, "prints hello.", "prints hello and a newline.", 1)})
 	if out, err := f.Debate(ctx, hola); err != nil || out != Bounced {
@@ -703,7 +703,7 @@ func TestSealingBounceCountsOnlyIfThePainterSawTheConflict(t *testing.T) {
 	dir, err := f.Repo.Workspace(ctx, change)
 	must(t, err)
 	write(t, dir, "spec/core.md", strings.Replace(testrepo.Spec, "prints hello.", "prints hola.", 1))
-	must(t, f.Declare(ctx, change, "", nil, []string{"H.greet.1"}, unit.Painter))
+	must(t, f.Declare(ctx, change, "", nil, []string{"H.greet.1"}, unit.Painter, 100))
 
 	var main string
 	fake.on(unit.Committee, "debate", func(turn session.Turn) session.Result {
@@ -766,7 +766,7 @@ func TestSealingBounceCountsOnlyIfThePainterSawTheConflict(t *testing.T) {
 	bdir, err := f.Repo.Workspace(ctx, baseline)
 	must(t, err)
 	write(t, bdir, "spec/core.md", strings.Replace(testrepo.Spec, "prints hello.", "prints hola nicely.", 1))
-	must(t, f.Declare(ctx, baseline, "", nil, []string{"H.greet.1"}, unit.Painter))
+	must(t, f.Declare(ctx, baseline, "", nil, []string{"H.greet.1"}, unit.Painter, 100))
 	landOther(t, f, "Warmer", map[string]string{
 		"spec/core.md": strings.Replace(testrepo.Spec, "prints hello.", "prints hello warmly.", 1)})
 	if out, err := f.Debate(ctx, baseline); err != nil || out != Bounced {
@@ -789,7 +789,7 @@ func TestUncountedBouncesPastTheThresholdContest(t *testing.T) {
 	dir, err := f.Repo.Workspace(ctx, change)
 	must(t, err)
 	write(t, dir, "spec/core.md", strings.Replace(testrepo.Spec, "prints hello.", "prints hola.", 1))
-	must(t, f.Declare(ctx, change, "", nil, []string{"H.greet.1"}, unit.Painter))
+	must(t, f.Declare(ctx, change, "", nil, []string{"H.greet.1"}, unit.Painter, 100))
 
 	// The first bounce: the painter's latest captured session, answering an
 	// unrelated objection, found spec/ clean. A landing conflicts with the
@@ -1249,7 +1249,7 @@ func TestSpecConflictStillUndoesAnImplementingUnitsRebase(t *testing.T) {
 	dir, err := f.Repo.Workspace(ctx, hola)
 	must(t, err)
 	write(t, dir, "spec/core.md", strings.Replace(testrepo.Spec, "prints hello.", "prints hola.", 1))
-	must(t, f.Declare(ctx, hola, "", nil, []string{"H.greet.1"}, unit.Painter))
+	must(t, f.Declare(ctx, hola, "", nil, []string{"H.greet.1"}, unit.Painter, 100))
 	if out, err := f.Debate(ctx, hola); err != nil || out != Sealed {
 		t.Fatalf("debate of hola = %s, %v", out, err)
 	}
@@ -1265,7 +1265,7 @@ func TestSpecConflictStillUndoesAnImplementingUnitsRebase(t *testing.T) {
 	ndir, err := f.Repo.Workspace(ctx, newline)
 	must(t, err)
 	write(t, ndir, "spec/core.md", strings.Replace(testrepo.Spec, "prints hello.", "prints hello and a newline.", 1))
-	must(t, f.Declare(ctx, newline, "", nil, []string{"H.greet.1"}, unit.Painter))
+	must(t, f.Declare(ctx, newline, "", nil, []string{"H.greet.1"}, unit.Painter, 100))
 	if out, err := f.Debate(ctx, newline); err != nil || out != Sealed {
 		t.Fatalf("debate of newline = %s, %v", out, err)
 	}

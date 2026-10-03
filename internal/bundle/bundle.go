@@ -138,7 +138,7 @@ func (Files) Bundle(_ context.Context, req Request) (Bundle, error) {
 		add(CharterSection, list(req.Main.Clauses(clause.Charter)))
 	}
 	fp := u.Footprint
-	if len(fp.Modifies)+len(fp.Depends)+len(fp.Advances) > 0 {
+	if len(fp.Modifies)+len(fp.Depends)+len(fp.Advances) > 0 || fp.Estimate > 0 {
 		var s strings.Builder
 		for _, r := range []struct {
 			label string
@@ -147,6 +147,9 @@ func (Files) Bundle(_ context.Context, req Request) (Bundle, error) {
 			if len(r.ids) > 0 {
 				fmt.Fprintf(&s, "- %s: %s\n", r.label, strings.Join(r.ids, ", "))
 			}
+		}
+		if fp.Estimate > 0 {
+			fmt.Fprintf(&s, "- Estimate: $%.2f\n", fp.Estimate)
 		}
 		add(FootprintSection, s.String())
 	}

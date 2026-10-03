@@ -201,12 +201,12 @@ func (f *Factory) controllers() []controller {
 		}},
 		{name: "shed", start: func(ctx context.Context, s *scheduler, units []tracker.Unit) error {
 			// One debate at a time; a proposal that declares no horizon
-			// clause is still a draft.
+			// clause, or no estimate, is still a draft.
 			if s.isBusy(debateKey) {
 				return nil
 			}
 			for _, u := range oldestFirst(units, unit.Proposed) {
-				if len(u.Footprint.Advances) == 0 {
+				if len(u.Footprint.Advances) == 0 || u.Footprint.Estimate <= 0 {
 					continue
 				}
 				if full, err := f.inFlightFull(u.Change); err != nil || full {

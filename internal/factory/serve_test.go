@@ -19,7 +19,7 @@ func painter(t *testing.T, fake *fakeRunner) {
 	fake.on(unit.Painter, "propose", func(turn session.Turn) session.Result {
 		write(t, turn.Dir, "spec/core.md", goodbyeSpec)
 		_, err := call(t, turn, "declare", map[string]any{"title": "Say goodbye", "summary": "Add --bye.",
-			"depends": []string{"S.core.1"}, "advances": []string{"H.greet.2"}})
+			"depends": []string{"S.core.1"}, "advances": []string{"H.greet.2"}, "estimate": 100})
 		must(t, err)
 		return done("proposed")
 	})
@@ -130,7 +130,7 @@ func TestPainterGap(t *testing.T) {
 			t.Error("declared a distant clause")
 		}
 		write(t, turn.Dir, "spec/core.md", goodbyeSpec)
-		_, err := call(t, turn, "declare", map[string]any{"title": "Say goodbye", "advances": []string{"H.greet.2"}})
+		_, err := call(t, turn, "declare", map[string]any{"title": "Say goodbye", "advances": []string{"H.greet.2"}, "estimate": 100})
 		must(t, err)
 		return done("proposed")
 	})
@@ -253,6 +253,39 @@ func TestServeFinishesBeforeStarting(t *testing.T) {
 	}
 	if n := len(fake.ran(unit.Painter)); n != 0 {
 		t.Errorf("the painter proposed %d times while proposals waited", n)
+	}
+}
+
+//shed:proves S.impl.6
+func TestServeSkipsANoEstimateDraftLikeANoHorizonDraft(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[painter]\ninterval = \"0s\"\n")
+	everyone(t, fake)
+
+	// A unit sealed before seals recorded estimates (S.impl.7), reopened for
+	// amendment, has Advances set but no estimate: S.impl.6 makes it a draft
+	// again, just as a unit with no horizon clause is one (S.serve.4).
+	legacy := openGoodbye(t, f)
+	main, err := f.mainSet(ctx)
+	must(t, err)
+	fp := tracker.Footprint{Modifies: []string{"S.core.2"}, Depends: []string{"S.core.1"}, Advances: []string{"H.greet.2"}}
+	must(t, f.Tracker.Seal(legacy, "legacymain", "legacycommit", fp, unit.Committee, "consensus", onMain(main)))
+	must(t, f.Tracker.Reopen(legacy, unit.Mechanic, "the mechanic requested an amendment:\nmore detail.", true))
+
+	// An ordinary proposal, declared with an estimate, waits behind it.
+	change := propose(t, f)
+
+	var log bytes.Buffer
+	if err := f.Serve(ctx, ServeOptions{Once: true, Log: &log}); err != nil {
+		t.Fatalf("serve = %v\nlog:\n%s", err, log.String())
+	}
+
+	if u, _ := f.Tracker.Unit(legacy); u.State != unit.Proposed || u.Round != 0 {
+		t.Errorf("the no-estimate draft was debated: %+v\nlog:\n%s", u, log.String())
+	}
+	if u, _ := f.Tracker.Unit(change); u.State != unit.Landed {
+		t.Errorf("the proposal behind the no-estimate draft = %s, want it debated and landed\nlog:\n%s", u.State, log.String())
 	}
 }
 

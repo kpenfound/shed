@@ -280,6 +280,60 @@ func TestRebuildReplaysTheLog(t *testing.T) {
 	}
 }
 
+//shed:proves S.impl.7
+func TestRebuildGivesBackTheEstimate(t *testing.T) {
+	dir := t.TempDir()
+	tr := open(t, dir, Options{BounceThreshold: 1})
+	must(t, tr.OpenUnit(unitA, "Say goodbye", unit.Painter))
+	// A legacy seal, recorded before seals recorded estimates, has none.
+	must(t, tr.Seal(unitA, "main1", "commit1", Footprint{Modifies: []string{"S.greet.2"}}, unit.Committee, "consensus", nil))
+	must(t, tr.Move(unitA, unit.Implementing, unit.Mechanic, "dispatched"))
+	must(t, tr.Reopen(unitA, unit.Mechanic, "needs more", false))
+	must(t, tr.Seal(unitA, "main2", "commit2", Footprint{Modifies: []string{"S.greet.2"}, Estimate: 250}, unit.Committee, "consensus again", nil))
+
+	must(t, tr.Rebuild())
+	u := get(t, tr, unitA)
+	if u.Footprint.Estimate != 250 {
+		t.Errorf("estimate after rebuild = %v, want 250", u.Footprint.Estimate)
+	}
+
+	events, err := tr.Events(unitA)
+	must(t, err)
+	var seals int
+	for _, e := range events {
+		if e.Kind != UnitMoved || e.To != unit.Sealed {
+			continue
+		}
+		seals++
+		switch seals {
+		case 1:
+			if e.Footprint == nil || e.Footprint.Estimate != 0 {
+				t.Errorf("the legacy seal's replayed footprint = %+v, want no estimate", e.Footprint)
+			}
+		case 2:
+			if e.Footprint == nil || e.Footprint.Estimate != 250 {
+				t.Errorf("the later seal's replayed footprint = %+v, want estimate 250", e.Footprint)
+			}
+		}
+	}
+	if seals != 2 {
+		t.Fatalf("%d seal events, want 2", seals)
+	}
+}
+
+//shed:proves S.impl.7
+func TestDescribeSealShowsTheEstimate(t *testing.T) {
+	e := Event{Kind: UnitMoved, From: unit.Proposed, To: unit.Sealed, Reason: "consensus",
+		Seal: &Seal{Main: "abc123def456"}, Footprint: &Footprint{Estimate: 1500}}
+	if got := Describe(e); !strings.Contains(got, "estimate $1500.00") {
+		t.Errorf("Describe = %q, want it to show the estimate", got)
+	}
+	e.Footprint = &Footprint{}
+	if got := Describe(e); strings.Contains(got, "estimate") {
+		t.Errorf("Describe with no estimate = %q, want no estimate mentioned", got)
+	}
+}
+
 //shed:proves S.track.6
 func TestOpenAppliesLoggedEvents(t *testing.T) {
 	dir := t.TempDir()

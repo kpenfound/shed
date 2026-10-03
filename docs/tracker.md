@@ -68,7 +68,20 @@ Every move records an actor and a reason.
 Sealing records the seal, the main commit, the unit's change ID and the
 commit that change points to, together with the unit's footprint. The footprint lists the spec clauses the unit
 modifies, the spec clauses it depends on and the horizon clauses it
-advances.
+advances, and its estimate: a positive amount in USD of what taking the
+unit from sealed to landed will cost. A unit with no recorded estimate is a
+draft and is never debated, so every seal records one. `shed unit log` shows
+it on the seal's line:
+
+```
+proposed -> sealed at main 69636c9e2da4, estimate $150.00 as f2a9c1d7e4b5
+```
+
+A seal out of the amendment lane keeps the estimate recorded at the unit's
+previous seal, whatever was declared meanwhile; see
+[the amendment lane](autopilot.md#debate). `shed tracker rebuild` gives the
+estimate back too, giving back with no estimate a seal recorded before shed
+tracked them.
 
 Landing records the unit's actual footprint beside the sealed one: the spec
 clauses the landed commit adds, changes or removes against its parent, with

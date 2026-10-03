@@ -35,7 +35,8 @@ func openUnit(t *testing.T, dir, title string) string {
 	return change
 }
 
-// seal seals a unit directly through the tracker, as the shed will.
+// seal seals a unit directly through the tracker, as the shed will, keeping
+// whatever footprint the unit already had declared.
 func seal(t *testing.T, state, change string) {
 	t.Helper()
 	tr, err := tracker.Open(state, tracker.Options{})
@@ -43,7 +44,11 @@ func seal(t *testing.T, state, change string) {
 		t.Fatal(err)
 	}
 	defer tr.Close()
-	if err := tr.Seal(change, "main1", "unitcommit", tracker.Footprint{}, unit.Committee, "consensus", nil); err != nil {
+	u, err := tr.Unit(change)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Seal(change, "main1", "unitcommit", u.Footprint, unit.Committee, "consensus", nil); err != nil {
 		t.Fatal(err)
 	}
 }

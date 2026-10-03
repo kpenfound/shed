@@ -68,3 +68,30 @@ func TestFilesBundle(t *testing.T) {
 		t.Error("the sweeper's bundle carries the debate record")
 	}
 }
+
+//shed:proves S.impl.7
+func TestBundleShowsTheEstimate(t *testing.T) {
+	mainRepo := testrepo.Minimal(t)
+	mainSet, _ := docs.Load(revision.Worktree(mainRepo.Dir))
+	u := tracker.Unit{Change: "qpvuntsmwlqtqpvuntsmwlqt", Title: "Say goodbye", State: unit.Proposed,
+		Footprint: tracker.Footprint{Advances: []string{"H.greet.2"}, Estimate: 1500}}
+	for _, role := range []unit.Actor{unit.Committee, unit.Painter} {
+		req := Request{Role: role, Unit: u, Main: mainSet, Head: mainSet}
+		b, err := Files{}.Bundle(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(b.Render(), "- Estimate: $1500.00") {
+			t.Errorf("%s's bundle lacks the estimate:\n%s", role, b.Render())
+		}
+	}
+
+	u.Footprint.Estimate = 0
+	b, err := Files{}.Bundle(context.Background(), Request{Role: unit.Committee, Unit: u, Main: mainSet, Head: mainSet})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(b.Render(), "Estimate") {
+		t.Errorf("a unit with no recorded estimate shows one:\n%s", b.Render())
+	}
+}

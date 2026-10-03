@@ -232,7 +232,7 @@ distant and get promoted as the soon tier drains.
 - **H.impl.6** (distant) Steps whose needs are met run at the same time, each
   in its own jj workspace descending from the unit change. A wheelbuilder
   scoped to the unit squashes them back into it.
-- **H.impl.7** (near, refines H.impl.5) Every proposal declares an estimate in
+- **H.impl.7** (near, refines H.impl.5, realised) Every proposal declares an estimate in
   USD of what taking the unit from sealed to landed will cost. Shed refuses a
   proposal without one, the committee may object to it like any other part of
   the proposal, and sealing records it with the seal. A seal out of the

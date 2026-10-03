@@ -130,12 +130,15 @@ type Seal struct {
 	Commit string `json:"commit,omitempty"`
 }
 
-// Footprint is the clauses a unit modifies and depends on in the spec, and
-// the horizon clauses it advances.
+// Footprint is the clauses a unit modifies and depends on in the spec, the
+// horizon clauses it advances, and its estimate in USD of what taking it
+// from sealed to landed will cost. A footprint recorded before seals
+// recorded estimates has none.
 type Footprint struct {
 	Modifies []string `json:"modifies,omitempty"`
 	Depends  []string `json:"depends,omitempty"`
 	Advances []string `json:"advances,omitempty"`
+	Estimate float64  `json:"estimate,omitempty"`
 }
 
 // Drift is the difference between the clauses a unit was sealed to modify

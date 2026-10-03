@@ -38,7 +38,7 @@ func contestedUnit(t *testing.T, r *testrepo.Repo, title string) string {
 	if err := os.WriteFile(filepath.Join(dir, "spec", "core.md"), []byte(spec), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	mustRun(t, r.Dir, "unit", "declare", "-depends", "S.core.1", "-advances", "H.greet.2", change)
+	mustRun(t, r.Dir, "unit", "declare", "-depends", "S.core.1", "-advances", "H.greet.2", "-estimate", "100", change)
 	seal(t, filepath.Join(r.Dir, DefaultStateDir), change)
 	mustRun(t, r.Dir, "unit", "reopen", change, "the", "spec", "is", "wrong")
 	if u := unitNow(t, r, change); u.State != unit.Contested {
@@ -249,7 +249,7 @@ func TestAnswerApprove(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	mustRun(t, r.Dir, "unit", "declare", "-depends", "S.core.1", "-advances", "H.greet.2", change)
+	mustRun(t, r.Dir, "unit", "declare", "-depends", "S.core.1", "-advances", "H.greet.2", "-estimate", "100", change)
 	var bundles []string
 	debate := func() string {
 		t.Helper()

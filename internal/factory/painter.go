@@ -197,6 +197,7 @@ func (f *Factory) Propose(ctx context.Context) (string, Outcome, error) {
 		Summary  string   `json:"summary" jsonschema:"what the proposal adds and why"`
 		Depends  []string `json:"depends,omitempty" jsonschema:"spec clauses on main the proposal depends on"`
 		Advances []string `json:"advances" jsonschema:"horizon clauses from the gap the proposal advances"`
+		Estimate float64  `json:"estimate" jsonschema:"a positive estimate in USD of what taking the unit from sealed to landed will cost"`
 	}
 	var mu sync.Mutex
 	var declared *declareIn
@@ -212,6 +213,9 @@ func (f *Factory) Propose(ctx context.Context) (string, Outcome, error) {
 				func(_ context.Context, in declareIn) (string, error) {
 					if strings.TrimSpace(in.Title) == "" || len(in.Advances) == 0 {
 						return "", errors.New("a proposal needs a title and at least one horizon clause it advances")
+					}
+					if in.Estimate <= 0 {
+						return "", errors.New("a proposal needs a positive estimate in USD")
 					}
 					for _, a := range in.Advances {
 						if !offered[a] {
@@ -251,7 +255,7 @@ func (f *Factory) Propose(ctx context.Context) (string, Outcome, error) {
 		}
 		return change, Discarded, f.Repo.Discard(ctx, change)
 	}
-	if err := f.Declare(ctx, change, d.Title, d.Depends, d.Advances, unit.Painter); err != nil {
+	if err := f.Declare(ctx, change, d.Title, d.Depends, d.Advances, unit.Painter, d.Estimate); err != nil {
 		out, berr := f.bounce(u, "the painter's declaration was refused: "+err.Error())
 		return change, out, berr
 	}

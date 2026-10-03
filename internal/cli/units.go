@@ -294,18 +294,25 @@ func (e env) unitDeclare(args []string) int {
 	title := fs.String("title", "", "a new title for the unit")
 	depends := fs.String("depends", "", "comma-separated spec clauses the proposal depends on")
 	advances := fs.String("advances", "", "comma-separated horizon clauses the proposal advances")
+	estimate := fs.Float64("estimate", 0, "a positive estimate in USD of what taking the unit from sealed to landed will cost; omitted, the unit's recorded estimate is preserved")
 	if err := fs.Parse(args); err != nil {
 		return Misused
 	}
 	if fs.NArg() != 1 {
 		return e.misuse("unit declare needs one unit")
 	}
+	var estimates []float64
+	fs.Visit(func(fl *flag.Flag) {
+		if fl.Name == "estimate" {
+			estimates = append(estimates, *estimate)
+		}
+	})
 	return e.withFactory(func(f *factory.Factory) int {
 		u, err := f.Tracker.Unit(fs.Arg(0))
 		if err != nil {
 			return e.fail(err)
 		}
-		if err := f.Declare(e.ctx, u.Change, *title, splitIDs(*depends), splitIDs(*advances), unit.Owner); err != nil {
+		if err := f.Declare(e.ctx, u.Change, *title, splitIDs(*depends), splitIDs(*advances), unit.Owner, estimates...); err != nil {
 			return e.fail(err)
 		}
 		after, err := f.Tracker.Unit(u.Change)

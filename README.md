@@ -186,7 +186,7 @@ Or drive one unit yourself:
 ```sh
 shed unit open "Say goodbye"
 cd "$(shed unit path <unit>)"      # write the spec diff here
-shed unit declare -depends S.greet.1 -advances H.greet.2 <unit>
+shed unit declare -depends S.greet.1 -advances H.greet.2 -estimate 150 <unit>
 shed run <unit>                    # debate, implement, verify, land
 ```
 

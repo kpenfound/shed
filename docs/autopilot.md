@@ -9,7 +9,7 @@ few commands, or `shed serve` can run the whole factory on its own.
 ```sh
 shed unit open "Say goodbye"             # makes a jj change and prints its ID
 cd "$(shed unit path <unit>)"            # edit spec/ there: the spec diff is the proposal
-shed unit declare -depends S.core.1 -advances H.greet.2 <unit>
+shed unit declare -depends S.core.1 -advances H.greet.2 -estimate 150 <unit>
 shed run <unit>                          # debate, implement, verify, land
 ```
 
@@ -20,7 +20,11 @@ unit lands, or when a stage bounces, reopens, archives or contests it.
 
 A proposal is its spec diff. The clauses it modifies are computed from the
 diff; the clauses it depends on and the horizon clauses it advances are
-declared, and dependencies must be on main.
+declared, and dependencies must be on main. A proposal also declares an
+estimate: a positive amount in USD of what taking the unit from sealed to
+landed will cost. A proposal that declares no horizon clause, or no
+estimate, is a draft: `shed debate` refuses it, naming the unit and the
+missing estimate.
 
 In each round, `concurrency.committee` committee members review the same
 revision at once; what they write in their copies is thrown away. They
@@ -35,13 +39,18 @@ that must resolve, in one of four kinds:
 | `spec` | A clause is ambiguous, untestable or wrong. | Stands until withdrawn. |
 
 Between rounds the painter answers each standing objection once with
-`answer`, and may revise the files. Its `declare` tool updates dependencies
-and horizon advances: supplied lists replace their fields, omitted fields
-are preserved, and empty lists clear them. Shed validates and records the
+`answer`, and may revise the files. Its `declare` tool updates dependencies,
+horizon advances and the estimate: supplied lists replace their fields,
+omitted fields are preserved, and empty lists clear them. A supplied
+estimate replaces the recorded one and must be a positive number of USD;
+omitted, the recorded estimate is preserved, as any other omitted field is,
+and the painter's `declare` refuses a declaration that leaves the unit with
+no estimate at all. Shed validates and records the
 update after capturing a successful reply, before the next committee round.
 A declaration update does not widen an amendment's scope beyond its last seal. Only the member who raised an objection
 can withdraw it. With no objection standing, the unit is sealed against
-main's current commit and the commit its change points to. Sealing first
+main's current commit and the commit its change points to, with its
+recorded estimate. Sealing first
 rebases the change onto that main commit, so a sealed unit's change is
 always based on its seal's main. A conflict the rebase leaves only in files
 outside `spec/` is stored in them, and the unit is sealed; its mechanics
@@ -148,6 +157,14 @@ amendment lane. Every rule above holds, but the round cap is
 `shed.amendment_rounds` instead of `shed.max_rounds`, and each member's
 session is told that cap. The unit stays in the lane, even after a bounce at
 the cap, until it is next sealed.
+
+A seal that takes the unit out of the lane, including the rejection seal
+below, does not record whatever estimate was declared during the lane's
+debate. It records the estimate recorded at the unit's previous seal
+instead. A unit whose previous seal predates estimates has none recorded
+there; such a unit's first seal out of the lane records the estimate
+declared for it at that sealing, and every later seal out of the lane then
+keeps that adopted estimate.
 
 An amendment is scoped to the sealed spec: the clauses the footprint
 recorded at the unit's last seal modified or depended on. Every member's and
@@ -330,7 +347,7 @@ land` prints each unit's outcome, and each unit's log records it. See
 | wheelbuilder | horizon review, then landing | a unit is marked for horizon review and has no stage running; a unit is queued and not marked, one landing at a time |
 | verifier | verification | a unit is verifying |
 | mechanic | implementation | a unit is implementing, or sealed while fewer than `concurrency.units` units implement or verify |
-| shed | debate | a proposal declares a horizon clause and fewer than `concurrency.in_flight` units are sealed through queued; one debate at a time |
+| shed | debate | a proposal declares a horizon clause and an estimate, and fewer than `concurrency.in_flight` units are sealed through queued; one debate at a time |
 | painter | a proposal | the gap is not empty, fewer than `painter.max_proposed` units are proposed, and the painter is not backing off |
 | frame builder | a horizon framing | no unrealised near/soon clauses remain on main; one session at a time |
 
@@ -483,6 +500,14 @@ pending for other sessions. Amendment debates include the mechanic's original
 amendment request as current proposal input. The painter and the owner's event log retain the
 complete history. Members review independently; earlier acceptance of an
 argument does not establish a new requirement.
+
+Every committee and painter debate bundle shows the proposal's recorded
+estimate, and a member may object to it, with `object`, as to any other part
+of the proposal. Since no workflow rule reads the estimate, it changes no
+queue order, footprint, scheduling decision or move between states: two
+units that differ only in which positive estimate they record, and whose
+debates receive the same objections, answers and withdrawals, move the same
+way.
 
 A footprint dependency is a behavioral guarantee a modified clause directly
 uses. Context citations and statements that behavior is unchanged do not alone

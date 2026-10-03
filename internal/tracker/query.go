@@ -166,10 +166,11 @@ func loadUnit(q querier, change string) (Unit, error) {
 	u := Unit{Change: change}
 	var opened, updated, contestedAt, shelf, state, openedBy string
 	var actual bool
-	err := q.QueryRow(`SELECT title, opened_by, state, bounces, amendments, round, cycle, reason, shelf, landed, actual, review, opened_at, updated_at, contested_at,
+	var estimate float64
+	err := q.QueryRow(`SELECT title, opened_by, state, bounces, amendments, round, cycle, reason, shelf, landed, actual, review, opened_at, updated_at, contested_at, estimate,
 		(SELECT COALESCE(SUM(cost_usd), 0) FROM sessions WHERE change = units.change)
 		FROM units WHERE change = ?`, change).
-		Scan(&u.Title, &openedBy, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Cycle, &u.Reason, &shelf, &u.Landed, &actual, &u.Review, &opened, &updated, &contestedAt, &u.CostUSD)
+		Scan(&u.Title, &openedBy, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Cycle, &u.Reason, &shelf, &u.Landed, &actual, &u.Review, &opened, &updated, &contestedAt, &estimate, &u.CostUSD)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Unit{}, fmt.Errorf("unit %s: %w", unit.Short(change), ErrNotFound)
 	}
@@ -193,6 +194,7 @@ func loadUnit(q querier, change string) (Unit, error) {
 	if u.Footprint, err = loadFootprint(q, "footprints", change); err != nil {
 		return Unit{}, err
 	}
+	u.Footprint.Estimate = estimate
 	if actual {
 		fp, err := loadFootprint(q, "actual_footprints", change)
 		if err != nil {
@@ -347,6 +349,9 @@ func Describe(e Event) string {
 		}
 		if e.Seal != nil {
 			fmt.Fprintf(&b, " at main %s", shortHash(e.Seal.Main))
+		}
+		if e.Footprint != nil && e.Footprint.Estimate > 0 {
+			fmt.Fprintf(&b, ", estimate $%.2f", e.Footprint.Estimate)
 		}
 		if e.Commit != "" {
 			fmt.Fprintf(&b, " as %s", shortHash(e.Commit))

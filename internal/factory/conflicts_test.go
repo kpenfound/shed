@@ -90,7 +90,7 @@ func TestPainterBundlesFlagProposedConflicts(t *testing.T) {
 	must(t, err)
 	write(t, dir, "spec/core.md", strings.Replace(testrepo.Spec, "prints hello.", "prints hola.", 1))
 	write(t, dir, "greet.go", "package greet\n\n// Hello greets kindly.\nfunc Hello() string { return \"hello\" }\n")
-	must(t, f.Declare(ctx, hola, "", nil, []string{"H.greet.1"}, unit.Painter))
+	must(t, f.Declare(ctx, hola, "", nil, []string{"H.greet.1"}, unit.Painter, 100))
 	landOther(t, f, "Newline", map[string]string{
 		"spec/core.md": strings.Replace(testrepo.Spec, "prints hello.", "prints hello and a newline.", 1),
 		"greet.go":     "package greet\n\n// Hello greets warmly.\nfunc Hello() string { return \"hello\" }\n",
@@ -153,7 +153,7 @@ func TestCommitteeBundlesListConflictsWithoutInstruction(t *testing.T) {
 	must(t, err)
 	write(t, dir, "spec/wave.md", "# Wave\n\n- **S.wave.1** (H.greet.3) Running the tool with --wave waves.\n")
 	write(t, dir, "greet.go", "package greet\n\n// Hello greets kindly.\nfunc Hello() string { return \"hello\" }\n")
-	must(t, f.Declare(ctx, change, "", nil, []string{"H.greet.3"}, unit.Painter))
+	must(t, f.Declare(ctx, change, "", nil, []string{"H.greet.3"}, unit.Painter, 100))
 	landOther(t, f, "Warmly", map[string]string{
 		"greet.go": "package greet\n\n// Hello greets warmly.\nfunc Hello() string { return \"hello\" }\n"})
 
@@ -221,7 +221,7 @@ func TestMechanicBundleNamesEachConflictOnce(t *testing.T) {
 	must(t, err)
 	write(t, dir, "spec/wave.md", "# Wave\n\n- **S.wave.1** (H.greet.3) Running the tool with --wave waves.\n")
 	write(t, dir, "docs/greet.md", "Hello greets kindly.\n")
-	must(t, f.Declare(ctx, change, "", nil, []string{"H.greet.3"}, unit.Painter))
+	must(t, f.Declare(ctx, change, "", nil, []string{"H.greet.3"}, unit.Painter, 100))
 	landOther(t, f, "Warmly", map[string]string{"docs/greet.md": "Hello greets warmly.\n"})
 	if out, err := f.Debate(ctx, change); err != nil || out != Sealed {
 		u, _ := f.Tracker.Unit(change)

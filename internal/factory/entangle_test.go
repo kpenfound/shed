@@ -87,7 +87,7 @@ func TestSealingReportsEntanglement(t *testing.T) {
 	write(t, dir, "spec/core.md", strings.NewReplacer("exits zero.", "exits zero on success.", "standard output.", "standard output only.").Replace(entangledCore)+
 		"- **S.core.5** (H.greet.2) Running the tool with --bye prints goodbye.\n"+
 		"- **S.core.4** (H.greet.2) Running the tool with --wave waves.\n")
-	must(t, f.Declare(ctx, change, "", []string{"S.core.1"}, []string{"H.greet.2"}, unit.Painter))
+	must(t, f.Declare(ctx, change, "", []string{"S.core.1"}, []string{"H.greet.2"}, unit.Painter, 100))
 
 	before := map[string]tracker.Unit{}
 	for _, other := range []string{a, b, reopened, c, d, v, archived} {

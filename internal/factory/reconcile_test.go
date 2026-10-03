@@ -21,7 +21,7 @@ func advancing(t *testing.T, f *Factory, title string, state unit.State, advance
 	must(t, f.Tracker.OpenUnit(change, title, unit.Painter))
 	main, err := f.Repo.MainCommit(ctx)
 	must(t, err)
-	must(t, f.Tracker.Seal(change, main, "unitcommit", tracker.Footprint{Advances: advances}, unit.Committee, "consensus", nil))
+	must(t, f.Tracker.Seal(change, main, "unitcommit", tracker.Footprint{Advances: advances, Estimate: 100}, unit.Committee, "consensus", nil))
 	for _, s := range []unit.State{unit.Implementing, unit.Verifying, unit.Queued} {
 		if state == unit.Sealed {
 			break

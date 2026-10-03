@@ -157,7 +157,7 @@ func propose(t *testing.T, f *Factory) string {
 	dir, err := f.Repo.Workspace(ctx, change)
 	must(t, err)
 	write(t, dir, "spec/core.md", goodbyeSpec)
-	must(t, f.Declare(ctx, change, "", []string{"S.core.1"}, []string{"H.greet.2"}, unit.Painter))
+	must(t, f.Declare(ctx, change, "", []string{"S.core.1"}, []string{"H.greet.2"}, unit.Painter, 100))
 	return change
 }
 

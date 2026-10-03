@@ -50,14 +50,28 @@ const (
 )
 
 // Declare records the dependencies and horizon clauses a proposal declares,
-// with the clauses its spec diff modifies, and optionally retitles it.
-func (f *Factory) Declare(ctx context.Context, change, title string, depends, advances []string, actor unit.Actor) error {
+// with the clauses its spec diff modifies, and optionally retitles it. An
+// estimate given replaces the unit's recorded estimate and must be a
+// positive number of USD; omitted, the unit's recorded estimate is
+// preserved. The painter's declare refuses a declaration that leaves the
+// unit with no estimate, naming the missing field (S.impl.6).
+func (f *Factory) Declare(ctx context.Context, change, title string, depends, advances []string, actor unit.Actor, estimate ...float64) error {
 	u, err := f.Tracker.Unit(change)
 	if err != nil {
 		return err
 	}
 	if u.OpenedBy == unit.FrameBuilder {
 		return fmt.Errorf("unit %s records a framing: its change modifies no spec clause, so it cannot be declared", unit.Short(u.Change))
+	}
+	est := u.Footprint.Estimate
+	if len(estimate) > 0 {
+		if estimate[0] <= 0 {
+			return fmt.Errorf("unit %s: the estimate must be a positive number of USD, not %v", unit.Short(u.Change), estimate[0])
+		}
+		est = estimate[0]
+	}
+	if actor == unit.Painter && est <= 0 {
+		return fmt.Errorf("unit %s: the painter's declare leaves the unit with no estimate", unit.Short(u.Change))
 	}
 	if title != "" && title != u.Title {
 		if err := f.Tracker.Retitle(u.Change, title, actor); err != nil {
@@ -72,7 +86,7 @@ func (f *Factory) Declare(ctx context.Context, change, title string, depends, ad
 	if err != nil {
 		return err
 	}
-	fp := tracker.Footprint{Modifies: modified(main, head), Depends: depends, Advances: advances}
+	fp := tracker.Footprint{Modifies: modified(main, head), Depends: depends, Advances: advances, Estimate: est}
 	return f.Tracker.SetFootprint(u.Change, fp, actor, "declared", onMain(main))
 }
 
@@ -135,6 +149,9 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 	if _, _, err := f.refreshFootprint(ctx, u); err != nil {
 		return f.bounce(u, err.Error())
 	}
+	if u.Footprint.Estimate <= 0 {
+		return "", fmt.Errorf("unit %s is a draft: it has no recorded estimate", unit.Short(u.Change))
+	}
 	events, err := f.Tracker.Events(u.Change)
 	if err != nil {
 		return "", err
@@ -142,9 +159,9 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 	start := u.Round
 	switch pendingSeal(events) {
 	case approvedSeal:
-		return f.seal(ctx, u, "the owner approved its horizon amendment")
+		return f.seal(ctx, u, "the owner approved its horizon amendment", lane)
 	case heldSeal:
-		return f.seal(ctx, u, fmt.Sprintf("no objection stands after round %d", u.Round))
+		return f.seal(ctx, u, fmt.Sprintf("no objection stands after round %d", u.Round), lane)
 	case endedSeal:
 		start = 0
 	}
@@ -194,7 +211,7 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 				}
 				return Contested, nil
 			}
-			out, err := f.seal(ctx, u, fmt.Sprintf("no objection stands after round %d", round))
+			out, err := f.seal(ctx, u, fmt.Sprintf("no objection stands after round %d", round), lane)
 			if err == nil && out == Waiting {
 				err = f.Tracker.HoldSeal(u.Change, round)
 			}
@@ -671,8 +688,11 @@ func (f *Factory) farTier(ctx context.Context, change string) (string, string, e
 // conflicts under spec/ bounces the unit instead (S.vcs.10). A spec/
 // conflict counts no bounce when the painter's latest captured session
 // (S.vcs.4) found spec/ clean, since the conflict then came in by a landing
-// after that capture (S.vcs.17).
-func (f *Factory) seal(ctx context.Context, u tracker.Unit, reason string) (Outcome, error) {
+// after that capture (S.vcs.17). A seal out of the amendment lane records
+// the estimate recorded at the unit's previous seal, whatever was declared
+// since; when that seal recorded none, it records the unit's estimate at
+// sealing (S.impl.7).
+func (f *Factory) seal(ctx context.Context, u tracker.Unit, reason string, lane amendment) (Outcome, error) {
 	if full, err := f.inFlightFull(u.Change); err != nil || full {
 		return Waiting, err
 	}
@@ -698,6 +718,9 @@ func (f *Factory) seal(ctx context.Context, u tracker.Unit, reason string) (Outc
 	fp, main, err := f.refreshFootprint(ctx, u)
 	if err != nil {
 		return f.bounce(u, err.Error())
+	}
+	if lane.in() && lane.footprint.Estimate > 0 {
+		fp.Estimate = lane.footprint.Estimate
 	}
 	head, err := f.Repo.Snapshot(ctx, u.Change)
 	if err != nil {
@@ -791,6 +814,9 @@ func (f *Factory) rejectAmendment(ctx context.Context, u tracker.Unit, lane amen
 	}
 	fp := lane.footprint
 	fp.Modifies = modified(main, spec)
+	if fp.Estimate <= 0 {
+		fp.Estimate = u.Footprint.Estimate
+	}
 	reasons := []string{fmt.Sprintf("the amendment was rejected: %d objections still stand after %d rounds:", len(standing), round)}
 	for _, o := range standing {
 		reasons = append(reasons, fmt.Sprintf("- %s (member %d, %s, citing %s): %s", o.ID, o.Member, o.Kind, strings.Join(o.Citations, ", "), o.Text))

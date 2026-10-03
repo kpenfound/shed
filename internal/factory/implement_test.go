@@ -273,7 +273,7 @@ func TestResealTellsTheMechanicTheAmendment(t *testing.T) {
 	dir, err := f.Repo.Workspace(ctx, change)
 	must(t, err)
 	write(t, dir, "spec/core.md", testrepo.Spec+bye+wave)
-	must(t, f.Declare(ctx, change, "", []string{"S.core.1"}, []string{"H.greet.2"}, unit.Painter))
+	must(t, f.Declare(ctx, change, "", []string{"S.core.1"}, []string{"H.greet.2"}, unit.Painter, 100))
 	if out, err := f.Debate(ctx, change); err != nil || out != Sealed {
 		t.Fatalf("first debate = %s, %v", out, err)
 	}
@@ -963,7 +963,7 @@ func TestLandResolvesConflicts(t *testing.T) {
 	must(t, f.Tracker.OpenUnit(second, "Wave", unit.Painter))
 	dir, _ := f.Repo.Workspace(ctx, second)
 	write(t, dir, "spec/wave.md", "# Wave\n\n- **S.wave.1** (H.greet.3) Running the tool with --wave prints goodbye.\n")
-	must(t, f.Declare(ctx, second, "", nil, []string{"H.greet.3"}, unit.Painter))
+	must(t, f.Declare(ctx, second, "", nil, []string{"H.greet.3"}, unit.Painter, 100))
 	if out, err := f.Debate(ctx, second); err != nil || out != Waiting {
 		t.Fatalf("with one unit in flight the second debate = %s, %v", out, err)
 	}

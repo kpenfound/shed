@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS units (
 	state TEXT NOT NULL,
 	bounces INTEGER NOT NULL DEFAULT 0,
 	uncounted_bounces INTEGER NOT NULL DEFAULT 0,
+	estimate REAL NOT NULL DEFAULT 0,
 	painter_captured INTEGER NOT NULL DEFAULT 0,
 	painter_spec_conflict INTEGER NOT NULL DEFAULT 0,
 	amendments INTEGER NOT NULL DEFAULT 0,
@@ -184,7 +185,7 @@ var tables = []string{"units", "seals", "footprints", "actual_footprints", "sess
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 13
+const schemaVersion = 14
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -414,14 +415,20 @@ func apply(tx *sql.Tx, e Event) error {
 			}
 		}
 		if e.Footprint != nil {
-			return writeFootprint(tx, "footprints", e.Unit, *e.Footprint)
+			if err := writeFootprint(tx, "footprints", e.Unit, *e.Footprint); err != nil {
+				return err
+			}
+			return exec(`UPDATE units SET estimate = ? WHERE change = ?`, e.Footprint.Estimate, e.Unit)
 		}
 		return nil
 	case UnitFootprint:
 		if e.Footprint == nil {
 			return errors.New("footprint event without a footprint")
 		}
-		return writeFootprint(tx, "footprints", e.Unit, *e.Footprint)
+		if err := writeFootprint(tx, "footprints", e.Unit, *e.Footprint); err != nil {
+			return err
+		}
+		return exec(`UPDATE units SET estimate = ? WHERE change = ?`, e.Footprint.Estimate, e.Unit)
 	case SessionStarted:
 		s := e.Session
 		return exec(`INSERT INTO sessions (id, change, role, step, pid, status, started_at)
