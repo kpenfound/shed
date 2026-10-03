@@ -80,3 +80,38 @@
   refining clauses count at their parent's tier under S.diff.4. Waiting
   framings do not prevent attempts on other parents. `serve` logs the outcome,
   including the unit and acceptance command when a draft is kept.
+- **S.frame.6** (H.unit.9) `shed frame -expire <unit>` runs one frame
+  builder session on a contested unit that `shed inbox` would mark overdue
+  at that moment under S.owner.15. It refuses any other unit before starting
+  a session, naming the unit and its state, or its wait and the timeout, so
+  with `shed.contested_timeout` zero it refuses every unit. The session works
+  in a copy of the unit's files whose changes are thrown away. Its bundle
+  holds the charter, the horizon, the unit's spec changes, its debate record,
+  the reason of each of its bounces, oldest first, and the owner's answers to
+  it (S.owner.4), with the timeout and how long the unit has waited. It also
+  holds the reason of the unit's latest move to contested and says whether
+  that move was made under S.shed.16 or S.shed.18. The
+  session reports through `done` either `keep`, or `archive` with a shelf,
+  rejected or deferred, and a reason. The `done` tool refuses an archive
+  with an empty reason, and an archive on the rejected shelf whose reason
+  names no charter clause, or has a charter citation that S.owner.8 would
+  refuse in an owner's `reject`. It also refuses an archive on the rejected
+  shelf for a unit whose latest move to contested was made under S.shed.16
+  or S.shed.18, since that unit is contested only to wait for the owner's
+  `approve` (S.shed.17); such a unit may be kept or deferred. A refused
+  report records nothing and the session may report again.
+- **S.frame.7** (H.unit.9) When the session of S.frame.6 reports `archive`
+  and the unit's latest move to contested is still the one it had when the
+  session started, shed archives the unit on the reported shelf as S.shed.10
+  does, with the frame builder as actor and the session's reason as the
+  move's reason. A rejected entry cites as violated each charter clause the
+  reason names, read as under S.owner.8, and a deferred entry gives the
+  reason as what would change the decision. The move to archived records in
+  the event log, so `shed tracker rebuild` keeps them, that the unit expired,
+  the value of `shed.contested_timeout` and how long the unit had waited
+  from its latest move to contested to the archive; the archive entry also
+  holds both, the wait written as under S.owner.15, and the owner's answers.
+  When the session reports `keep` or ends without an outcome, or the unit
+  has left contested or moved to contested again since the session started,
+  shed moves nothing and writes no archive entry, the unit stays as it is,
+  and `shed frame -expire` says which of these happened.

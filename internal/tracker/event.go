@@ -87,6 +87,13 @@ type Event struct {
 	Review bool `json:"review,omitempty"`
 	// Shelf is set when a unit is archived.
 	Shelf unit.Shelf `json:"shelf,omitempty"`
+	// Expired marks an archive the frame builder made by hand on an overdue
+	// contested unit (S.frame.6, S.frame.7). Timeout and Wait are the
+	// operator's shed.contested_timeout and how long the unit had waited
+	// from its latest move to contested to this archive.
+	Expired bool          `json:"expired,omitempty"`
+	Timeout time.Duration `json:"timeout,omitempty"`
+	Wait    time.Duration `json:"wait,omitempty"`
 	// Seal is set when a unit is sealed.
 	Seal *Seal `json:"seal,omitempty"`
 	// Commit is the commit on main a unit landed as, or the main commit an

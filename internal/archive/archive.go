@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/kpenfound/shed/internal/docs"
 	"github.com/kpenfound/shed/internal/revision"
+	"github.com/kpenfound/shed/internal/tracker"
 	"github.com/kpenfound/shed/internal/unit"
 	"github.com/kpenfound/shed/internal/vcs"
 )
@@ -47,6 +49,14 @@ type Record struct {
 	// Answers are the owner's answers to the unit, one per line.
 	Answers string
 	Debate  string
+	// Expired marks an archive the frame builder made by hand on an
+	// overdue contested unit (S.frame.6, S.frame.7). Timeout and Wait are
+	// the operator's shed.contested_timeout and how long the unit had
+	// waited from its latest move to contested to this archive, the wait
+	// written as under S.owner.15.
+	Expired bool
+	Timeout time.Duration
+	Wait    time.Duration
 }
 
 // Format writes a record as an entry.
@@ -55,6 +65,9 @@ func Format(r Record) string {
 	fmt.Fprintf(&b, "# %s\n\n- Unit: %s\n- Shelf: %s\n", r.Title, r.Change, r.Shelf)
 	if len(r.Citations) > 0 {
 		fmt.Fprintf(&b, "- Citations: %s\n", strings.Join(r.Citations, ", "))
+	}
+	if r.Expired {
+		fmt.Fprintf(&b, "- Expired: shed.contested_timeout %s, waited %s\n", r.Timeout, tracker.FormatWait(r.Wait))
 	}
 	label := "Why"
 	if r.Shelf == unit.Deferred {

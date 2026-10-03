@@ -228,7 +228,10 @@ collapsed. An entry whose proposal changes no horizon clause has no such
 section (S.shed.15). A contested unit the owner defers or rejects with
 `shed answer` goes to the deferred or rejected shelf the same way, and its
 entry also holds the owner's answers. A rejected one cites the charter
-clauses the owner's reason names.
+clauses the owner's reason names. A contested unit the frame builder expires
+by hand (see [expiring a contested unit by hand](#expiring-a-contested-unit-by-hand))
+goes to the shelf it reported the same way too, with an added "Expired:"
+line giving `shed.contested_timeout` and how long the unit had waited.
 
 ## Implementation
 
@@ -470,6 +473,60 @@ way, after the landed commit.
 
 The in-flight cap defaults to one, so only one unit is ever between sealed
 and landed and nothing needs reconciling.
+
+## Expiring a contested unit by hand
+
+`shed frame -expire <unit>` runs one frame builder session on a contested
+unit that `shed inbox` would mark overdue at that moment (see
+[the owner inbox](tracker.md#the-owner-inbox)). It refuses any other unit
+before starting a session, naming the unit and its state, or its wait and
+the timeout; with `shed.contested_timeout` set to zero it refuses every
+unit, since expiry is off. The session works in a copy of the unit's files;
+unlike a writable `shed frame` session, whatever it changes there is thrown
+away.
+
+Its bundle holds the charter, the horizon, the unit's spec changes, its
+debate record, the reason of each of its bounces oldest first, and the
+owner's answers to it, together with `shed.contested_timeout` and how long
+the unit has waited. It also holds the reason of the unit's latest move to
+`contested` and says whether that move was made under the horizon-tier check
+(S.shed.16) or a split debate (S.shed.18), since a unit contested that way is
+waiting only for the owner's `approve` and not for a charter or bounce
+problem.
+
+The session reports through `done` either `keep`, or `archive` with a shelf,
+`rejected` or `deferred`, and a reason. `done` refuses an archive with an
+empty reason, and a `rejected` archive whose reason names no charter clause
+or names one the way `shed answer ... reject` would refuse (see
+[answering contested units](tracker.md#answering-contested-units)). It also
+refuses a `rejected` archive for a unit whose latest move to `contested` was
+made under S.shed.16 or S.shed.18: such a unit may only be kept or deferred,
+so the session cannot invent a charter violation for it. A refused report
+records nothing, and the session may report again.
+
+When the session reports `archive` and the unit's latest move to `contested`
+is still the one it had when the session started, shed archives the unit on
+the reported shelf the same way `shed answer ... defer` or `reject` does,
+with the frame builder as actor and the session's reason as the move's
+reason. The archive entry's header also carries an "Expired:" line with
+`shed.contested_timeout` and how long the unit had waited, and the move
+records the same in the event log, so `shed tracker rebuild` keeps them.
+
+When the session reports `keep`, or ends without an outcome, or the unit has
+left `contested` or moved to `contested` again since the session started,
+shed moves nothing and writes no archive entry; the unit stays as it is, and
+`shed frame -expire` says which of these happened:
+
+```
+$ shed frame -expire qpvuntsm
+expired qpvuntsm to the deferred shelf: waited long enough; revisit once the painter has the missing clause
+$ shed frame -expire qpvuntsm
+kept qpvuntsm contested
+$ shed frame -expire qpvuntsm
+qpvuntsm left contested while the session ran; archived nothing
+$ shed frame -expire qpvuntsm
+qpvuntsm moved to contested again while the session ran; archived nothing
+```
 
 No stage starts while the sessions of the last 24 hours cost
 `budget.per_day_usd` or more; `shed status` says so, and says when the latest

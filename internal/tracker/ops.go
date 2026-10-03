@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/kpenfound/shed/internal/clause"
 	"github.com/kpenfound/shed/internal/unit"
@@ -214,6 +215,18 @@ func (t *Tracker) Archive(change string, shelf unit.Shelf, actor unit.Actor, rea
 		return err
 	}
 	return t.move(change, Event{To: unit.Archived, Shelf: shelf, Actor: actor, Reason: reason})
+}
+
+// ExpireArchive archives a contested unit the frame builder expired by hand
+// (S.frame.6, S.frame.7), marking the move as an expiry and recording the
+// operator's shed.contested_timeout and how long the unit had waited from
+// its latest move to contested to this archive, so shed tracker rebuild
+// keeps them (S.track.5).
+func (t *Tracker) ExpireArchive(change string, shelf unit.Shelf, actor unit.Actor, reason string, timeout, wait time.Duration) error {
+	if _, err := unit.ParseShelf(string(shelf)); err != nil {
+		return err
+	}
+	return t.move(change, Event{To: unit.Archived, Shelf: shelf, Actor: actor, Reason: reason, Expired: true, Timeout: timeout, Wait: wait})
 }
 
 // Consistent records that a horizon review found a marked unit consistent

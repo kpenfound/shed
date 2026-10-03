@@ -14,6 +14,7 @@ func (e env) frame(args []string) int {
 	fs := e.flags("frame")
 	discard := fs.Bool("discard", false, "discard a framing that shed frame opened")
 	accept := fs.Bool("accept", false, "land a framing that shed frame opened")
+	expire := fs.Bool("expire", false, "expire an overdue contested unit by hand")
 	if err := fs.Parse(args); err != nil {
 		return Misused
 	}
@@ -23,8 +24,38 @@ func (e env) frame(args []string) int {
 			return e.misuse("frame -discard needs one unit")
 		case *accept:
 			return e.misuse("frame -accept needs one unit")
+		case *expire:
+			return e.misuse("frame -expire needs one unit")
 		}
 		return e.misuse("frame needs one horizon clause")
+	}
+	if *expire {
+		return e.withFactory(func(f *factory.Factory) int {
+			ex, err := f.ExpireContested(e.ctx, fs.Arg(0), e.clock())
+			if err != nil {
+				return e.fail(err)
+			}
+			switch ex.Outcome {
+			case factory.ExpiryArchived:
+				fmt.Fprintf(e.stdout, "expired %s to the %s shelf: %s\n", unit.Short(ex.Change), ex.Shelf, ex.Reason)
+				return OK
+			case factory.ExpiryKept:
+				fmt.Fprintf(e.stdout, "kept %s contested\n", unit.Short(ex.Change))
+				return OK
+			case factory.ExpiryLeft:
+				fmt.Fprintf(e.stdout, "%s left contested while the session ran; archived nothing\n", unit.Short(ex.Change))
+				return OK
+			case factory.ExpiryAgain:
+				fmt.Fprintf(e.stdout, "%s moved to contested again while the session ran; archived nothing\n", unit.Short(ex.Change))
+				return OK
+			}
+			reason := ""
+			if ex.Reason != "" {
+				reason = ": " + ex.Reason
+			}
+			fmt.Fprintf(e.stderr, "shed: the frame builder's session ended without an outcome%s; archived nothing\n", reason)
+			return Failed
+		})
 	}
 	if *discard {
 		return e.withFactory(func(f *factory.Factory) int {

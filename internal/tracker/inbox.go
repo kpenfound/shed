@@ -3,10 +3,19 @@ package tracker
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/kpenfound/shed/internal/unit"
 )
+
+// FormatWait renders a duration rounded down to the whole minute as
+// "<hours>h<minutes>m", such as "26h5m" (S.owner.15).
+func FormatWait(d time.Duration) string {
+	d = d.Truncate(time.Minute)
+	return fmt.Sprintf("%dh%dm", int64(d/time.Hour), int64(d%time.Hour/time.Minute))
+}
 
 // ContestedUnit is a contested unit and the reason it was contested.
 type ContestedUnit struct {

@@ -95,7 +95,7 @@ distant and get promoted as the soon tier drains.
   long each contested unit has waited since its latest move to contested, and
   mark it overdue once that wait passes `shed.contested_timeout`. A timeout of
   zero turns expiry off, and no unit is ever overdue.
-- **H.unit.9** (near, refines H.unit.7) A shed command runs one frame builder
+- **H.unit.9** (near, refines H.unit.7, realised) A shed command runs one frame builder
   session on an overdue contested unit and refuses any other unit. Its bundle
   holds the charter, the horizon, the unit's spec diff, debate record, bounce
   reasons and owner answers. The session reports `archive` with a shelf, or

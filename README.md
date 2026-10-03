@@ -64,7 +64,7 @@ Each role is an agent session, run by a small, deterministic Go scheduler.
 
 | Role | Does |
 | --- | --- |
-| Frame builder | Breaks a distant or eventual horizon clause into near and soon clauses that refine it, automatically when near/soon work is exhausted or when you run `shed frame`. |
+| Frame builder | Breaks a distant or eventual horizon clause into near and soon clauses that refine it, automatically when near/soon work is exhausted or when you run `shed frame`. Archives an overdue contested unit by hand when you run `shed frame -expire`. |
 | Painter | Reads the gap and proposes the next small increment as a spec diff. |
 | Committee | Debates each proposal in parallel rounds, citing clause IDs. A charter objection is a veto: the proposal is rejected. A proposal that does not move toward the horizon is deferred. Later, a committee member who did not build the unit reviews its code. |
 | Mechanic | Implements a sealed unit step by step: proofs first, then code, then docs. |
@@ -207,6 +207,7 @@ shed run <unit>                    # debate, implement, verify, land
 | `shed conflicts` | Lists the in-flight units whose changes carry stored conflicts, and their conflicted files. |
 | `shed debate\|land\|run <unit>` | Runs one stage of a unit, or all of them. |
 | `shed frame <clause>`, `shed frame -accept\|-discard <unit>` | Breaks a distant or eventual horizon clause into near and soon clauses that refine it, recorded on a unit for you to read; accepts and lands such a unit, or discards it. |
+| `shed frame -expire <unit>` | Runs one frame builder session on an overdue contested unit by hand, and archives it on the shelf the session reports, or leaves it as it is. |
 | `shed serve [-once]` | Runs the factory. |
 | `shed config` | Prints the operator settings in effect. |
 | `shed doctor` | Checks that everything running the factory needs is in place. |
@@ -221,7 +222,10 @@ proposes from the gap, and serves all of it on its own under a budget.
 from repeated rejections and sampled horizon amendments for the owner. A distant or eventual horizon amendment waits
 for the owner, and so does a soon one the committee splits over, or any tier if the operator's
 `shed.horizon_owner_approval` setting widens the wait to cover it. `shed answer` retries, defers, rejects or approves a contested
-unit, and keeps a charter clause to answer its question.
+unit, and keeps a charter clause to answer its question. `shed frame -expire`
+runs a frame builder session by hand on a contested unit overdue for an
+answer, and archives it on the shelf the session reports, or leaves it
+contested.
 `shed serve` replenishes exhausted near/soon work by drafting refinements of
 distant and eventual clauses. Pending framings appear in `shed inbox` for
 owner acceptance. `shed frame` explicitly breaks a distant or eventual horizon clause into near and soon

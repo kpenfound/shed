@@ -262,8 +262,9 @@ session or proposal.
 
 ## Answering contested units
 
-The owner takes a unit out of `contested` with `shed answer`, and only with
-it:
+The owner takes a unit out of `contested` with `shed answer`. The only other
+way out is a frame builder session archiving an overdue one by hand, with
+[`shed frame -expire`](autopilot.md#expiring-a-contested-unit-by-hand).
 
 ```
 shed answer qpvuntsm retry the painter has the missing clause now

@@ -875,7 +875,7 @@ func (f *Factory) archive(ctx context.Context, u tracker.Unit, shelf unit.Shelf,
 		reasons = append(reasons, fmt.Sprintf("- %s (member %d): %s", o.ID, o.Member, o.Text))
 	}
 	reason := fmt.Sprintf("%s citing %s", shelf, strings.Join(citations, ", "))
-	return f.shelve(ctx, u, shelf, citations, strings.Join(reasons, "\n"), unit.Committee, reason, nil)
+	return f.shelve(ctx, u, shelf, citations, strings.Join(reasons, "\n"), unit.Committee, reason, nil, nil)
 }
 
 // Defer archives a contested unit on the deferred shelf on the owner's
@@ -889,7 +889,7 @@ func (f *Factory) Defer(ctx context.Context, change, reason string) error {
 		return err
 	}
 	answer := tracker.Answer{Time: time.Now(), Kind: tracker.Defer, Reason: reason}
-	_, err = f.shelve(ctx, u, unit.Deferred, nil, reason, unit.Owner, reason, &answer)
+	_, err = f.shelve(ctx, u, unit.Deferred, nil, reason, unit.Owner, reason, &answer, nil)
 	return err
 }
 
@@ -913,7 +913,7 @@ func (f *Factory) Reject(ctx context.Context, change, reason string) error {
 		return err
 	}
 	answer := tracker.Answer{Time: time.Now(), Kind: tracker.Reject, Reason: reason}
-	_, err = f.shelve(ctx, u, unit.Rejected, citations, reason, unit.Owner, reason, &answer)
+	_, err = f.shelve(ctx, u, unit.Rejected, citations, reason, unit.Owner, reason, &answer, nil)
 	return err
 }
 
@@ -984,11 +984,22 @@ func charterNamed(main *docs.Set, reason string) ([]string, error) {
 	return named, nil
 }
 
+// expireInfo carries the extra fields an archive shed frame -expire makes
+// records (S.frame.7): the operator's shed.contested_timeout and how long
+// the unit had waited from its latest move to contested to the archive. It
+// is nil for an archive made any other way.
+type expireInfo struct {
+	Timeout, Wait time.Duration
+}
+
 // shelve puts a proposal on a shelf: it writes the archive entry, with the
 // owner's answers to the unit and the answer being given, if any, and the
 // horizon clauses the proposal changes against the main commit it descends
 // from (S.shed.15), records the unit as archived and discards its change.
-func (f *Factory) shelve(ctx context.Context, u tracker.Unit, shelf unit.Shelf, citations []string, why string, actor unit.Actor, reason string, answer *tracker.Answer) (Outcome, error) {
+// With expire set, the archive is an expiry by shed frame -expire: the move
+// and the entry also record that the unit expired, the timeout and the
+// wait (S.frame.7).
+func (f *Factory) shelve(ctx context.Context, u tracker.Unit, shelf unit.Shelf, citations []string, why string, actor unit.Actor, reason string, answer *tracker.Answer, expire *expireInfo) (Outcome, error) {
 	main, err := f.mainSet(ctx)
 	if err != nil {
 		return "", err
@@ -1013,16 +1024,24 @@ func (f *Factory) shelve(ctx context.Context, u tracker.Unit, shelf unit.Shelf, 
 	if answer != nil {
 		answers = append(answers, *answer)
 	}
-	entry := archive.Format(archive.Record{
+	rec := archive.Record{
 		Title: u.Title, Change: u.Change, Shelf: shelf, Citations: citations,
 		Reason: why, Proposal: bundle.Changes(main, head),
 		Horizon: bundle.HorizonChanges(from, head), Answers: renderAnswers(answers), Debate: record,
-	})
+	}
+	if expire != nil {
+		rec.Expired, rec.Timeout, rec.Wait = true, expire.Timeout, expire.Wait
+	}
+	entry := archive.Format(rec)
 	if _, err := f.Repo.WriteArchive(ctx, archive.Path(shelf, u.Change), []byte(entry),
 		fmt.Sprintf("%s: %s", shelf, u.Title)); err != nil {
 		return "", err
 	}
-	if err := f.Tracker.Archive(u.Change, shelf, actor, reason); err != nil {
+	if expire != nil {
+		if err := f.Tracker.ExpireArchive(u.Change, shelf, actor, reason, expire.Timeout, expire.Wait); err != nil {
+			return "", err
+		}
+	} else if err := f.Tracker.Archive(u.Change, shelf, actor, reason); err != nil {
 		return "", err
 	}
 	if err := f.Repo.Discard(ctx, u.Change); err != nil {

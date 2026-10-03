@@ -124,14 +124,7 @@ func (e env) status(args []string) int {
 // (S.owner.15, S.track.11).
 func contestedWait(u tracker.Unit, timeout time.Duration, now time.Time) (wait string, overdue bool) {
 	elapsed := now.Sub(u.ContestedAt)
-	return formatWait(elapsed), timeout > 0 && elapsed > timeout
-}
-
-// formatWait renders a duration rounded down to the whole minute as
-// "<hours>h<minutes>m", such as "26h5m".
-func formatWait(d time.Duration) string {
-	d = d.Truncate(time.Minute)
-	return fmt.Sprintf("%dh%dm", int64(d/time.Hour), int64(d%time.Hour/time.Minute))
+	return tracker.FormatWait(elapsed), timeout > 0 && elapsed > timeout
 }
 
 func (e env) unit(args []string) int {

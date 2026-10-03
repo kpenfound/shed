@@ -64,8 +64,11 @@ type Unit struct {
 	// recorded on that event; zero when the unit has never been contested
 	// (S.owner.15, S.track.11).
 	ContestedAt time.Time
-	Opened      time.Time
-	Updated     time.Time
+	// ContestedSeq is the sequence number of the unit's latest move to
+	// contested; zero when the unit has never been contested.
+	ContestedSeq int64
+	Opened       time.Time
+	Updated      time.Time
 }
 
 // Session is a session as the tracker holds it.
@@ -167,10 +170,10 @@ func loadUnit(q querier, change string) (Unit, error) {
 	var opened, updated, contestedAt, shelf, state, openedBy string
 	var actual bool
 	var estimate float64
-	err := q.QueryRow(`SELECT title, opened_by, state, bounces, amendments, round, cycle, reason, shelf, landed, actual, review, opened_at, updated_at, contested_at, estimate,
+	err := q.QueryRow(`SELECT title, opened_by, state, bounces, amendments, round, cycle, reason, shelf, landed, actual, review, opened_at, updated_at, contested_at, contested_seq, estimate,
 		(SELECT COALESCE(SUM(cost_usd), 0) FROM sessions WHERE change = units.change)
 		FROM units WHERE change = ?`, change).
-		Scan(&u.Title, &openedBy, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Cycle, &u.Reason, &shelf, &u.Landed, &actual, &u.Review, &opened, &updated, &contestedAt, &estimate, &u.CostUSD)
+		Scan(&u.Title, &openedBy, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Cycle, &u.Reason, &shelf, &u.Landed, &actual, &u.Review, &opened, &updated, &contestedAt, &u.ContestedSeq, &estimate, &u.CostUSD)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Unit{}, fmt.Errorf("unit %s: %w", unit.Short(change), ErrNotFound)
 	}

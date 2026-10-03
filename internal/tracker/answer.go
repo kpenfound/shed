@@ -58,17 +58,17 @@ func (t *Tracker) CheckAnswer(change, kind, reason string) error {
 		if err != nil {
 			return err
 		}
-		if latestContest(events).Tier == "" {
+		if LatestContest(events).Tier == "" {
 			return fmt.Errorf("unit %s is not contested for the tier of its horizon amendment; only such a unit is approved", unit.Short(u.Change))
 		}
 	}
 	return nil
 }
 
-// latestContest is a unit's latest move to contested. Its tier is that of
+// LatestContest is a unit's latest move to contested. Its tier is that of
 // the horizon amendment the move was made for (S.shed.16, S.shed.18), or ""
 // when the move was for another reason.
-func latestContest(events []Event) Event {
+func LatestContest(events []Event) Event {
 	for i := len(events) - 1; i >= 0; i-- {
 		if e := events[i]; e.Kind == UnitMoved && e.To == unit.Contested {
 			return e
@@ -105,7 +105,7 @@ func (t *Tracker) Retry(change, reason string) error {
 		return err
 	}
 	var then []Event
-	if latestContest(events).Split {
+	if LatestContest(events).Split {
 		standing, err := t.Standing(u.Change)
 		if err != nil {
 			return err
