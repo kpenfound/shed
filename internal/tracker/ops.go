@@ -61,6 +61,13 @@ func (t *Tracker) Reopen(change string, actor unit.Actor, reason string, amendme
 	return t.move(change, Event{To: unit.Proposed, Actor: actor, Reason: reason, Amendment: amendment, Bounce: true})
 }
 
+// ReopenFootprint reopens a unit as Reopen does and, in the same move,
+// records a new footprint, such as an overrun's cleared estimate
+// (S.impl.9). onMain reports whether a spec clause is on main.
+func (t *Tracker) ReopenFootprint(change string, actor unit.Actor, reason string, amendment bool, fp Footprint, onMain func(clause.ID) bool) error {
+	return t.move(change, Event{To: unit.Proposed, Actor: actor, Reason: reason, Amendment: amendment, Bounce: true, Footprint: &fp}, onMain)
+}
+
 // Seal records a proposed unit's seal, the main commit and the commit its
 // change points to, and its footprint, and moves it to sealed. onMain
 // reports whether a spec clause is on main.

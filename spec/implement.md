@@ -43,11 +43,12 @@
   lane (S.shed.11), including the seal of S.shed.14, records the estimate
   recorded at the unit's previous seal, whatever was declared since; when
   that seal recorded none, it records the unit's estimate at sealing, which
-  later seals out of the amendment lane then keep. No workflow rule reads
-  the estimate: it changes no queue order, footprint, scheduling decision or
-  move between states, so two units that differ only in which positive
-  estimate they record, and whose debates receive the same objections,
-  answers and withdrawals, move the same way.
+  later seals out of the amendment lane then keep. No workflow rule but
+  the overrun reopen of S.impl.9 reads the estimate: it changes no queue
+  order, footprint, scheduling decision or move between states, so with
+  `budget.overrun_multiple` zero, two units that differ only in which
+  positive estimate they record, and whose debates receive the same
+  objections, answers and withdrawals, move the same way.
 - **S.impl.8** (H.impl.8) On each unit's line under S.track.9, `shed status`
   shows, in a column headed `ESTIMATE` of its own, the estimate recorded at
   the unit's most recent seal (S.impl.7) beside the unit's cost since the
@@ -67,3 +68,22 @@
   recent seal recorded no estimate, leaves its `ESTIMATE` column empty and
   still shows its cost so far. After `shed tracker rebuild` (S.track.5)
   every unit shows the same amounts as before it.
+- **S.impl.9** (H.impl.9) A unit that is sealed, implementing, verifying or
+  queued overruns when the estimate recorded at its most recent seal times
+  `budget.overrun_multiple` is less than its cost since the seal that set
+  that estimate, reckoned as under S.impl.8 from finished sessions only.
+  The multiple defaults to 3, zero turns overruns off, and S.config.2
+  refuses any other multiple below 1. A unit whose most recent seal
+  recorded no estimate never overruns. Shed starts no
+  session, in any role, on a unit that overruns. A stage running on it when
+  a session's cost makes it overrun records that session's result and any
+  move it makes as usual, but starts no further session and lands nothing.
+  Once no session on the unit is running, shed reopens it if it is still
+  sealed, implementing, verifying or queued, with shed as actor and a
+  reason naming the cost since that seal, the estimate and the multiple,
+  the amounts in USD to the cent. The reopen counts a bounce (S.unit.5),
+  and may move the unit on to contested under S.unit.6, but requests no
+  amendment. `shed serve` reopens in the same way, on its next pass, any
+  overrunning unit it finds with no session running, as after a restart or
+  a lower multiple. An overrun never ends a running session and never
+  moves a unit other than by that reopen.

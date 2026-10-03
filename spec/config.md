@@ -8,7 +8,8 @@
   control: the jj executable, the main bookmark, the remote and the landing
   identity. A missing file or setting takes its default.
 - **S.config.2** (H.track.6) Shed refuses operator settings with an unknown
-  key, a negative budget, a cap below 1, a negative
+  key, a negative budget, a cap below 1, a `budget.overrun_multiple`
+  below 1 other than zero (S.impl.9), a negative
   `shed.contested_timeout`, a `shed.amendment_rounds` greater
   than `shed.max_rounds`, a profile naming an unknown agent or profile, a
   fallback loop, a role with an unknown profile, an empty committee perspective

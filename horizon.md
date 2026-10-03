@@ -241,7 +241,7 @@ distant and get promoted as the soon tier drains.
 - **H.impl.8** (near, refines H.impl.5, realised) `shed status` shows each unit's
   recorded estimate beside its cost since the seal that recorded that
   estimate.
-- **H.impl.9** (soon, refines H.impl.5) When a unit's cost since the seal that
+- **H.impl.9** (soon, refines H.impl.5, realised) When a unit's cost since the seal that
   recorded its estimate passes `budget.overrun_multiple` times that estimate,
   shed starts no further session on the unit, lets running sessions finish,
   and reopens it with a reason naming the cost, the estimate and the multiple.

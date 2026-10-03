@@ -87,8 +87,9 @@ proposed twice without something having changed.
 - **Everything is recorded.** An append-only event log is the source of
   truth, and a SQLite tracker is rebuilt from it. After a crash, shed carries
   on where the log left off.
-- **Spending is bounded.** Each session has a cost cap, and a daily budget
-  pauses the factory.
+- **Spending is bounded.** Each session has a cost cap, a daily budget
+  pauses the factory, and a unit whose cost outruns its estimate by too
+  wide a multiple reopens for debate instead of running forever.
 
 ## Quickstart
 

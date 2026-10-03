@@ -54,6 +54,23 @@ proposed -> sealed -> implementing -> verifying -> queued -> landed
   archiving it after a timeout. Shed refuses any other move out of
   `contested`, naming the unit and the actor, and leaves the unit as it was
   (S.unit.9).
+- A unit's cost can force a reopen on its own. Once a sealed, implementing,
+  verifying or queued unit's cost since the seal that set its estimate (see
+  `ESTIMATE` under [footprints and seals](#footprints-and-seals), below)
+  passes that estimate times `budget.overrun_multiple`, the unit has
+  overrun, and shed starts no further session on it in any role. A stage
+  already running when a session's cost crosses that line still records
+  the session's result and any move it makes as usual, but starts nothing
+  more and lands nothing. Once no session on the unit is
+  running, shed reopens it with shed as the actor and a reason naming the
+  cost, the estimate and the multiple, the amounts in USD to the cent, and
+  clears the recorded estimate, so the unit sits as a draft until a painter
+  declares a fresh one. The reopen counts a bounce like any other and never
+  requests an amendment. `shed serve` checks every pass, so a unit that
+  overran while no session was running on it — after a restart, or because
+  the operator lowered `overrun_multiple` — is reopened on the next pass
+  just the same. `overrun_multiple` defaults to 3; zero turns overruns off,
+  and a unit whose most recent seal recorded no estimate never overruns.
 - A sealing bounce for a `spec/` conflict a landing brought in after the
   painter's latest session saw `spec/` clean counts no bounce toward
   `bounce_threshold`, since the painter never had the conflict to leave.

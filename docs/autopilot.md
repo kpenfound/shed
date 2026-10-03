@@ -562,11 +562,12 @@ argument does not establish a new requirement.
 
 Every committee and painter debate bundle shows the proposal's recorded
 estimate, and a member may object to it, with `object`, as to any other part
-of the proposal. Since no workflow rule reads the estimate, it changes no
-queue order, footprint, scheduling decision or move between states: two
-units that differ only in which positive estimate they record, and whose
-debates receive the same objections, answers and withdrawals, move the same
-way.
+of the proposal. No workflow rule but the overrun reopen (see
+[units and the tracker](tracker.md#unit-states)) reads the estimate: with
+`budget.overrun_multiple` set to zero, it changes no queue order, footprint,
+scheduling decision or move between states, so two units that differ only
+in which positive estimate they record, and whose debates receive the same
+objections, answers and withdrawals, move the same way.
 
 A footprint dependency is a behavioral guarantee a modified clause directly
 uses. Context citations and statements that behavior is unchanged do not alone

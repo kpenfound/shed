@@ -100,6 +100,9 @@ func (f *Factory) Implement(ctx context.Context, change string) (Outcome, error)
 		if u, err = f.Tracker.Unit(u.Change); err != nil {
 			return "", err
 		}
+		if reason, over := f.overrun(u); over {
+			return f.overrunReopen(ctx, u, reason)
+		}
 		step, ok := nextStep(formula, u.Steps)
 		if !ok {
 			if err := f.Tracker.Move(u.Change, unit.Verifying, unit.Mechanic, "every step of the formula finished"); err != nil {
@@ -242,8 +245,49 @@ func (f *Factory) stepFailures(change, step string) (int, error) {
 	return n, nil
 }
 
+// overrun reports whether a unit's cost since the seal that set its
+// estimate has outrun that estimate times the operator's overrun multiple,
+// and if so, a reason naming the cost since that seal, the estimate and the
+// multiple, the amounts in USD to the cent (S.impl.9). A multiple of zero
+// turns overruns off, and a unit whose most recent seal recorded no
+// estimate never overruns.
+func (f *Factory) overrun(u tracker.Unit) (string, bool) {
+	m := f.Operator.Budget.OverrunMultiple
+	if m == 0 || u.Footprint.Estimate <= 0 || u.Footprint.Estimate*m >= u.EstimateCostUSD {
+		return "", false
+	}
+	reason := fmt.Sprintf("the unit has cost $%.2f since the seal that set its $%.2f estimate, past the overrun multiple of %g",
+		u.EstimateCostUSD, u.Footprint.Estimate, m)
+	return reason, true
+}
+
 func (f *Factory) reopen(u tracker.Unit, actor unit.Actor, reason string, amendment bool) (Outcome, error) {
 	if err := f.Tracker.Reopen(u.Change, actor, reason, amendment); err != nil {
+		return "", err
+	}
+	after, err := f.Tracker.Unit(u.Change)
+	if err != nil {
+		return "", err
+	}
+	if after.State == unit.Contested {
+		return Contested, nil
+	}
+	return Reopened, nil
+}
+
+// overrunReopen reopens a unit that has overrun its estimate (S.impl.9) and
+// clears the estimate it was reopened with, in the same move: with no
+// estimate, the unit is a draft (S.serve.4) that no controller debates until
+// it is redeclared with a fresh one, so the overrun does not itself start a
+// new debate.
+func (f *Factory) overrunReopen(ctx context.Context, u tracker.Unit, reason string) (Outcome, error) {
+	main, err := f.mainSet(ctx)
+	if err != nil {
+		return "", err
+	}
+	fp := u.Footprint
+	fp.Estimate = 0
+	if err := f.Tracker.ReopenFootprint(u.Change, unit.Shed, reason, false, fp, onMain(main)); err != nil {
 		return "", err
 	}
 	after, err := f.Tracker.Unit(u.Change)
@@ -274,6 +318,9 @@ func (f *Factory) Verify(ctx context.Context, change string) (Outcome, error) {
 	}
 	if err := unmarked(u, "verified"); err != nil {
 		return "", err
+	}
+	if reason, over := f.overrun(u); over {
+		return f.overrunReopen(ctx, u, reason)
 	}
 	problems, err := f.checkUnit(ctx, u)
 	if err != nil {
@@ -538,6 +585,9 @@ func (f *Factory) LandReport(ctx context.Context, change string) (Outcome, []Reb
 	}
 	if err := unmarked(u, "landed"); err != nil {
 		return "", nil, err
+	}
+	if reason, over := f.overrun(u); over {
+		return unreported(f.overrunReopen(ctx, u, reason))
 	}
 	// A unit already on main only needs rebasing when it is not there yet;
 	// either way, a conflict already stored in its change (S.vcs.16), even
