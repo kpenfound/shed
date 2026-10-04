@@ -466,6 +466,31 @@ distant and get promoted as the soon tier drains.
   footprint the frame builder chooses.
 - **H.init.8** (distant) Running `shed init` on an initialised repository is an
   error.
+- **H.init.9** (near, refines H.init.1) `shed init <design-document>` runs at
+  the root of a git repository and checks that the repository and the
+  document qualify. It refuses a missing argument, a path that does not exist
+  or is not a regular file, and a document that is empty or not UTF-8 text,
+  naming the path. It prints every failed check, exits non-zero when any
+  fails, and changes nothing in the repository, its git state or the state
+  directory when it refuses.
+- **H.init.10** (near, refines H.init.1) `shed init` treats a repository as
+  nearly empty when every file in its working tree that git does not ignore,
+  tracked or not, is a `README`, `LICENSE`, `.gitignore` or `.gitattributes`
+  file at the root, or the design document itself. A repository with no
+  commits qualifies. Otherwise it refuses, listing each other path in path
+  name order and saying that an existing codebase is adopted rather than
+  initialised.
+- **H.init.11** (soon, refines H.init.1) On a qualifying git repository with no
+  jj repository, `shed init` makes a jj repository colocated with git at the
+  root, using a jj inside the pinned range (S.vcs.1), and leaves git's
+  commits, branches, index and working files as they were. A repository
+  already colocated at the root is used as it is. It refuses a jj repository
+  that is not colocated with git, or one whose root is not the git root.
+- **H.init.12** (soon, refines H.init.1) Before its first step that writes,
+  `shed init` records the design document's path and SHA-256 digest in the
+  state directory. Later init steps read the document only through that
+  record and refuse to continue, naming the path and both digests, if the
+  document has changed since.
 
 ## Sweeper
 
