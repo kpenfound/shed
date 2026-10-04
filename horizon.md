@@ -326,6 +326,23 @@ distant and get promoted as the soon tier drains.
   until the horizon moves. The sweeper keeps patrolling.
 - **H.sched.9** (soon, realised) The operator can cap the units in flight from sealed
   through queued. Shed seals no unit while the cap is reached.
+- **H.sched.10** (near, refines H.sched.8) `shed status` says, after the units
+  and notices, whether the painter may propose now and, when it may not, what
+  holds it back, in the same words `shed serve -once` uses for the painter
+  under S.serve.1. An empty gap is reported as the painter being idle until
+  the horizon moves.
+- **H.sched.11** (soon, refines H.sched.8) After a painter session reports
+  `nothing`, shed starts no further painter session until the gap the painter
+  may work on differs from the gap in that session's bundle: a clause has
+  entered or left it, or a clause in it has changed text. Shed records that
+  gap in the event log, so the wait holds across restarts and tracker
+  rebuilds. `shed serve -once` and `shed status` say the painter is waiting
+  for the gap to change.
+- **H.sched.12** (soon, refines H.sched.8) When a landing changes the horizon
+  on main so that the gap the painter may work on gains a clause it did not
+  hold before the landing, the painter's streak of proposals that went
+  nowhere ends, and the painter may propose at once without waiting out
+  `painter.interval`.
 
 ## Horizon governance
 
