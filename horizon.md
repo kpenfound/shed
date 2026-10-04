@@ -499,6 +499,40 @@ distant and get promoted as the soon tier drains.
 - **H.sweep.2** (distant) When the code is wrong, the bug enters implementing
   directly against the existing spec, with the violated clauses as its
   footprint. When the spec is wrong, the bug becomes an ordinary proposed unit.
+- **H.sweep.3** (near, refines H.sweep.1) `shed sweep` checks main's current
+  commit out into a fresh directory outside every unit's change, runs the
+  proofs of every spec clause there as `shed prove` does, and records the
+  sweep in the tracker and the event log: the main commit, when it ran, and
+  pass or fail per clause. It calls no model and changes no unit. It prints
+  the failing clauses and exits non-zero when any fails.
+- **H.sweep.4** (near, refines H.sweep.1) A clause that fails a sweep is filed
+  as a bug in the tracker, naming the clause, the main commit and the output
+  of its failing proofs. While its bug is open a clause that keeps failing is
+  not filed again, and the first sweep in which it passes closes the bug and
+  records that commit. `shed status` lists open bugs with their clauses, the
+  commit that first failed and how long each has been open. Bugs come back
+  after `shed tracker rebuild`.
+- **H.sweep.5** (soon, refines H.sweep.1) `shed serve` runs the sweep of
+  H.sweep.3 on a timer, every `sweeper.interval` after the previous sweep
+  started, and never two sweeps at once. An interval of zero turns patrolling
+  off. A sweep that a crash interrupts records nothing and runs again on the
+  next pass.
+- **H.sweep.6** (soon, refines H.sweep.1) A sweeper session checks main's
+  behaviour against spec clauses beyond what their proofs test. It gets a
+  read-only copy of main at the swept commit, the charter, the spec and the
+  proofs of the clauses it patrols, and can run proofs and tests, but holds no
+  version control. Each session patrols the `sweeper.clauses_per_session`
+  clauses that sessions have patrolled least recently, and reports `clean` or
+  a list of mismatches, each citing the clauses it violates and its evidence.
+  Shed refuses a mismatch whose citations do not resolve. `shed serve` starts
+  these sessions one at a time, after each sweep, under the daily budget.
+- **H.sweep.7** (soon, refines H.sweep.1) A mismatch a sweeper session reports
+  is filed as a bug under H.sweep.4 only when `sweeper.confirmations` further
+  sweeper sessions, each given the mismatch and main at the same commit,
+  confirm it. One that disputes it records the mismatch as disputed with its
+  reason, and nothing is filed. A mismatch on a clause with an open bug joins
+  that bug. Such a bug closes when a later patrol of its clauses, confirmed
+  the same way, finds them clean.
 
 ## Context
 
