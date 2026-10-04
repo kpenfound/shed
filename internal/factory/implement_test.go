@@ -941,6 +941,54 @@ func TestVerifyPassesTheSealedHorizon(t *testing.T) {
 	}
 }
 
+//shed:proves S.owner.18
+func TestVerifyFailsOnACharterAlteringChange(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "")
+	change := sealed(t, f, fake)
+	mechanic(t, fake)
+	fake.on(unit.Mechanic, "docs", func(turn session.Turn) session.Result {
+		write(t, turn.Dir, "README.md", "Run the tool with --bye to say goodbye.\n")
+		write(t, turn.Dir, "charter.md", polite)
+		return done("done")
+	})
+	must2(t, f.Implement)(change)
+
+	before := len(fake.ran(unit.Committee))
+	out, err := f.Verify(ctx, change)
+	must(t, err)
+	u, err := f.Tracker.Unit(change)
+	must(t, err)
+	if out != Failed || u.State != unit.Implementing {
+		t.Fatalf("verify of a charter-altering change = %s, %+v", out, u)
+	}
+	if n := len(fake.ran(unit.Committee)) - before; n != 0 {
+		t.Error("the reviewer ran although the change alters the charter")
+	}
+	notices, _ := f.Tracker.Notices(unit.Mechanic, true)
+	if len(notices) != 1 {
+		t.Fatalf("notices = %+v", notices)
+	}
+	for _, want := range []string{unit.Short(change), "charter.md"} {
+		if !strings.Contains(notices[0].Body, want) {
+			t.Errorf("the notice does not name %s: %q", want, notices[0].Body)
+		}
+	}
+
+	// Once the mechanic drops the charter edit, the unit verifies normally.
+	fake.on(unit.Mechanic, "docs", func(turn session.Turn) session.Result {
+		write(t, turn.Dir, "README.md", "Run the tool with --bye to say goodbye.\n")
+		write(t, turn.Dir, "charter.md", testrepo.Charter)
+		return done("done")
+	})
+	must2(t, f.Implement)(change)
+	fake.on(unit.Committee, "review", func(session.Turn) session.Result { return done("pass") })
+	if out, err := f.Verify(ctx, change); err != nil || out != Verified {
+		t.Fatalf("verify once the charter edit is dropped = %s, %v", out, err)
+	}
+}
+
 //shed:proves S.queue.1 S.queue.2 S.serve.7
 func TestLandResolvesConflicts(t *testing.T) {
 	r := project(t)
@@ -1044,6 +1092,99 @@ func TestUnresolvableConflictsReopen(t *testing.T) {
 	must(t, err)
 	if u, _ := f.Tracker.Unit(b); out != Reopened || u.State != unit.Proposed || !strings.Contains(u.Reason, "both add S.core.2") {
 		t.Errorf("unresolvable = %s, %+v", out, u)
+	}
+}
+
+//shed:proves S.owner.19
+func TestLandRefusesACharterAlteringChange(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[vcs]\nremote = \"origin\"\n")
+	fake.on(unit.Committee, "review", func(session.Turn) session.Result { return done("pass") })
+
+	// A unit whose wheelbuilder session resolves an unrelated conflict but
+	// also edits charter.md: the check runs after that session is captured,
+	// so it catches the edit, and the unit lands nothing.
+	first := sealed(t, f, fake)
+	mechanic(t, fake)
+	fake.on(unit.Mechanic, "docs", func(turn session.Turn) session.Result {
+		write(t, turn.Dir, "greet.go", "package greet\n\n// Hello greets kindly.\nfunc Hello() string { return \"hello\" }\n")
+		return done("done")
+	})
+	must2(t, f.Implement)(first)
+	must2(t, f.Verify)(first)
+
+	landOther(t, f, "Warmly", map[string]string{"greet.go": "package greet\n\n// Hello greets warmly.\nfunc Hello() string { return \"hello\" }\n"})
+	before, err := f.Repo.MainCommit(ctx)
+	must(t, err)
+	fake.on(unit.Wheelbuilder, "resolve", func(turn session.Turn) session.Result {
+		got, _ := os.ReadFile(filepath.Join(turn.Dir, "greet.go"))
+		if !strings.Contains(string(got), "<<<<<<<") {
+			t.Errorf("the wheelbuilder's greet.go has no conflict markers:\n%s", got)
+		}
+		write(t, turn.Dir, "greet.go", "package greet\n\n// Hello greets kindly and warmly.\nfunc Hello() string { return \"hello\" }\n")
+		write(t, turn.Dir, "charter.md", polite)
+		return done("resolved")
+	})
+
+	out, err := f.Land(ctx, first)
+	must(t, err)
+	u, err := f.Tracker.Unit(first)
+	must(t, err)
+	if out != Reopened || u.State != unit.Proposed || u.Bounces != 1 {
+		t.Fatalf("land of a charter-altering wheelbuilder capture = %s, %+v", out, u)
+	}
+	for _, want := range []string{unit.Short(first), "charter.md"} {
+		if !strings.Contains(u.Reason, want) {
+			t.Errorf("the reopen does not name %s: %q", want, u.Reason)
+		}
+	}
+	if ev := lastMoveOf(t, f, first); ev.Actor != unit.Shed {
+		t.Errorf("the reopen's actor = %s, want shed", ev.Actor)
+	}
+	if main, err := f.Repo.MainCommit(ctx); err != nil || main != before {
+		t.Errorf("main moved to %s, want it to stay at %s", main, before)
+	}
+	if remote := r.GitRemote("rev-parse", "main"); remote != before {
+		t.Errorf("the remote's main moved to %s, want it to stay at %s", remote, before)
+	}
+
+	// It checks the same way when no wheelbuilder session runs: a queued
+	// unit whose own change alters the charter, with nothing to resolve,
+	// is refused too.
+	second := sealed(t, f, fake)
+	fake.on(unit.Mechanic, "proofs", func(turn session.Turn) session.Result {
+		write(t, turn.Dir, "bye_test.go", byeProof)
+		return done("done")
+	})
+	fake.on(unit.Mechanic, "implement", func(turn session.Turn) session.Result {
+		write(t, turn.Dir, "bye.go", byeCode)
+		write(t, turn.Dir, "charter.md", polite)
+		return done("done")
+	})
+	fake.on(unit.Mechanic, "docs", func(session.Turn) session.Result { return done("done") })
+	must2(t, f.Implement)(second)
+	must(t, f.Tracker.Move(second, unit.Queued, unit.Shed, "by hand, bypassing verification"))
+	before2, err := f.Repo.MainCommit(ctx)
+	must(t, err)
+
+	out, err = f.Land(ctx, second)
+	must(t, err)
+	u, err = f.Tracker.Unit(second)
+	must(t, err)
+	if out != Reopened || u.State != unit.Proposed || u.Bounces != 1 {
+		t.Fatalf("land with no wheelbuilder session of a charter-altering change = %s, %+v", out, u)
+	}
+	for _, want := range []string{unit.Short(second), "charter.md"} {
+		if !strings.Contains(u.Reason, want) {
+			t.Errorf("the reopen does not name %s: %q", want, u.Reason)
+		}
+	}
+	if ev := lastMoveOf(t, f, second); ev.Actor != unit.Shed {
+		t.Errorf("the reopen's actor = %s, want shed", ev.Actor)
+	}
+	if main, err := f.Repo.MainCommit(ctx); err != nil || main != before2 {
+		t.Errorf("main moved to %s, want it to stay at %s", main, before2)
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/kpenfound/shed/internal/archive"
 	"github.com/kpenfound/shed/internal/session"
+	"github.com/kpenfound/shed/internal/testrepo"
 	"github.com/kpenfound/shed/internal/tracker"
 	"github.com/kpenfound/shed/internal/unit"
 	"github.com/kpenfound/shed/internal/vcs"
@@ -1191,5 +1192,153 @@ func TestSplitSoonAmendmentWaitsForTheOwner(t *testing.T) {
 	must(t, err)
 	if got := r.Git("show", commit+":horizon.md"); strings.Contains(got, "goodbye politely") {
 		t.Errorf("the rejected amendment's horizon was kept:\n%s", got)
+	}
+}
+
+// polite is the test charter with an added clause, used to make a
+// proposal's change alter the charter under S.owner.17.
+const polite = testrepo.Charter + "- **C3** The tool is polite.\n"
+
+//shed:proves S.owner.17
+func TestCharterAlteringUnitsBounceBeforeTierAndCap(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[concurrency]\nin_flight = 1\n[shed]\nbounce_threshold = 10\n")
+	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
+	fake.on(unit.Painter, "reply", func(session.Turn) session.Result { return done("replied") })
+
+	// Fill the cap on units in flight, so an ordinary proposal reaching
+	// consensus would otherwise wait under S.serve.7.
+	filler := propose(t, f)
+	if out, err := f.Debate(ctx, filler); err != nil || out != Sealed {
+		t.Fatalf("filler debate = %s, %v", out, err)
+	}
+
+	// A charter-altering proposal with no horizon amendment bounces rather
+	// than waiting for the cap to free.
+	capped := propose(t, f)
+	cappedDir, err := f.Repo.Workspace(ctx, capped)
+	must(t, err)
+	write(t, cappedDir, "charter.md", polite)
+	out, err := f.Debate(ctx, capped)
+	must(t, err)
+	if out != Bounced {
+		t.Fatalf("a charter-altering proposal under a full cap = %s", out)
+	}
+	u, err := f.Tracker.Unit(capped)
+	must(t, err)
+	if u.State != unit.Proposed || u.Bounces != 1 || u.Seal != nil {
+		t.Errorf("unit = %+v, want proposed with one bounce and no seal", u)
+	}
+	for _, want := range []string{unit.Short(capped), "charter.md"} {
+		if !strings.Contains(u.Reason, want) {
+			t.Errorf("the bounce does not name %s: %q", want, u.Reason)
+		}
+	}
+
+	// A charter-altering proposal whose horizon amendment is distant tier
+	// bounces rather than going to the owner under S.shed.16.
+	tiered := proposeHorizon(t, f, distantHorizon)
+	tieredDir, err := f.Repo.Workspace(ctx, tiered)
+	must(t, err)
+	write(t, tieredDir, "charter.md", polite)
+	out, err = f.Debate(ctx, tiered)
+	must(t, err)
+	if out != Bounced {
+		t.Fatalf("a charter-altering distant-tier amendment = %s", out)
+	}
+	u, err = f.Tracker.Unit(tiered)
+	must(t, err)
+	if u.State != unit.Proposed || u.Bounces != 1 || u.Seal != nil {
+		t.Errorf("unit = %+v, want proposed with one bounce and no seal", u)
+	}
+	for _, want := range []string{unit.Short(tiered), "charter.md"} {
+		if !strings.Contains(u.Reason, want) {
+			t.Errorf("the bounce does not name %s: %q", want, u.Reason)
+		}
+	}
+
+	// Once the charter edit is dropped, the distant tier is taken as usual:
+	// the unit goes to the owner, not sealed.
+	write(t, tieredDir, "charter.md", testrepo.Charter)
+	out, err = f.Debate(ctx, tiered)
+	must(t, err)
+	if out != Contested {
+		t.Fatalf("the proposal once the charter edit is dropped = %s", out)
+	}
+	if u, _ := f.Tracker.Unit(tiered); u.State != unit.Contested || u.Seal != nil {
+		t.Errorf("unit = %+v, want contested with no seal", u)
+	}
+}
+
+//shed:proves S.owner.17
+func TestCharterUnchangedSealsDespiteMainChange(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "")
+	fake.on(unit.Committee, "debate", func(session.Turn) session.Result { return done("clean") })
+
+	// A proposal that never touches the charter is sealed normally, even
+	// though main's charter changed after the unit opened.
+	change := propose(t, f)
+	main := landOther(t, f, "Politeness", map[string]string{"charter.md": polite})
+	out, err := f.Debate(ctx, change)
+	must(t, err)
+	if out != Sealed {
+		t.Fatalf("a proposal that leaves the charter untouched = %s", out)
+	}
+	u, err := f.Tracker.Unit(change)
+	must(t, err)
+	if u.State != unit.Sealed || u.Seal == nil || u.Seal.Main != main {
+		t.Errorf("unit = %+v, want sealed on main %s", u, main)
+	}
+	commit, err := f.Repo.Commit(ctx, change)
+	must(t, err)
+	if got := r.Git("show", commit+":charter.md"); got != strings.TrimSuffix(polite, "\n") {
+		t.Errorf("the sealed unit's charter.md = %q, want main's changed charter", got)
+	}
+}
+
+//shed:proves S.owner.17
+func TestCharterAlteringRejectedAmendmentBounces(t *testing.T) {
+	r := project(t)
+	fake := newFake(t)
+	f := open(t, r, fake, "[shed]\nmax_rounds = 3\namendment_rounds = 1\nbounce_threshold = 10\n")
+	change := sealed(t, f, fake)
+	must(t, f.Tracker.Reopen(change, unit.Mechanic, "the mechanic requested an amendment:\nS.core.2 should say more.", true))
+	dir, err := f.Repo.Workspace(ctx, change)
+	must(t, err)
+	write(t, dir, "charter.md", polite)
+
+	fake.on(unit.Committee, "debate", func(turn session.Turn) session.Result {
+		if member(turn) == 1 {
+			_, err := call(t, turn, "object", map[string]any{"kind": "spec", "citations": []string{"S.core.2"}, "text": "Standard output is not the tool's concern."})
+			must(t, err)
+			return done("objecting")
+		}
+		return done("clean")
+	})
+	fake.on(unit.Painter, "reply", func(session.Turn) session.Result { return done("replied") })
+
+	// The amendment is rejected at the round cap; its restore (S.shed.14)
+	// only covers spec/ and horizon.md, so the charter edit survives, and
+	// the unit bounces instead of being resealed.
+	out, err := f.Debate(ctx, change)
+	must(t, err)
+	if out != Bounced {
+		t.Fatalf("a rejected amendment that alters the charter = %s", out)
+	}
+	u, err := f.Tracker.Unit(change)
+	must(t, err)
+	if u.State != unit.Proposed {
+		t.Errorf("unit = %+v, want proposed", u)
+	}
+	for _, want := range []string{unit.Short(change), "charter.md"} {
+		if !strings.Contains(u.Reason, want) {
+			t.Errorf("the bounce does not name %s: %q", want, u.Reason)
+		}
+	}
+	if lane, _ := f.lane(change); lane == nil {
+		t.Error("the bounced unit left the amendment lane")
 	}
 }

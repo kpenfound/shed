@@ -177,3 +177,32 @@
   under S.owner.15. Units archived by any other actor are not listed here.
   `-peek` lists the same expired units. Listing an expired unit moves no
   unit and changes no archive entry.
+- **S.owner.17** (H.owner.5) A unit's change alters the charter when
+  `charter.md` on the change differs byte for byte from `charter.md` on the
+  latest main commit the change descends from, the file being present on
+  one and absent on the other counting as differing. Shed seals no unit
+  whose change alters the charter at the moment it would seal it, whichever
+  clause would seal it (S.shed.6, S.shed.14, S.shed.17). In place of the
+  seal the unit bounces to its painter as under S.shed.6, with a reason
+  naming the unit's short change ID and `charter.md`. After a debate round
+  this check comes before those of S.shed.12 and S.shed.16, so such a unit
+  is neither moved to contested by S.shed.16 nor held back by S.serve.7. A
+  unit whose `charter.md` matches that main commit is sealed as before, even
+  when main's charter has changed since the unit opened.
+- **S.owner.18** (H.owner.5) Verifying a unit (S.verify.1) fails its checks
+  when its change alters the charter under S.owner.17. The unit returns to
+  implementing under S.verify.4, and the notice to the mechanic names the
+  unit's short change ID and `charter.md`.
+- **S.owner.19** (H.owner.5) Landing a queued unit (S.queue.2, S.vcs.6)
+  checks its change after the rebase onto main and after any wheelbuilder
+  session that resolves its conflicts has been captured (S.vcs.4), and
+  before S.vcs.6 rewrites the change as one commit, so the check sees the
+  files main would take, including any edit that session made to
+  `charter.md`. It checks the same way when no wheelbuilder session runs.
+  The landing lands nothing when that change alters the charter under
+  S.owner.17 against main as it stands at the check: it rewrites no commit,
+  neither moves nor pushes main, keeps the unit's workspace and records no
+  landing under S.vcs.7. The unit then reopens with shed as actor and a
+  reason naming its short change ID and `charter.md`, and counts a bounce
+  as any reopen does under S.unit.5; `shed land` prints that reason. Main
+  stays at the commit it had before the landing.

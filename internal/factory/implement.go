@@ -403,6 +403,11 @@ func (f *Factory) checkUnit(ctx context.Context, u tracker.Unit) ([]string, erro
 	defer os.RemoveAll(view)
 	var out []string
 	add := func(p clause.Problem) { out = append(out, "- "+p.String()) }
+	if altered, err := f.alteredCharter(ctx, u.Change); err != nil {
+		return nil, err
+	} else if altered {
+		out = append(out, "- "+charterAlteredReason(u.Change))
+	}
 	conflicted, _, err := f.unresolved(ctx, u.Change)
 	if err != nil {
 		return nil, err
@@ -624,6 +629,11 @@ func (f *Factory) LandReport(ctx context.Context, change string) (Outcome, []Reb
 		if len(files) > 0 {
 			return unreported(f.reopen(u, unit.Wheelbuilder, "the wheelbuilder reported the conflicts resolved but left an unresolved conflict in: "+strings.Join(files, ", "), false))
 		}
+	}
+	if altered, err := f.alteredCharter(ctx, u.Change); err != nil {
+		return "", nil, err
+	} else if altered {
+		return unreported(f.reopen(u, unit.Shed, charterAlteredReason(u.Change), false))
 	}
 	commit, err := landing.Land(ctx, f.Tracker, f.Repo, u.Change, unit.Wheelbuilder)
 	switch {

@@ -395,7 +395,11 @@ func (e env) land(args []string) int {
 			return e.fail(err)
 		}
 		if out != factory.Landed {
-			fmt.Fprintf(e.stdout, "%s %s\n", unit.Short(u.Change), out)
+			after, err := f.Tracker.Unit(u.Change)
+			if err != nil {
+				return e.fail(err)
+			}
+			fmt.Fprintf(e.stdout, "%s %s: %s\n", unit.Short(u.Change), out, after.Reason)
 			return Failed
 		}
 		after, err := f.Tracker.Unit(u.Change)

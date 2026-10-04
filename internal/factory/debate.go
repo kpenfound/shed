@@ -1,6 +1,7 @@
 package factory
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -157,10 +158,16 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 		return "", err
 	}
 	start := u.Round
-	switch pendingSeal(events) {
-	case approvedSeal:
-		return f.seal(ctx, u, "the owner approved its horizon amendment", lane, true)
-	case heldSeal:
+	switch pending := pendingSeal(events); pending {
+	case approvedSeal, heldSeal:
+		if altered, err := f.alteredCharter(ctx, u.Change); err != nil {
+			return "", err
+		} else if altered {
+			return f.bounce(u, charterAlteredReason(u.Change))
+		}
+		if pending == approvedSeal {
+			return f.seal(ctx, u, "the owner approved its horizon amendment", lane, true)
+		}
 		return f.seal(ctx, u, fmt.Sprintf("no objection stands after round %d", u.Round), lane, false)
 	case endedSeal:
 		start = 0
@@ -193,6 +200,11 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 			return f.archive(ctx, u, unit.Rejected, veto)
 		}
 		if len(standing) == 0 {
+			if altered, err := f.alteredCharter(ctx, u.Change); err != nil {
+				return "", err
+			} else if altered {
+				return f.bounce(u, charterAlteredReason(u.Change))
+			}
 			if lane.in() {
 				out, err := f.outside(ctx, lane, u.Change)
 				if err != nil {
@@ -365,6 +377,52 @@ func (f *Factory) outside(ctx context.Context, a amendment, change string) ([]st
 		}
 	}
 	return out, nil
+}
+
+// alteredCharter reports whether a unit's change alters charter.md against
+// the latest main commit it descends from (S.owner.17): the file being
+// present on one and absent on the other counts as differing.
+func (f *Factory) alteredCharter(ctx context.Context, change string) (bool, error) {
+	commit, err := f.Repo.Snapshot(ctx, change)
+	if err != nil {
+		return false, err
+	}
+	base, err := f.Repo.Base(ctx, change)
+	if err != nil {
+		return false, err
+	}
+	head, headOK, err := readOptional(revision.Git{Root: f.Root, Rev: commit}, docs.CharterPath)
+	if err != nil {
+		return false, err
+	}
+	main, mainOK, err := readOptional(revision.Git{Root: f.Root, Rev: base}, docs.CharterPath)
+	if err != nil {
+		return false, err
+	}
+	if headOK != mainOK {
+		return true, nil
+	}
+	return headOK && !bytes.Equal(head, main), nil
+}
+
+// readOptional reads a file from a revision, reporting its content and
+// whether it exists; a missing file is not an error.
+func readOptional(src revision.Source, path string) ([]byte, bool, error) {
+	data, err := src.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, revision.ErrNotExist) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return data, true, nil
+}
+
+// charterAlteredReason names a unit's short change ID and charter.md, the
+// reason shed gives whenever it refuses to seal, verify or land a unit whose
+// change alters the charter (S.owner.17, S.owner.18, S.owner.19).
+func charterAlteredReason(change string) string {
+	return fmt.Sprintf("unit %s's change alters charter.md; only a charter amendment unit changes the charter", unit.Short(change))
 }
 
 // committeeRound runs every committee member's session of a round at once.
@@ -826,6 +884,11 @@ func (f *Factory) rejectAmendment(ctx context.Context, u tracker.Unit, lane amen
 			return "", err
 		}
 		return f.bounce(u, "the amendment was rejected, but the restored sealed spec or horizon conflicts with main: "+conflicts)
+	}
+	if altered, err := f.alteredCharter(ctx, u.Change); err != nil {
+		return "", err
+	} else if altered {
+		return f.bounce(u, charterAlteredReason(u.Change))
 	}
 	main, err := f.mainSet(ctx)
 	if err != nil {

@@ -332,6 +332,39 @@ func TestLandCommand(t *testing.T) {
 	}
 }
 
+//shed:proves S.owner.19
+func TestLandPrintsTheCharterRefusal(t *testing.T) {
+	r := testrepo.Colocated(t)
+	r.Write(".shed/config.toml", "[vcs]\nremote = \"origin\"\n")
+	change := openUnit(t, r.Dir, "Polite")
+	dir := strings.TrimSpace(mustRun(t, r.Dir, "unit", "path", change))
+	polite := testrepo.Charter + "- **C3** The tool is polite.\n"
+	if err := os.WriteFile(filepath.Join(dir, "charter.md"), []byte(polite), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	seal(t, filepath.Join(r.Dir, DefaultStateDir), change)
+	for _, s := range []string{"implementing", "verifying", "queued"} {
+		mustRun(t, r.Dir, "unit", "move", change, s, "by hand")
+	}
+	before := r.GitRemote("rev-parse", "main")
+
+	stdout, _, code := run(t, r.Dir, "land", change)
+	if code != Failed {
+		t.Fatalf("land of a charter-altering change = %d, %q", code, stdout)
+	}
+	for _, want := range []string{unit.Short(change), "charter.md"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("land's output does not name %s: %q", want, stdout)
+		}
+	}
+	if after := r.GitRemote("rev-parse", "main"); after != before {
+		t.Errorf("main moved to %s, want it to stay at %s", after, before)
+	}
+	if status := mustRun(t, r.Dir, "status"); !strings.Contains(status, "proposed") {
+		t.Errorf("status after the refusal:\n%s", status)
+	}
+}
+
 //shed:proves S.fp.3 S.fp.4
 func TestLandReportsFootprintDrift(t *testing.T) {
 	r := testrepo.Colocated(t)

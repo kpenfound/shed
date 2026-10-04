@@ -84,6 +84,21 @@ bounces back to its painter and counts a bounce. Unless that bounce leaves
 it past `shed.bounce_threshold` bounces, when it is contested and waits for
 the owner's `shed answer`, it stays proposed and debates afresh next time.
 
+Before any of that sealing, and before the amendment lane's scope check or
+horizon tiering below run, shed checks whether the proposal's change alters
+the charter: whether `charter.md` on the change differs, byte for byte,
+from `charter.md` on the main commit the change is based on, the file being
+present on only one side counting as a difference. A unit whose change
+alters the charter this way is never sealed, whichever route would
+otherwise seal it — the ordinary seal above, the owner's approval seal, or
+the amendment lane's rejection seal below. It bounces to its painter
+instead, with a reason naming its short change ID and `charter.md`, and
+this check runs first, so such a unit is neither bounced for its
+amendment's scope nor moved to contested for its horizon tier. A unit whose
+charter.md matches the main commit it is based on seals as before, even if
+main's charter has changed since the unit was opened, because sealing
+rebases the change onto main first.
+
 A proposal's horizon amendment is tiered before it is sealed. When a round
 ends with no objection standing, and no clause outside the scope of an
 amendment (below), shed takes the tier `shed diff` gives between the latest
@@ -260,11 +275,15 @@ horizon amendment the unit carries is the one it was sealed with.
 
 ## Verification
 
-Verification first checks the unit mechanically: its change holds no
-unresolved conflict, its documents pass `shed check`, it changes the
-horizon only as sealed or by marking clauses it advances as realised, and
-the proofs of its footprint pass. With `verify.all_proofs = true` in
-`shed.toml` every proof must pass. A horizon clause whose text or tags on the
+Verification first checks the unit mechanically: its change does not alter
+the charter against the main commit it is based on, the same comparison
+sealing makes, its change holds no unresolved conflict, its documents pass
+`shed check`, it changes the horizon only as sealed or by marking clauses
+it advances as realised, and the proofs of its footprint pass. A unit whose
+change alters the charter fails this check and returns to implementing,
+with a notice to the mechanic naming its short change ID and `charter.md`.
+With `verify.all_proofs = true` in `shed.toml` every proof must pass. A
+horizon clause whose text or tags on the
 unit's change differ from main's, a clause missing from one counting as
 different, passes only when it is as on the unit's commit recorded at its
 latest seal and differed there from the main commit recorded in that seal,
@@ -279,9 +298,17 @@ that passes is queued.
 ## Landing
 
 Landing rebases the unit onto main, keeping any conflicts in its files. A
-wheelbuilder session resolves them against the sealed spec. Then the unit
-lands as one commit, as [version control](vcs.md) describes. A unit whose
-conflicts cannot be resolved, or that changes nothing, reopens.
+wheelbuilder session resolves them against the sealed spec. Once that
+rebase and any wheelbuilder session are captured, shed checks the change the
+same way sealing does: whether `charter.md` differs from the one on main as
+it stands at that moment, including an edit the wheelbuilder session made
+while resolving conflicts. If it does, the landing lands nothing — no
+commit is rewritten, main neither moves nor is pushed, and the unit's
+workspace stays as it is — and the unit reopens instead, with shed as actor
+and a reason naming its short change ID and `charter.md`; `shed land` prints
+that reason, and the reopen counts a bounce as any reopen does. Otherwise
+the unit lands as one commit, as [version control](vcs.md) describes. A unit
+whose conflicts cannot be resolved, or that changes nothing, reopens too.
 
 After a landing, shed compares the horizon on the landed commit with the
 horizon on its parent. A clause counts as changed when its tags differ or its

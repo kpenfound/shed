@@ -405,7 +405,7 @@ distant and get promoted as the soon tier drains.
   nothing in that direction.
 - **H.owner.4** (soon, realised) Declined horizon amendments go to the archive with
   their debate record.
-- **H.owner.5** (near, refines H.owner.2) Shed refuses to seal, pass
+- **H.owner.5** (near, refines H.owner.2, realised) Shed refuses to seal, pass
   verification for or land any unit whose change alters `charter.md` against
   the main commit it descends from, naming the unit and the file. Only a
   charter amendment unit changes the charter.
