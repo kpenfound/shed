@@ -582,6 +582,37 @@ distant and get promoted as the soon tier drains.
   remove it.
 - **H.adopt.3** (distant) Normal operation starts only once main is
   spec-conformant.
+- **H.adopt.4** (near, refines H.adopt.1) `shed uncovered` runs every proof
+  on main once, through the configured runner, with statement coverage over
+  the whole Go module, and lists each non-test Go source file with the
+  number and share of its statements that no proof executes, most
+  unexecuted first, then the module's totals. It calls no model and changes
+  nothing. It exits non-zero only when it cannot run the proofs, and a
+  failing proof still counts the statements it executed.
+- **H.adopt.5** (soon, refines H.adopt.1) `shed adopt` puts a project into
+  adoption, with the owner as actor, and refuses while main fails
+  `shed check` or the project is already adopting. Shed records the start
+  in the event log, so a tracker rebuild keeps it, with main's totals under
+  H.adopt.4. While adopting, `shed status` says so and shows the totals at
+  the start and at the latest main, and the painter drafts only describing
+  proposals (H.adopt.6) instead of proposing from the gap. Adoption ends
+  only as H.adopt.3 allows.
+- **H.adopt.6** (soon, refines H.adopt.1) While adopting, the painter's
+  bundle holds the report of H.adopt.4 for main in place of the gap, with
+  the files each in-flight describing unit declares. A describing proposal
+  adds spec clauses and proofs that state what main already does in the
+  source files it declares, and proposes no new behaviour. `declare` takes
+  those files and refuses one that has no unexecuted statement on main or
+  that another in-flight describing unit declares. Its horizon clauses may
+  be any unrealised clause of any tier, even one an in-flight unit already
+  advances. Behaviour that advances no horizon clause is left to H.adopt.2.
+- **H.adopt.7** (soon, refines H.adopt.1) A describing unit is implemented by
+  the operator's `describe` formula, by default a single `proofs` step. Shed
+  refuses a mechanic's step, and verification fails the unit, when its change
+  touches any file outside `spec/` and Go test files, naming each such file.
+  Verification also fails a describing unit when, for some file it declares,
+  its proofs execute no statement that main's proofs left unexecuted, naming
+  that file.
 
 ## Releases
 
