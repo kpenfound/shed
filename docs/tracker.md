@@ -262,6 +262,12 @@ never recorded as sampled and takes no place in the sampling count, so with N
 above 0 one in every N auto-accepted horizon amendments is sampled
 (S.owner.11).
 
+`shed status` ends with a line giving these counts, `amendments: <a>
+auto-accepted, <s> sampled (<y> agreed, <n> disagreed, <u> unanswered)`,
+where `<y>`, `<n>` and `<u>` split the sampled amendments by their `agree` or
+`disagree` answer (below) or lack of one. The line always prints, zero counts
+included, and `shed tracker rebuild` gives back the same counts (S.owner.21).
+
 The inbox lists each unit sampled after the event sequence number the
 previous recorded `shed inbox` stored, or every sampled unit when no inbox
 has been recorded, in landing order. Each shows its short change ID, landed
@@ -451,7 +457,7 @@ bring in or check out main records nothing, prints why and exits non-zero.
 
 | Command | Does |
 | --- | --- |
-| `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost, estimate (with the cost since the seal that set it) and wait; a contested unit's line also carries an `overdue` mark once its wait passes `shed.contested_timeout`, and a queued unit's line shows its place in the landing order as `land #<n>` (see [autopilot](autopilot.md#autopilot)). Then comes the title. After the units it lists the notices waiting for the owner, and ends with one line on whether the painter may propose now (see [autopilot](autopilot.md#autopilot)). |
+| `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost, estimate (with the cost since the seal that set it) and wait; a contested unit's line also carries an `overdue` mark once its wait passes `shed.contested_timeout`, and a queued unit's line shows its place in the landing order as `land #<n>` (see [autopilot](autopilot.md#autopilot)). Then comes the title. After the units it lists the notices waiting for the owner, then one line on whether the painter may propose now, and ends with one line counting auto-accepted and sampled horizon amendments, agreed, disagreed and unanswered (see [autopilot](autopilot.md#autopilot)). |
 | `shed inbox [-peek]` | Lists contested units with their wait and, once overdue, an `overdue` mark, the horizon changes on main, the charter questions from repeated rejections, the sampled horizon amendments and the units the frame builder archived on timeout, marking what is new since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
 | `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: moves it back to `proposed`, defers or rejects it to the archive, or approves its distant, eventual or split soon horizon amendment. |

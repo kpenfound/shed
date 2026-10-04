@@ -11,13 +11,20 @@ import (
 	"github.com/kpenfound/shed/internal/unit"
 )
 
-// painterLine returns the last line of shed status's output, trimmed: the
-// painter's readiness line S.serve.9 adds after the units and notices.
+// painterLine returns the painter's readiness line S.serve.9 adds after the
+// units and notices; the amendments line S.owner.21 adds after it in turn,
+// so this looks the line up by its "painter:" prefix rather than assuming
+// it is last.
 func painterLine(t *testing.T, dir string) string {
 	t.Helper()
-	out := strings.TrimRight(mustRun(t, dir, "status"), "\n")
-	lines := strings.Split(out, "\n")
-	return strings.TrimSpace(lines[len(lines)-1])
+	out := mustRun(t, dir, "status")
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "painter:") {
+			return strings.TrimSpace(line)
+		}
+	}
+	t.Fatalf("status has no painter line:\n%s", out)
+	return ""
 }
 
 //shed:proves S.serve.9

@@ -82,50 +82,56 @@ func (e env) status(args []string) int {
 		}
 		if len(units) == 0 {
 			fmt.Fprintln(e.stdout, "no units")
-			return OK
-		}
-		w := tabwriter.NewWriter(e.stdout, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(w, "UNIT\tSTATE\tBOUNCES\tAMENDMENTS\tCOST\tESTIMATE\tWAIT\tOVERDUE\tLAND\tTITLE")
-		land := 0
-		for _, u := range units {
-			var wait, overdueMark string
-			if u.State == unit.Contested {
-				var overdue bool
-				wait, overdue = contestedWait(u, op.Shed.ContestedTimeout.Duration, now)
-				if overdue {
-					overdueMark = "overdue"
+		} else {
+			w := tabwriter.NewWriter(e.stdout, 0, 4, 2, ' ', 0)
+			fmt.Fprintln(w, "UNIT\tSTATE\tBOUNCES\tAMENDMENTS\tCOST\tESTIMATE\tWAIT\tOVERDUE\tLAND\tTITLE")
+			land := 0
+			for _, u := range units {
+				var wait, overdueMark string
+				if u.State == unit.Contested {
+					var overdue bool
+					wait, overdue = contestedWait(u, op.Shed.ContestedTimeout.Duration, now)
+					if overdue {
+						overdueMark = "overdue"
+					}
+				}
+				var estimate string
+				if u.Footprint.Estimate > 0 {
+					estimate = fmt.Sprintf("$%.2f of $%.2f", u.EstimateCostUSD, u.Footprint.Estimate)
+				}
+				var place string
+				if u.State == unit.Queued {
+					land++
+					place = fmt.Sprintf("land #%d", land)
+				}
+				fmt.Fprintf(w, "%s\t%s\t%d\t%d\t$%.2f\t%s\t%s\t%s\t%s\t%s\n",
+					unit.Short(u.Change), u.State, u.Bounces, u.Amendments, u.CostUSD, estimate, wait, overdueMark, place, u.Title)
+			}
+			if err := w.Flush(); err != nil {
+				return e.fail(err)
+			}
+			if err := e.health(t); err != nil {
+				return e.fail(err)
+			}
+			notices, err := t.Notices(unit.Owner, true)
+			if err != nil {
+				return e.fail(err)
+			}
+			if len(notices) > 0 {
+				fmt.Fprintln(e.stdout, "\nWaiting for the owner:")
+				for _, n := range notices {
+					fmt.Fprintf(e.stdout, "  %s  %s\n", unit.Short(n.Unit), n.Body)
 				}
 			}
-			var estimate string
-			if u.Footprint.Estimate > 0 {
-				estimate = fmt.Sprintf("$%.2f of $%.2f", u.EstimateCostUSD, u.Footprint.Estimate)
-			}
-			var place string
-			if u.State == unit.Queued {
-				land++
-				place = fmt.Sprintf("land #%d", land)
-			}
-			fmt.Fprintf(w, "%s\t%s\t%d\t%d\t$%.2f\t%s\t%s\t%s\t%s\t%s\n",
-				unit.Short(u.Change), u.State, u.Bounces, u.Amendments, u.CostUSD, estimate, wait, overdueMark, place, u.Title)
 		}
-		if err := w.Flush(); err != nil {
-			return e.fail(err)
-		}
-		if err := e.health(t); err != nil {
-			return e.fail(err)
-		}
-		notices, err := t.Notices(unit.Owner, true)
-		if err != nil {
-			return e.fail(err)
-		}
-		if len(notices) > 0 {
-			fmt.Fprintln(e.stdout, "\nWaiting for the owner:")
-			for _, n := range notices {
-				fmt.Fprintf(e.stdout, "  %s  %s\n", unit.Short(n.Unit), n.Body)
-			}
-		}
+		// Opening the repository needs a colocated jj repository, which no
+		// unit could have been opened without; with none yet, shed status
+		// still reports "no units" rather than failing (S.track.9).
 		repo, err := e.openRepo(op)
 		if err != nil {
+			if len(units) == 0 {
+				return OK
+			}
 			return e.fail(err)
 		}
 		f := &factory.Factory{Root: e.root, Operator: op, Tracker: t, Repo: repo}
@@ -134,6 +140,12 @@ func (e env) status(args []string) int {
 			return e.fail(err)
 		}
 		fmt.Fprintln(e.stdout, line)
+		counts, err := t.AmendmentCounts()
+		if err != nil {
+			return e.fail(err)
+		}
+		fmt.Fprintf(e.stdout, "amendments: %d auto-accepted, %d sampled (%d agreed, %d disagreed, %d unanswered)\n",
+			counts.AutoAccepted, counts.Sampled, counts.Agreed, counts.Disagreed, counts.Unanswered)
 		return OK
 	})
 }

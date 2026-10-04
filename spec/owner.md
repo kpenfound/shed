@@ -218,3 +218,12 @@
   including one recorded before a `shed tracker rebuild`; a refused answer
   records nothing. An `agree` or `disagree` answer moves no unit, changes
   no archive entry and makes no commit, so main is unchanged.
+- **S.owner.21** (H.hz.14) After the painter line of S.serve.9, `shed status`
+  prints one line counting horizon amendments, `amendments: <a>
+  auto-accepted, <s> sampled (<y> agreed, <n> disagreed, <u> unanswered)`.
+  `<a>` is the sampling count of S.owner.11 and `<s>` the number of landings
+  that recorded their unit as sampled. `<y>` and `<n>` count the sampled
+  units with an `agree` and a `disagree` answer (S.owner.20), and `<u>` the
+  sampled units with neither. The line is printed with every count, zero
+  included, whatever `owner.sample_every` is, and `shed tracker rebuild`
+  gives back the same counts. Printing it moves no unit and records nothing.

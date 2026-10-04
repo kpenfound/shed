@@ -228,6 +228,48 @@ func (t *Tracker) Sampled() ([]Unit, error) {
 	return out, nil
 }
 
+// AmendmentCounts counts horizon amendments for shed status (S.owner.21):
+// the sampling count of auto-accepted horizon amendments landed, how many
+// landings recorded their unit as sampled, and of those how many the owner
+// agreed with, disagreed with and has not answered.
+type AmendmentCounts struct {
+	AutoAccepted int64
+	Sampled      int64
+	Agreed       int64
+	Disagreed    int64
+	Unanswered   int64
+}
+
+// AmendmentCounts reports the horizon-amendment counts S.owner.21 prints.
+func (t *Tracker) AmendmentCounts() (AmendmentCounts, error) {
+	tx, err := t.db.Begin()
+	if err != nil {
+		return AmendmentCounts{}, err
+	}
+	defer tx.Rollback()
+	auto, err := metaInt(tx, samplingCountKey)
+	if err != nil {
+		return AmendmentCounts{}, err
+	}
+	var sampled, agreed, disagreed int64
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM units WHERE sampled_seq > 0`).Scan(&sampled); err != nil {
+		return AmendmentCounts{}, err
+	}
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM units WHERE sampled_seq > 0 AND sampled_answered != 0 AND sampled_agreed != 0`).Scan(&agreed); err != nil {
+		return AmendmentCounts{}, err
+	}
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM units WHERE sampled_seq > 0 AND sampled_answered != 0 AND sampled_agreed = 0`).Scan(&disagreed); err != nil {
+		return AmendmentCounts{}, err
+	}
+	return AmendmentCounts{
+		AutoAccepted: auto,
+		Sampled:      sampled,
+		Agreed:       agreed,
+		Disagreed:    disagreed,
+		Unanswered:   sampled - agreed - disagreed,
+	}, nil
+}
+
 // inboxSeq returns the sequence number of the latest event the last
 // recorded inbox read, or -1 when no inbox has been recorded, so every
 // event is after it.

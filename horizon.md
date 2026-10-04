@@ -386,7 +386,7 @@ distant and get promoted as the soon tier drains.
   amendment until the owner agrees or disagrees with it, not only those
   sampled since the previous recorded `shed inbox`, and marks as new those
   sampled since then. An answered amendment leaves the inbox.
-- **H.hz.14** (soon, refines H.hz.4) `shed status` reports how many horizon
+- **H.hz.14** (soon, refines H.hz.4, realised) `shed status` reports how many horizon
   amendments were auto-accepted and how many were sampled, and of the
   sampled ones how many the owner agreed with, disagreed with and has not
   answered.

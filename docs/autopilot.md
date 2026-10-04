@@ -420,6 +420,15 @@ framing proposal waiting for owner acceptance never holds the painter back,
 since it is not a proposal. When nothing holds the painter back, the line
 reads `painter: may propose now`.
 
+After the painter line, `shed status` prints one more line counting horizon
+amendments: `amendments: <a> auto-accepted, <s> sampled (<y> agreed, <n>
+disagreed, <u> unanswered)`. `<a>` and `<s>` are the counts of auto-accepted
+and sampled horizon amendments [`shed tracker rebuild` keeps](tracker.md#the-owner-inbox);
+`<y>` and `<n>` count the sampled amendments the owner answered `agree` or
+`disagree`, and `<u>` the sampled amendments with neither. The line always
+prints, zero counts included, whatever `owner.sample_every` is, and printing
+it moves no unit and records nothing (S.owner.21).
+
 The painter works on the gap: near and soon horizon clauses that are not
 realised and that no unit in flight advances. Each gap clause comes with the
 spec clauses already advancing it and, if it refines another clause, that

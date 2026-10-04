@@ -161,6 +161,7 @@ func TestStatusShowsEstimateAndCostSinceSeal(t *testing.T) {
 		unit.Short(carried) + " sealed 1 1 $3.20 $3.20 of $1000.00 Nod",
 		unit.Short(reset) + " sealed 1 0 $5.50 $0.50 of $600.00 Bow",
 		"painter: 1 proposals are waiting in the shed (painter.max_proposed = 1)",
+		"amendments: 0 auto-accepted, 0 sampled (0 agreed, 0 disagreed, 0 unanswered)",
 	}
 	if got := collapsed(mustRun(t, r.Dir, "status")); !reflect.DeepEqual(got, want) {
 		t.Errorf("status =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

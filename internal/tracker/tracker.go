@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS units (
 	wait INTEGER NOT NULL DEFAULT 0,
 	sampled_seq INTEGER NOT NULL DEFAULT 0,
 	sampled_answered INTEGER NOT NULL DEFAULT 0,
+	sampled_agreed INTEGER NOT NULL DEFAULT 0,
 	follows_approval INTEGER NOT NULL DEFAULT 0,
 	opened_seq INTEGER NOT NULL,
 	opened_at TEXT NOT NULL,
@@ -199,7 +200,7 @@ var tables = []string{"units", "seals", "footprints", "actual_footprints", "sess
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 19
+const schemaVersion = 20
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -562,7 +563,7 @@ func apply(tx *sql.Tx, e Event) error {
 	case ExpiryAttempted:
 		return setMeta(tx, expiryAttemptKey+e.Unit+":"+strconv.FormatInt(e.ContestSeq, 10), e.Seq)
 	case UnitSampledAnswered:
-		return exec(`UPDATE units SET sampled_answered = 1 WHERE change = ?`, e.Unit)
+		return exec(`UPDATE units SET sampled_answered = 1, sampled_agreed = ? WHERE change = ?`, boolInt(e.Agreed), e.Unit)
 	case SweepRan:
 		clauses, err := json.Marshal(e.Sweep.Clauses)
 		if err != nil {
