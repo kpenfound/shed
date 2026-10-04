@@ -65,6 +65,9 @@ const (
 
 const usage = `usage: shed [-C dir] [-state dir] <command> [arguments]
 
+Setup:
+  init <design-document>  check that the repository and document qualify for initialising
+
 Documents:
   check              validate the documents, proofs and citations
   show <citation>... print the clauses the citations name
@@ -154,6 +157,8 @@ func RunWith(ctx context.Context, args []string, stdout, stderr io.Writer, runne
 	}
 	cmd, rest := fs.Arg(0), fs.Args()[1:]
 	switch cmd {
+	case "init":
+		return e.initCmd(rest)
 	case "check":
 		return e.check(rest)
 	case "show":

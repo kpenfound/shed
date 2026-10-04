@@ -123,6 +123,13 @@ go install github.com/kpenfound/shed/cmd/shed@latest
 
 ### Set up a repository
 
+Run `shed init <design-document>` first. It checks that the repository is the
+top of a git working tree, is empty or nearly empty apart from a `README`,
+`LICENSE`, `.gitignore`, `.gitattributes` or the design document itself, and
+that the document exists, is a non-empty regular file and valid UTF-8,
+naming anything that fails. It changes nothing; write the documents yourself
+once it passes:
+
 1. Write the three documents at the root of your repository. This
    repository's [`charter.md`](charter.md), [`horizon.md`](horizon.md) and
    [`spec/`](spec/) are working examples, and
@@ -195,6 +202,7 @@ shed run <unit>                    # debate, implement, verify, land
 
 | Command | Does |
 | --- | --- |
+| `shed init <design-document>` | Checks that the repository and the design document qualify for initialising. |
 | `shed check` | Validates the documents, IDs, citations and proofs. |
 | `shed gap`, `shed trace` | List the horizon clauses not yet realised, or every horizon clause, with the spec clauses that advance each and its refinement links. `shed trace` also names the near and soon clauses that refine nothing. |
 | `shed prove [<id>...]` | Runs the proofs of spec clauses and reports per clause. |
