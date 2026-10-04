@@ -429,6 +429,17 @@ func (e env) debate(args []string) int {
 			return e.fail(err)
 		}
 		out, err := f.Debate(e.ctx, u.Change)
+		var charterResult *factory.CharterDebateResult
+		if errors.As(err, &charterResult) {
+			if len(charterResult.Problems) == 0 {
+				fmt.Fprintf(e.stdout, "%s %s\n", unit.Short(u.Change), charterResult.Error())
+				return Failed
+			}
+			for _, p := range charterResult.Problems {
+				fmt.Fprintln(e.stdout, p)
+			}
+			return Failed
+		}
 		if err != nil {
 			return e.fail(err)
 		}
@@ -521,6 +532,9 @@ func (e env) unitMove(args []string) int {
 		u, err := t.Unit(args[0])
 		if err != nil {
 			return e.fail(err)
+		}
+		if u.CharterAmendment {
+			return e.misuse("unit %s is a charter amendment unit; shed unit move refuses it", unit.Short(u.Change))
 		}
 		if u.State == unit.Contested {
 			return e.contested(u)

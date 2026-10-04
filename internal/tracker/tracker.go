@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS units (
 	sampled_answered INTEGER NOT NULL DEFAULT 0,
 	sampled_agreed INTEGER NOT NULL DEFAULT 0,
 	follows_approval INTEGER NOT NULL DEFAULT 0,
+	charter_amendment INTEGER NOT NULL DEFAULT 0,
 	opened_seq INTEGER NOT NULL,
 	opened_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
@@ -208,7 +209,7 @@ var tables = []string{"units", "seals", "footprints", "actual_footprints", "sess
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 21
+const schemaVersion = 22
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -371,8 +372,8 @@ func apply(tx *sql.Tx, e Event) error {
 	}
 	switch e.Kind {
 	case UnitOpened:
-		return exec(`INSERT INTO units (change, title, opened_by, state, opened_seq, opened_at, updated_at, reason)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, e.Unit, e.Title, e.Actor, e.To, e.Seq, at, at, e.Reason)
+		return exec(`INSERT INTO units (change, title, opened_by, state, opened_seq, opened_at, updated_at, reason, charter_amendment)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, e.Unit, e.Title, e.Actor, e.To, e.Seq, at, at, e.Reason, boolInt(e.CharterAmendment))
 	case UnitMoved:
 		// A bounce starts a new debate, from round zero, and so does a
 		// move to contested for a horizon amendment's tier.

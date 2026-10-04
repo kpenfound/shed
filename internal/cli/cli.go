@@ -99,6 +99,8 @@ Units:
   serve [-once]                           run the factory: propose, debate, implement, verify, land
   frame <clause>                          break a distant or eventual horizon clause into near and soon clauses
   frame -discard <unit>                   discard a framing that shed frame opened
+  charter draft <title>                   open a charter amendment unit for the owner to edit charter.md in
+  charter draft -discard <unit>           discard a charter amendment unit that is still proposed
 
 State:
   config             print the operator settings in effect
@@ -200,6 +202,8 @@ func RunWith(ctx context.Context, args []string, stdout, stderr io.Writer, runne
 		return e.serve(rest)
 	case "frame":
 		return e.frame(rest)
+	case "charter":
+		return e.charter(rest)
 	case "config":
 		return e.config(rest)
 	case "tracker":

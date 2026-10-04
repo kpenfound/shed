@@ -19,6 +19,18 @@ var ErrNotFound = errors.New("not found")
 
 // OpenUnit records a new unit in proposed, identified by its change ID.
 func (t *Tracker) OpenUnit(change, title string, actor unit.Actor) error {
+	return t.openUnit(change, title, actor, false)
+}
+
+// OpenCharterUnit records a new charter amendment unit in proposed, with the
+// owner as actor (S.owner.22). The event log names the unit a charter
+// amendment unit, so shed tracker rebuild keeps it one (S.track.3,
+// S.track.5).
+func (t *Tracker) OpenCharterUnit(change, title string) error {
+	return t.openUnit(change, title, unit.Owner, true)
+}
+
+func (t *Tracker) openUnit(change, title string, actor unit.Actor, charterAmendment bool) error {
 	if err := unit.ValidChangeID(change); err != nil {
 		return err
 	}
@@ -34,7 +46,7 @@ func (t *Tracker) OpenUnit(change, title string, actor unit.Actor) error {
 		} else if !errors.Is(err, ErrNotFound) {
 			return nil, err
 		}
-		return []Event{{Kind: UnitOpened, Unit: change, Actor: actor, To: unit.Proposed, Title: title}}, nil
+		return []Event{{Kind: UnitOpened, Unit: change, Actor: actor, To: unit.Proposed, Title: title, CharterAmendment: charterAmendment}}, nil
 	})
 	return err
 }

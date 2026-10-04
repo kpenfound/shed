@@ -129,6 +129,9 @@ var errNoSpecChange = errors.New("the proposal changes no spec clause")
 // committee split over a soon-tier horizon amendment, which waits for the
 // owner; any other goes back to its painter with a bounce. In the amendment lane, objections
 // standing at the cap reject the amendment instead.
+//
+// A charter amendment unit (S.owner.22) runs no committee round: Debate
+// returns a *CharterDebateResult instead, judged as S.owner.23 says.
 func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 	u, err := f.Tracker.Unit(change)
 	if err != nil {
@@ -136,6 +139,13 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 	}
 	if u.State != unit.Proposed {
 		return "", fmt.Errorf("unit %s is %s; only proposed units are debated", unit.Short(u.Change), u.State)
+	}
+	if u.CharterAmendment {
+		problems, err := f.judgeCharterAmendment(ctx, u.Change)
+		if err != nil {
+			return "", err
+		}
+		return "", &CharterDebateResult{Problems: problems}
 	}
 	lane, err := f.amendmentOf(u.Change)
 	if err != nil {

@@ -30,7 +30,8 @@
   moves to implementing, verifying or queued. These commands refuse
   sealing, landing, archiving and any move out of contested; the owner
   takes a unit out of contested only with `shed answer` (S.owner.4,
-  S.owner.5).
+  S.owner.5). `shed unit move` also refuses any move of a charter amendment
+  unit (S.owner.22), naming the unit.
 - **S.unit.9** (H.unit.11) A unit leaves contested only by a move with the
   owner as actor, which `shed answer` makes (S.owner.4, S.owner.5,
   S.owner.8, S.shed.17), or by a move to archived with the frame builder as

@@ -80,6 +80,9 @@ type Event struct {
 
 	// Title is set when a unit opens.
 	Title string `json:"title,omitempty"`
+	// CharterAmendment is set on a unit opening (S.owner.22) for whether the
+	// unit is a charter amendment unit.
+	CharterAmendment bool `json:"charter_amendment,omitempty"`
 	// Bounce and Amendment are set on a reopen.
 	Bounce    bool `json:"bounce,omitempty"`
 	Amendment bool `json:"amendment,omitempty"`

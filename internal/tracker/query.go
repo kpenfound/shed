@@ -31,10 +31,12 @@ type Unit struct {
 	Change string
 	Title  string
 	// OpenedBy is who opened the unit: the painter, or the owner by hand.
-	OpenedBy   unit.Actor
-	State      unit.State
-	Bounces    int
-	Amendments int
+	OpenedBy unit.Actor
+	// CharterAmendment marks a unit shed charter draft opened (S.owner.22).
+	CharterAmendment bool
+	State            unit.State
+	Bounces          int
+	Amendments       int
 	// Round is the round of the unit's current debate.
 	Round int
 	// Cycle counts the unit's debates before the current one. Each bounce
@@ -175,10 +177,10 @@ func loadUnit(q querier, change string) (Unit, error) {
 	var opened, updated, contestedAt, shelf, state, openedBy string
 	var actual bool
 	var estimate float64
-	err := q.QueryRow(`SELECT title, opened_by, state, bounces, amendments, round, cycle, reason, shelf, landed, actual, review, opened_at, updated_at, contested_at, contested_seq, estimate, estimate_cost,
+	err := q.QueryRow(`SELECT title, opened_by, state, bounces, amendments, round, cycle, reason, shelf, landed, actual, review, opened_at, updated_at, contested_at, contested_seq, estimate, estimate_cost, charter_amendment,
 		(SELECT COALESCE(SUM(cost_usd), 0) FROM sessions WHERE change = units.change)
 		FROM units WHERE change = ?`, change).
-		Scan(&u.Title, &openedBy, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Cycle, &u.Reason, &shelf, &u.Landed, &actual, &u.Review, &opened, &updated, &contestedAt, &u.ContestedSeq, &estimate, &u.EstimateCostUSD, &u.CostUSD)
+		Scan(&u.Title, &openedBy, &state, &u.Bounces, &u.Amendments, &u.Round, &u.Cycle, &u.Reason, &shelf, &u.Landed, &actual, &u.Review, &opened, &updated, &contestedAt, &u.ContestedSeq, &estimate, &u.EstimateCostUSD, &u.CharterAmendment, &u.CostUSD)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Unit{}, fmt.Errorf("unit %s: %w", unit.Short(change), ErrNotFound)
 	}

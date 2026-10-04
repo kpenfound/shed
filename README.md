@@ -216,6 +216,8 @@ shed run <unit>                    # debate, implement, verify, land
 | `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: retry it in the shed, defer or reject it to the archive, or approve its distant, eventual or split soon horizon amendment. |
 | `shed answer <unit> agree\|disagree <reason>` | Answers a sampled amendment, recording whether the owner agreed with it. |
 | `shed answer <clause> keep <reason>` | Answers a charter question by keeping the clause as it stands. |
+| `shed charter draft <title>` | Opens a charter amendment unit for the owner to edit `charter.md` in; the unit stays proposed until the owner answers it. |
+| `shed charter draft -discard <unit>` | Discards a charter amendment unit that is still proposed. |
 | `shed unit open\|declare\|move\|reopen\|log\|path` | Drives units by hand. |
 | `shed conflicts` | Lists the in-flight units whose changes carry stored conflicts, and their conflicted files. |
 | `shed debate\|land\|run <unit>` | Runs one stage of a unit, or all of them. |
@@ -247,6 +249,11 @@ distant and eventual clauses. Pending framings appear in `shed inbox` for
 owner acceptance. `shed frame` explicitly breaks a distant or eventual horizon clause into near and soon
 clauses that refine it, recorded on a unit for the owner to read; `shed frame
 -accept` lands it and `shed frame -discard` drops it.
+`shed charter draft <title>` opens a unit on main whose workspace the owner edits
+`charter.md` in directly; it stays proposed, outside the committee and `shed serve`,
+until the owner discards it with `shed charter draft -discard`. `shed debate` on
+such a unit runs no committee round: it only reports whether the workspace holds
+nothing but a valid `charter.md` change.
 
 Still to come, as the [horizon](horizon.md) describes: many units in flight
 at once with reconciliation, a sweeper that patrols main for spec

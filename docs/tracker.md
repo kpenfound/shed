@@ -83,6 +83,32 @@ proposed -> sealed -> implementing -> verifying -> queued -> landed
 
 Every move records an actor and a reason.
 
+### Charter amendment units
+
+`shed charter draft <title>` opens a unit the same way `shed unit open` does,
+but records it in the event log as a charter amendment unit, with the owner
+as actor. It stays `proposed` and nothing else moves it: no controller of
+`shed serve` starts a session on it, `shed unit move` refuses it, `shed
+debate` runs no committee round on it, and it is never sealed, implemented,
+verified, archived or landed by any other clause. It does not count toward
+`painter.max_proposed`, and `shed serve -once` never reports it as a draft
+waiting to be declared. The owner edits `charter.md` directly in its
+workspace. `shed charter draft -discard <unit>` archives such a unit, while
+it is still proposed, as deferred with no archive entry, and discards its
+change; it refuses any unit that is not a still-proposed charter amendment
+unit.
+
+`shed debate <unit>` on a charter amendment unit starts no session. Instead
+it compares the unit's workspace, as it stands, to `charter.md` on the
+latest main commit the unit's change descends from, and reports every
+problem it finds: any file other than `charter.md` that differs from that
+commit, `charter.md` being byte for byte unchanged from it, and any
+document problem `shed check` would report in that `charter.md`, such as a
+malformed, duplicate, misplaced or retired clause ID. With no problem, it
+reports the amendment ready, but notes that charter amendments are not yet
+debated — there is no committee round or ratification for them yet (see
+the [horizon](../horizon.md)).
+
 ### Footprints and seals
 
 Sealing records the seal, the main commit, the unit's change ID and the
@@ -619,6 +645,8 @@ nothing.
 | `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost, estimate (with the cost since the seal that set it) and wait; a contested unit's line also carries an `overdue` mark once its wait passes `shed.contested_timeout`, and a queued unit's line shows its place in the landing order as `land #<n>`, followed by `waits behind` and the units it waits behind when it is [held back](#held-back-units) (see [autopilot](autopilot.md#autopilot)). Then comes the title. After the units it lists the notices waiting for the owner, then one line on whether the painter may propose now, one line counting auto-accepted and sampled horizon amendments, agreed, disagreed and unanswered (see [autopilot](autopilot.md#autopilot)), and ends by listing the open bugs (see [bugs](#bugs), above). |
 | `shed inbox [-peek]` | Lists contested units with their wait and, once overdue, an `overdue` mark, the horizon changes on main, the charter questions from repeated rejections, the sampled horizon amendments and the units the frame builder archived on timeout, marking what is new since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
+| `shed charter draft <title>` | Opens a [charter amendment unit](#charter-amendment-units) on top of main for the owner to edit `charter.md` in. |
+| `shed charter draft -discard <unit>` | Discards a charter amendment unit that is still proposed. |
 | `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: moves it back to `proposed`, defers or rejects it to the archive, or approves its distant, eventual or split soon horizon amendment. |
 | `shed answer <unit> agree\|disagree <reason>` | Answers a sampled amendment, recording whether the owner agreed with it; moves no unit. |
 | `shed answer <clause> keep <reason>` | Answers a charter question by keeping the clause, clearing the question until two more rejections cite it. |

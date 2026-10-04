@@ -1,9 +1,11 @@
 # The shed
 
 - **S.shed.1** (H.shed.1) `shed debate <unit>` debates a proposed unit in
-  rounds. In each round every committee member, `concurrency.committee` of
-  them, runs a session at the same time against the same revision of the
-  proposal, with a copy of its files whose changes are thrown away.
+  rounds, except a charter amendment unit (S.owner.22), which it handles as
+  S.owner.23 says instead. In each round every committee member,
+  `concurrency.committee` of them, runs a session at the same time against
+  the same revision of the proposal, with a copy of its files whose changes
+  are thrown away.
   Each member receives only its own objections, answers and withdrawals from
   the current debate; retries start with no earlier debate history. Committee
   debate bundles omit the unit's latest reason, owner's answers and pending

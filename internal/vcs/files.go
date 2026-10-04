@@ -356,3 +356,20 @@ func (r *Repo) Changed(ctx context.Context, change string) ([]string, string, er
 	}
 	return files, parent, nil
 }
+
+// DiffNames lists the files that differ between two commits, slash-separated
+// and relative to the repository root: a file present on one side and absent
+// on the other counts as differing.
+func (r *Repo) DiffNames(ctx context.Context, from, to string) ([]string, error) {
+	out, err := r.git(ctx, "diff", "--name-only", from, to)
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, line := range strings.Split(out, "\n") {
+		if line != "" {
+			files = append(files, line)
+		}
+	}
+	return files, nil
+}

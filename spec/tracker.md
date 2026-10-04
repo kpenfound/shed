@@ -6,13 +6,15 @@
   `tracker.db`, the event log `events.jsonl` and a `sessions` directory.
 - **S.track.2** (H.track.1) The tracker holds each unit's title, state,
   bounce count, amendment count, latest reason, shelf, seal, footprint,
-  finished steps, sessions and notices. It also holds the sweeps of main
+  finished steps, sessions and notices, and whether it is a charter
+  amendment unit (S.owner.22). It also holds the sweeps of main
   (S.sweep.2) and the bugs they file (S.sweep.3).
 - **S.track.3** (H.track.2) Every change to the tracker is appended to the
   event log as one JSON line before it reaches the database. Each line names
   its sequence number, time, kind, unit, actor and reason, the states before
   and after a move, and the cost of a finished session. A unit opening's
-  line also names the unit's title. A footprint declaration's line also
+  line also names the unit's title and whether the unit is a charter
+  amendment unit (S.owner.22). A footprint declaration's line also
   names the clauses it records as modified, depended on and advanced, each
   as a list in order. An objection's line also names its kind, the clause
   IDs it cites in order and its text, and an answer's line names the

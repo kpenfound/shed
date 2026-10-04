@@ -227,3 +227,33 @@
   sampled units with neither. The line is printed with every count, zero
   included, whatever `owner.sample_every` is, and `shed tracker rebuild`
   gives back the same counts. Printing it moves no unit and records nothing.
+- **S.owner.22** (H.owner.6) `shed charter draft <title>` opens a unit on
+  main as `shed unit open` does (S.vcs.3), with the owner as actor and the
+  given title, records in the event log that the unit is a charter
+  amendment unit (S.track.3), so `shed tracker rebuild` keeps it
+  (S.track.5), and prints the unit's short change ID and its workspace's
+  directory, where the owner edits `charter.md`. Shed refuses an empty
+  title and then opens nothing. A charter amendment unit stays proposed: no
+  controller of `shed serve` starts a session on it, `shed unit move`
+  refuses it, naming the unit (S.unit.8), `shed debate` runs no committee
+  round on it (S.shed.1, S.owner.23), and no clause seals, archives or lands it
+  except as this clause says. It does not count toward
+  `painter.max_proposed` (S.paint.1), `shed serve -once` never reports it
+  as a draft waiting to be declared (S.serve.1), and S.serve.8 does not
+  archive it, since it archives only a painter's draft. `shed charter
+  draft -discard <unit>` archives a charter amendment unit that is still
+  proposed, with the owner as actor, as deferred with no archive entry, and
+  discards its change. It refuses any other unit.
+- **S.owner.23** (H.owner.6) `shed debate <unit>` on a charter amendment
+  unit (S.owner.22) starts no session and moves nothing. It judges the
+  files in the unit's workspace as they stand against `charter.md` on the
+  latest main commit the unit's change descends from, and names each
+  problem: each file other than `charter.md` that differs from that commit,
+  the file being present on one and absent on the other counting as
+  differing; that `charter.md` is byte for byte the same as on that commit,
+  when it is; and each problem `shed check` (S.check.1) would report in
+  that `charter.md`, as `file:line: message`, including a malformed,
+  duplicate or misplaced ID (S.doc.5) and an ID that main's history has
+  retired (S.doc.6). When it finds no problem it says the amendment is
+  ready but that charter amendments are not yet debated. It exits non-zero
+  either way.

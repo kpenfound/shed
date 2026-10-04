@@ -18,6 +18,13 @@ unit lands, or when a stage bounces, reopens, archives or contests it.
 
 ## Debate
 
+This section describes debate for an ordinary unit. A [charter amendment
+unit](tracker.md#charter-amendment-units), opened by `shed charter draft`,
+skips it entirely: `shed debate` on one starts no committee round and never
+seals, implements, verifies, archives or lands it; it only checks the
+workspace against `charter.md` on main and reports what, if anything, is
+wrong with it.
+
 A proposal is its spec diff. The clauses it modifies are computed from the
 diff; the clauses it depends on and the horizon clauses it advances are
 declared, and dependencies must be on main. A proposal also declares an
