@@ -405,6 +405,45 @@ distant and get promoted as the soon tier drains.
   nothing in that direction.
 - **H.owner.4** (soon, realised) Declined horizon amendments go to the archive with
   their debate record.
+- **H.owner.5** (near, refines H.owner.2) Shed refuses to seal, pass
+  verification for or land any unit whose change alters `charter.md` against
+  the main commit it descends from, naming the unit and the file. Only a
+  charter amendment unit changes the charter.
+- **H.owner.6** (near, refines H.owner.2) `shed charter draft <title>` opens a
+  charter amendment unit on main with the owner as actor, whose workspace the
+  owner edits. Shed refuses to debate it while its change alters any file
+  other than `charter.md`, alters nothing, or holds a charter that fails the
+  document checks, such as a reused or retired clause ID.
+- **H.owner.7** (soon, refines H.owner.2) The committee debates a charter
+  amendment unit for its wording only: ambiguity, contradiction with other
+  charter clauses, and operator settings that do not belong in the charter.
+  Every objection cites clause IDs, no objection vetoes it, and the author
+  answers once per round. The debate ends at consensus or at its round cap,
+  and either way the unit waits for the owner with the objections still
+  standing. It is never sealed, implemented or archived by a committee.
+- **H.owner.8** (near, refines H.owner.2) `shed inbox`, including `-peek`,
+  lists every charter amendment waiting for the owner, oldest first, with its
+  short change ID, title, the charter clauses it adds, changes or removes,
+  each with its text before and after, any objections still standing, and the
+  path of its full debate record.
+- **H.owner.9** (soon, refines H.owner.2) `shed answer <unit> ratify <reason>`
+  lands a waiting charter amendment as one commit that changes only
+  `charter.md`, fast-forward and under the landing identity, and tags that
+  commit `charter/v<n>`, where n is one more than the highest existing
+  charter tag, or 2 when none exists. It refuses when `charter.md` on main
+  has changed since the debate ended, and sends the unit back to debate. After
+  the landing shed rebases and reconciles the other units as after any
+  landing.
+- **H.owner.10** (near, refines H.owner.2) `shed answer <unit> decline <reason>`
+  archives a waiting charter amendment with the owner as actor. Its archive
+  entry lists the charter clauses it would have added, changed or removed,
+  with their text before and after, its debate record and the owner's reason,
+  and painters can read it.
+- **H.owner.11** (soon, refines H.owner.2) A painter may draft a charter
+  amendment unit for a charter question listed in the inbox (S.owner.9),
+  under the proposal rate. Its bundle holds the charter, the question's
+  rejected entries and the declined charter amendments, and shed refuses a
+  draft that changes the same clauses to the same text as a declined one.
 
 ## Init
 
