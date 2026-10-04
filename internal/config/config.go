@@ -17,8 +17,16 @@ const File = "shed.toml"
 
 // Project is the content of shed.toml.
 type Project struct {
-	Proofs Proofs `toml:"proofs"`
-	Verify Verify `toml:"verify"`
+	Proofs  Proofs  `toml:"proofs"`
+	Verify  Verify  `toml:"verify"`
+	Outside Outside `toml:"outside"`
+}
+
+// Outside configures `shed outside`.
+type Outside struct {
+	// Since is the git commit, full or abbreviated, that `shed outside`
+	// lists the commits after.
+	Since string `toml:"since"`
 }
 
 // Verify configures verification.

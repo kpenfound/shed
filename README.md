@@ -207,6 +207,7 @@ shed run <unit>                    # debate, implement, verify, land
 | `shed gap`, `shed trace` | List the horizon clauses not yet realised, or every horizon clause, with the spec clauses that advance each and its refinement links. `shed trace` also names the near and soon clauses that refine nothing. |
 | `shed prove [<id>...]` | Runs the proofs of spec clauses and reports per clause. |
 | `shed sweep` | Checks main's current commit out into a fresh directory, runs its proofs and reports per clause, and records the sweep. |
+| `shed outside` | Lists the commits on main's first-parent history, after `shed.toml`'s `outside.since`, that did not land as a shed unit, charter changes apart. |
 | `shed show <citation>...` | Prints the clauses citations name, at any revision. |
 | `shed diff <from> [<to>]` | Lists spec and horizon clauses added, changed and removed between revisions, the parent each refining clause is judged at, and the horizon amendment's tier. |
 | `shed status` | Lists units, what waits for the owner, and whether the factory is paused. |
@@ -258,6 +259,6 @@ violations, `shed init`, and adopting existing codebases.
 | [The life of a unit, and autopilot](docs/autopilot.md) | Debate, implementation, verification, landing and `shed serve`. |
 | [Sessions](docs/sessions.md) | The sandbox, the tools and the bundles agents get. |
 | [Units and the tracker](docs/tracker.md) | Unit states, the owner inbox, the state directory and operator settings. |
-| [Version control](docs/vcs.md) | The jj repository, unit workspaces, landing, and rebasing units onto main. |
+| [Version control](docs/vcs.md) | The jj repository, unit workspaces, landing, rebasing units onto main, and listing the commits that didn't land as units. |
 | [Releasing](docs/releasing.md) | Cutting a release. |
 | [AGENTS.md](AGENTS.md) | Working on shed itself. |

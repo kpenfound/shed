@@ -629,7 +629,7 @@ distant and get promoted as the soon tier drains.
   factory spans several machines.
 - **H.vision.4** (eventual) The frame builder proposes formula changes through
   debate.
-- **H.vision.5** (near, refines H.vision.1) A shed command lists the commits
+- **H.vision.5** (near, refines H.vision.1, realised) A shed command lists the commits
   on main's first-parent history after a commit that `shed.toml` names that
   did not land as a shed unit: each commit whose message has no `Unit:`
   trailer naming a unit the tracker records as landed with that commit. Each

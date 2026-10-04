@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -169,4 +170,63 @@ func IsAncestor(root, commit, rev string) (bool, error) {
 		return false, nil
 	}
 	return err == nil, err
+}
+
+// Commit is a commit's hash, author name, subject line and full message, as
+// FirstParentSince reads them.
+type Commit struct {
+	Hash    string
+	Author  string
+	Subject string
+	Message string
+}
+
+// FirstParentSince lists, oldest first, the commits on head's first-parent
+// history after since, excluding since itself. It fails when since is not on
+// that history.
+func FirstParentSince(root, since, head string) ([]Commit, error) {
+	const field = "\x01"
+	const record = "\x02"
+	out, err := run(root, "log", "--first-parent",
+		"--format="+record+"%H"+field+"%an"+field+"%s"+field+"%B", head)
+	if err != nil {
+		return nil, err
+	}
+	var chain []Commit
+	for _, rec := range strings.Split(string(out), record) {
+		if rec == "" {
+			continue
+		}
+		parts := strings.SplitN(rec, field, 4)
+		if len(parts) != 4 {
+			continue
+		}
+		chain = append(chain, Commit{
+			Hash: parts[0], Author: parts[1], Subject: parts[2],
+			Message: strings.TrimRight(parts[3], "\n"),
+		})
+	}
+	idx := slices.IndexFunc(chain, func(c Commit) bool { return c.Hash == since })
+	if idx == -1 {
+		return nil, fmt.Errorf("%s is not on %s's first-parent history", since, head)
+	}
+	after := chain[:idx]
+	slices.Reverse(after)
+	return after, nil
+}
+
+// OnlyChanges reports whether a commit, against its first parent, changes
+// exactly the named file and no other.
+func OnlyChanges(root, commit, file string) (bool, error) {
+	out, err := run(root, "diff", "--name-only", commit+"^", commit)
+	if err != nil {
+		return false, err
+	}
+	var files []string
+	for _, line := range strings.Split(string(out), "\n") {
+		if line != "" {
+			files = append(files, line)
+		}
+	}
+	return len(files) == 1 && files[0] == file, nil
 }

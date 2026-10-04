@@ -256,3 +256,37 @@ A landing that moved main but stopped before the tracker recorded it is
 completed by running `shed land` again: the unit's change is already on
 main, so shed only records it. It records the actual footprint if none is
 recorded yet and reports the drift, as a normal landing does.
+
+## Commits outside shed
+
+A unit lands as one commit carrying a `Unit:` trailer, as
+[landing](#landing) shows, so most of main's history is explained by its
+units. `shed outside` lists the commits that are not: it brings in main,
+then walks main's first-parent history, oldest first, after the commit
+`shed.toml`'s `outside.since` names:
+
+```toml
+[outside]
+since = "a17b7815"
+```
+
+A commit counts as landed as a shed unit only when its message holds a
+`Unit:` trailer naming a unit the tracker records as landed with that very
+commit. A trailer naming no unit, a unit that never landed, or a unit landed
+with a different commit does not count, so a message that merely looks like
+a landing, or a cherry-pick of one, still shows up. Every other commit after
+`outside.since` is listed, one line each giving its full hash, its author's
+name and the first line of its message; the commit `outside.since` names is
+never listed itself.
+
+A commit that, against its first parent, changes `charter.md` and nothing
+else is a charter change. `shed outside` lists charter changes apart from
+the rest: after them, in the same line form, under a `charter changes:`
+line it prints only when it has at least one charter change to list.
+
+`shed outside` fails, naming why and listing no commit, when it cannot bring
+in main, when `shed.toml` sets no `outside.since`, when that value names no
+commit, or when the commit it names is not on main's first-parent history.
+Beyond bringing in main and the recovery every shed command runs when it
+opens the repository and the tracker, it changes nothing: it moves no unit,
+records nothing, and leaves main and the remote as they were.

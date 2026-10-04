@@ -78,6 +78,7 @@ Documents:
 
 Units:
   status                                  list units and what waits for the owner
+  outside                                 list main commits since outside.since that did not land as a shed unit
   inbox [-peek]                           list contested units and horizon changes since the last inbox
   answer <unit> retry|defer|reject|approve <reason>
                                           answer a contested unit: retry, defer, reject or approve it
@@ -173,6 +174,8 @@ func RunWith(ctx context.Context, args []string, stdout, stderr io.Writer, runne
 		return e.prove(rest)
 	case "status":
 		return e.status(rest)
+	case "outside":
+		return e.outside(rest)
 	case "inbox":
 		return e.inbox(rest)
 	case "answer":
