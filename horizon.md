@@ -371,6 +371,25 @@ distant and get promoted as the soon tier drains.
   realised, in the same diff as its spec change. Verification checks each
   claim against the unit's behaviour, and refuses one the spec does not
   fully satisfy.
+- **H.hz.11** (near, refines H.hz.4) Sampling under `owner.sample_every`
+  covers only auto-accepted horizon amendments. A landing whose seal came
+  from the owner's `approve`, or from `shed frame -accept`, is never sampled
+  and takes no place in the sampling count, so one in every N amendments
+  accepted without the owner is sampled.
+- **H.hz.12** (near, refines H.hz.4) `shed answer <unit> agree <reason>` and
+  `shed answer <unit> disagree <reason>` record in the event log, with the
+  owner as actor, whether the owner agreed with a sampled amendment, so
+  `shed tracker rebuild` keeps the answer. Shed refuses either for a unit
+  that was not sampled or already has one, or with an empty reason. An
+  answer moves no unit and changes nothing on main.
+- **H.hz.13** (soon, refines H.hz.4) `shed inbox` lists each sampled
+  amendment until the owner agrees or disagrees with it, not only those
+  sampled since the previous recorded `shed inbox`, and marks as new those
+  sampled since then. An answered amendment leaves the inbox.
+- **H.hz.14** (soon, refines H.hz.4) `shed status` reports how many horizon
+  amendments were auto-accepted and how many were sampled, and of the
+  sampled ones how many the owner agreed with, disagreed with and has not
+  answered.
 
 ## The owner
 
