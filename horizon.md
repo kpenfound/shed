@@ -629,6 +629,35 @@ distant and get promoted as the soon tier drains.
   factory spans several machines.
 - **H.vision.4** (eventual) The frame builder proposes formula changes through
   debate.
+- **H.vision.5** (near, refines H.vision.1) A shed command lists the commits
+  on main's first-parent history after a commit that `shed.toml` names that
+  did not land as a shed unit: each commit whose message has no `Unit:`
+  trailer naming a unit the tracker records as landed with that commit. Each
+  line gives the commit, its author and its subject, oldest first. A commit
+  that changes only `charter.md` is listed apart, as a charter change. The
+  command changes nothing, prints nothing else when every commit landed as
+  a unit, and fails when `shed.toml` names no such commit or one that is not
+  on main.
+- **H.vision.6** (soon, refines H.vision.1) `shed inbox` lists the commits
+  on main after the main commit the previous recorded `shed inbox` stored
+  that did not land as a shed unit, as H.vision.5 finds them, keeping
+  charter changes apart. `-peek` lists the same commits. Listing them moves
+  no unit and blocks nothing.
+- **H.vision.7** (near, refines H.vision.1) The owner can land an edit of
+  `horizon.md` as a unit instead of committing it to main. A shed command
+  takes a file holding the edited horizon, opens a unit on main whose change
+  holds it as `horizon.md` and nothing else, with the owner as actor, and
+  lands it as `shed frame -accept` lands a framing, with a `Unit:` trailer,
+  recorded as a horizon amendment that is never sampled. It refuses an edit
+  that changes no clause, fails `shed check`, or adds a clause under an ID
+  that main's history has retired, and then opens and lands nothing.
+- **H.vision.8** (soon, refines H.vision.1) When the operator configures a
+  build command, `shed serve` runs it after each landing whose commit changes
+  a file outside `charter.md`, `spec/` and `horizon.md`. Once no stage is
+  running it replaces itself with the binary the command built and resumes
+  from the tracker as after a crash. A build that fails, or a built binary
+  that fails `shed doctor`, leaves the running binary serving, and
+  `shed status` shows the failure and the landed commit it was built from.
 
 ## Milestones
 
