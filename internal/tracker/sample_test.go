@@ -12,12 +12,27 @@ import (
 )
 
 // landing opens, seals, queues and lands a unit, recording whether it is a
-// horizon amendment.
+// horizon amendment. Its seal is an ordinary consensus seal, so a horizon
+// amendment it lands is auto-accepted.
 func landing(t *testing.T, tr *Tracker, change string, amendment bool) {
 	t.Helper()
 	must(t, tr.OpenUnit(change, "Unit", unit.Painter))
 	through(t, tr, change, unit.Sealed, unit.Implementing, unit.Verifying, unit.Queued)
 	must(t, tr.Land(change, "commit-"+change[:4], Footprint{}, amendment, unit.Wheelbuilder, "landed on main"))
+	if u := get(t, tr, change); u.State != unit.Landed {
+		t.Errorf("unit %s is %s after landing, want landed", unit.Short(change), u.State)
+	}
+}
+
+// landingApproved opens, seals under the owner's approve, queues and lands a
+// unit as a horizon amendment, so its landing is owner-accepted (S.owner.11,
+// S.shed.17).
+func landingApproved(t *testing.T, tr *Tracker, change string) {
+	t.Helper()
+	must(t, tr.OpenUnit(change, "Unit", unit.Painter))
+	must(t, tr.SealApproved(change, "main1", "unitcommit", Footprint{}, unit.Committee, "the owner approved its horizon amendment", nil))
+	through(t, tr, change, unit.Implementing, unit.Verifying, unit.Queued)
+	must(t, tr.Land(change, "commit-"+change[:4], Footprint{}, true, unit.Wheelbuilder, "landed on main"))
 	if u := get(t, tr, change); u.State != unit.Landed {
 		t.Errorf("unit %s is %s after landing, want landed", unit.Short(change), u.State)
 	}
@@ -71,7 +86,8 @@ func TestLandingSamplesHorizonAmendments(t *testing.T) {
 	}
 
 	// Every landing records whether it is a horizon amendment, and a
-	// sampled one records that too.
+	// horizon amendment also records that it is auto-accepted, since none
+	// of these landed by the owner's approve or shed frame -accept.
 	for change, want := range map[string]bool{k: true, l: false, m: true} {
 		ev := landingEvent(t, dir, change)
 		if got, ok := ev["horizon_amendment"]; !ok || got != want {
@@ -79,6 +95,13 @@ func TestLandingSamplesHorizonAmendments(t *testing.T) {
 		}
 		if sampled := ev["sampled"] == true; sampled != (change == m) {
 			t.Errorf("landing of %s records sampled %v", unit.Short(change), sampled)
+		}
+		if want {
+			if got, ok := ev["owner_accepted"]; !ok || got != false {
+				t.Errorf("landing of %s records owner_accepted %v (present %v), want false", unit.Short(change), got, ok)
+			}
+		} else if _, ok := ev["owner_accepted"]; ok {
+			t.Errorf("landing of %s records owner_accepted %v, want it unset since it is not a horizon amendment", unit.Short(change), ev["owner_accepted"])
 		}
 	}
 
@@ -121,28 +144,36 @@ func TestLandingSamplesHorizonAmendments(t *testing.T) {
 func TestLandingsBeforeRecordingDoNotCount(t *testing.T) {
 	dir := t.TempDir()
 	tr := open(t, dir, Options{SampleEvery: 2})
-	k, l, m := changeID('k'), changeID('l'), changeID('m')
+	k, l, m, n, o := changeID('k'), changeID('l'), changeID('m'), changeID('n'), changeID('o')
 	landing(t, tr, k, true)
 	tr.Close()
 
-	// K landed before shed recorded horizon amendments: its landing event
-	// records neither.
+	// strip removes keys from a unit's landing event, simulating a landing
+	// recorded before shed tracked them.
 	path := filepath.Join(dir, LogFile)
-	data, err := os.ReadFile(path)
-	must(t, err)
-	var out bytes.Buffer
-	for _, line := range bytes.Split(bytes.TrimSpace(data), []byte("\n")) {
-		var ev map[string]any
-		must(t, json.Unmarshal(line, &ev))
-		if ev["unit"] == k && ev["to"] == string(unit.Landed) {
-			delete(ev, "horizon_amendment")
-			delete(ev, "sampled")
-		}
-		b, err := json.Marshal(ev)
+	strip := func(change string, keys ...string) {
+		t.Helper()
+		data, err := os.ReadFile(path)
 		must(t, err)
-		out.Write(append(b, '\n'))
+		var out bytes.Buffer
+		for _, line := range bytes.Split(bytes.TrimSpace(data), []byte("\n")) {
+			var ev map[string]any
+			must(t, json.Unmarshal(line, &ev))
+			if ev["unit"] == change && ev["to"] == string(unit.Landed) {
+				for _, key := range keys {
+					delete(ev, key)
+				}
+			}
+			b, err := json.Marshal(ev)
+			must(t, err)
+			out.Write(append(b, '\n'))
+		}
+		must(t, os.WriteFile(path, out.Bytes(), 0o644))
 	}
-	must(t, os.WriteFile(path, out.Bytes(), 0o644))
+
+	// K landed before shed recorded horizon amendments at all: its landing
+	// event records neither, so it does not count.
+	strip(k, "horizon_amendment", "sampled", "owner_accepted")
 
 	tr = open(t, dir, Options{SampleEvery: 2})
 	must(t, tr.Rebuild())
@@ -154,16 +185,37 @@ func TestLandingsBeforeRecordingDoNotCount(t *testing.T) {
 	if got, want := sampledNow(t, tr), unit.Short(m); got != want {
 		t.Errorf("sampled after the second recorded amendment = %q, want %q", got, want)
 	}
+	tr.Close()
+
+	// N landed after shed recorded horizon amendments but before it
+	// recorded owner acceptance: its event records a horizon amendment but
+	// not whether it is owner-accepted, so it counts as auto-accepted and
+	// takes the third place in the sampling count.
+	tr = open(t, dir, Options{SampleEvery: 2})
+	landing(t, tr, n, true)
+	tr.Close()
+	strip(n, "owner_accepted", "sampled")
+
+	tr = open(t, dir, Options{SampleEvery: 2})
+	must(t, tr.Rebuild())
+	if got, want := sampledNow(t, tr), unit.Short(m); got != want {
+		t.Errorf("sampled after a landing recorded with no owner acceptance = %q, want %q", got, want)
+	}
+	landing(t, tr, o, true)
+	if got, want := sampledNow(t, tr), unit.Short(m)+", "+unit.Short(o); got != want {
+		t.Errorf("sampled after the fourth counted amendment = %q, want %q", got, want)
+	}
 }
 
 //shed:proves S.owner.11
 func TestAcceptedFramingsAreNeverSampled(t *testing.T) {
 	dir := t.TempDir()
 	tr := open(t, dir, Options{SampleEvery: 2})
-	k, l, m, n := changeID('k'), changeID('l'), changeID('m'), changeID('n')
+	k, l, m := changeID('k'), changeID('l'), changeID('m')
 
-	// The accepted framing takes the second place in the count, which
-	// samples nothing; the fourth amendment is sampled.
+	// The accepted framing is owner-accepted and takes no place in the
+	// sampling count, so the second auto-accepted amendment is sampled
+	// even though a framing landed between the two.
 	landing(t, tr, k, true)
 	must(t, tr.OpenUnit(l, "Frame H.greet.3 into near and soon clauses", unit.FrameBuilder))
 	must(t, tr.LandFraming(l, "commit-l", Footprint{Advances: []string{"H.greet.3"}}, unit.Owner, "the owner accepted the framing"))
@@ -171,22 +223,69 @@ func TestAcceptedFramingsAreNeverSampled(t *testing.T) {
 		t.Errorf("sampled after an accepted framing = %q, want none", got)
 	}
 	landing(t, tr, m, true)
-	if got := sampledNow(t, tr); got != "" {
-		t.Errorf("sampled after three amendments = %q, want none", got)
-	}
-	landing(t, tr, n, true)
-	if got, want := sampledNow(t, tr), unit.Short(n); got != want {
-		t.Errorf("sampled after four amendments = %q, want %q", got, want)
+	if got, want := sampledNow(t, tr), unit.Short(m); got != want {
+		t.Errorf("sampled after the framing and two auto-accepted amendments = %q, want %q", got, want)
 	}
 
-	// The accepted framing's landing records a horizon amendment, not
-	// sampled, and that survives a rebuild.
+	// The accepted framing's landing records a horizon amendment that is
+	// owner-accepted, never sampled, and that survives a rebuild.
 	ev := landingEvent(t, dir, l)
-	if ev["horizon_amendment"] != true || ev["sampled"] == true {
+	if ev["horizon_amendment"] != true || ev["owner_accepted"] != true || ev["sampled"] == true {
 		t.Errorf("the accepted framing's landing = %v", ev)
 	}
 	must(t, tr.Rebuild())
-	if got, want := sampledNow(t, tr), unit.Short(n); got != want {
+	if got, want := sampledNow(t, tr), unit.Short(m); got != want {
+		t.Errorf("sampled after a rebuild = %q, want %q", got, want)
+	}
+}
+
+//shed:proves S.owner.11
+func TestApprovedAmendmentsAreNeverSampled(t *testing.T) {
+	dir := t.TempDir()
+	tr := open(t, dir, Options{SampleEvery: 2, BounceThreshold: 1})
+	k, l, m, n, o := changeID('k'), changeID('l'), changeID('m'), changeID('n'), changeID('o')
+
+	// A seal that follows the owner's approve lands owner-accepted and
+	// takes no place in the sampling count, so the second auto-accepted
+	// amendment is sampled even though an approved one landed between them.
+	landing(t, tr, k, true)
+	landingApproved(t, tr, l)
+	if got := sampledNow(t, tr); got != "" {
+		t.Errorf("sampled after an approved amendment = %q, want none", got)
+	}
+	landing(t, tr, m, true)
+	if got, want := sampledNow(t, tr), unit.Short(m); got != want {
+		t.Errorf("sampled after the approved amendment and two auto-accepted amendments = %q, want %q", got, want)
+	}
+
+	// The approved amendment's landing records a horizon amendment that is
+	// owner-accepted, and never sampled.
+	ev := landingEvent(t, dir, l)
+	if ev["horizon_amendment"] != true || ev["owner_accepted"] != true || ev["sampled"] == true {
+		t.Errorf("the approved amendment's landing = %v", ev)
+	}
+
+	// A unit sealed again after the approval seal, as when it is resealed
+	// out of the amendment lane, is judged by that later seal alone: an
+	// ordinary consensus seal after the approval lands the unit
+	// auto-accepted, taking the third place in the sampling count.
+	must(t, tr.OpenUnit(n, "Unit", unit.Painter))
+	must(t, tr.SealApproved(n, "main1", "unitcommit", Footprint{}, unit.Committee, "the owner approved its horizon amendment", nil))
+	must(t, tr.Move(n, unit.Implementing, unit.Mechanic, "dispatched"))
+	must(t, tr.Reopen(n, unit.Mechanic, "needs more work", false))
+	must(t, tr.Seal(n, "main2", "unitcommit2", Footprint{}, unit.Committee, "consensus", nil))
+	through(t, tr, n, unit.Implementing, unit.Verifying, unit.Queued)
+	must(t, tr.Land(n, "commit-"+n[:4], Footprint{}, true, unit.Wheelbuilder, "landed on main"))
+	if got, want := sampledNow(t, tr), unit.Short(m); got != want {
+		t.Errorf("sampled after a reseal lands auto-accepted = %q, want %q", got, want)
+	}
+	landing(t, tr, o, true)
+	if got, want := sampledNow(t, tr), unit.Short(m)+", "+unit.Short(o); got != want {
+		t.Errorf("sampled after the fourth auto-accepted amendment = %q, want %q", got, want)
+	}
+
+	must(t, tr.Rebuild())
+	if got, want := sampledNow(t, tr), unit.Short(m)+", "+unit.Short(o); got != want {
 		t.Errorf("sampled after a rebuild = %q, want %q", got, want)
 	}
 }

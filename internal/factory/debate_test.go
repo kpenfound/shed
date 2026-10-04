@@ -773,7 +773,7 @@ func TestDistantAmendmentsWaitForTheOwner(t *testing.T) {
 	}
 }
 
-//shed:proves S.shed.17
+//shed:proves S.shed.17 S.owner.11
 func TestApprovedAmendmentSeals(t *testing.T) {
 	r := project(t)
 	fake := newFake(t)
@@ -837,6 +837,12 @@ func TestApprovedAmendmentSeals(t *testing.T) {
 	must(t, err)
 	if u.State != unit.Sealed || u.Seal == nil || u.Seal.Main != main || u.Seal.Commit != commit {
 		t.Errorf("unit = %+v, want a seal at main %s and unit commit %s", u, main, commit)
+	}
+	// The seal records, beside what it already records, that it follows
+	// the owner's approve, so the landing it leads to is owner-accepted
+	// (S.owner.11).
+	if u.Seal == nil || !u.Seal.FollowsApprove {
+		t.Errorf("unit = %+v, want its seal to record that it follows the owner's approve", u)
 	}
 	if got := r.Git("show", commit+":horizon.md"); !strings.Contains(got, "H.greet.4") || !strings.Contains(got, "H.greet.5") {
 		t.Errorf("the sealed horizon lacks the approved clauses:\n%s", got)

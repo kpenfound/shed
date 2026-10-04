@@ -464,11 +464,12 @@ yostqsxw sealed: rebased cleanly
 ```
 
 The landing counts as a horizon amendment, so `shed tracker rebuild` counts
-it and its place in the count skips a sample even when `owner.sample_every`
-would otherwise land on it (see [the owner inbox](tracker.md#the-owner-inbox)),
-since the owner already saw and accepted it. Its footprint records no spec
-clause and no dependency, only the framed clause as the horizon clause it
-advances. From here it follows every step a `shed land` landing does, with
+it, but it lands owner-accepted, so it takes no place in the sampling count
+and `owner.sample_every` never samples it (see
+[the owner inbox](tracker.md#the-owner-inbox)), since the owner already saw
+and accepted it. Its footprint records no spec clause and no dependency,
+only the framed clause as the horizon clause it advances. From here it
+follows every step a `shed land` landing does, with
 the frame unit as the landed unit: the notices, marks and reopens of the
 other units in flight, then their rebase sweep, printed and logged the same
 way, after the landed commit.

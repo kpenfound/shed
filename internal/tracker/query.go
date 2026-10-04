@@ -191,10 +191,11 @@ func loadUnit(q querier, change string) (Unit, error) {
 	u.ContestedAt, _ = time.Parse(time.RFC3339Nano, contestedAt)
 
 	var main, commit string
-	err = q.QueryRow(`SELECT main, commit_id FROM seals WHERE change = ?`, change).Scan(&main, &commit)
+	var followsApprove bool
+	err = q.QueryRow(`SELECT main, commit_id, follows_approve FROM seals WHERE change = ?`, change).Scan(&main, &commit, &followsApprove)
 	switch {
 	case err == nil:
-		u.Seal = &Seal{Main: main, Change: change, Commit: commit}
+		u.Seal = &Seal{Main: main, Change: change, Commit: commit, FollowsApprove: followsApprove}
 	case !errors.Is(err, sql.ErrNoRows):
 		return Unit{}, err
 	}

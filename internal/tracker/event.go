@@ -120,6 +120,10 @@ type Event struct {
 	// HorizonAmendment is set on every landing: whether the landed commit
 	// amends a horizon clause. A landing that predates it records neither.
 	HorizonAmendment *bool `json:"horizon_amendment,omitempty"`
+	// OwnerAccepted is set on the landing of a horizon amendment: whether
+	// it is owner-accepted (S.owner.11). It is unset on a landing that is
+	// not a horizon amendment, and on one that predates this recording.
+	OwnerAccepted *bool `json:"owner_accepted,omitempty"`
 	// Sampled is set on the landing of a horizon amendment sampled to the
 	// owner.
 	Sampled bool `json:"sampled,omitempty"`
@@ -143,6 +147,9 @@ type Seal struct {
 	Main   string `json:"main"`
 	Change string `json:"change"`
 	Commit string `json:"commit,omitempty"`
+	// FollowsApprove is whether this seal follows the owner's approve
+	// (S.shed.17, S.owner.11).
+	FollowsApprove bool `json:"follows_approve,omitempty"`
 }
 
 // Footprint is the clauses a unit modifies and depends on in the spec, the

@@ -93,7 +93,7 @@
   or carries a revision, whose clause has no question listed for it at
   that moment, or whose reason is empty; a refused answer records nothing.
   A keep moves no unit and changes no archive entry.
-- **S.owner.11** (H.owner.1) A landed unit's commit amends a horizon
+- **S.owner.11** (H.owner.1, H.hz.11) A landed unit's commit amends a horizon
   clause in `horizon.md` when, against its parent on main, it adds or
   removes the clause, or changes it as under S.owner.2 other than only by
   adding `realised` to its tag list (S.hz.1); a clause whose text or other
@@ -103,18 +103,34 @@
   `shed tracker rebuild` keeps the count of horizon amendments, which is the
   number of landings recorded as horizon amendments; a landing whose event
   records neither, because it landed before shed recorded this, does not
-  count. The operator setting `owner.sample_every`, a whole
-  number that defaults to 0, samples horizon amendments to the owner: when
-  it is N above 0, the landing of a horizon amendment whose place in that
-  count is a multiple of N, counted from one in landing order, also records
-  that the unit is sampled; when it is 0 nothing is sampled, and horizon
-  amendments landed meanwhile still count. Changing the setting does not
-  restart the count. Shed refuses a negative `owner.sample_every` as under
-  S.config.2. A landing by `shed frame -accept` (S.frame.4) is never
-  recorded as sampled, since the owner accepted it, though it still takes
-  its place in the count, so a multiple of N that falls on it samples
-  nothing. Sampling moves no unit and never holds back or fails a
-  landing.
+  count. The seal that follows the owner's `approve` (S.shed.17) records in
+  the event log, beside what S.shed.8 records, that it follows that
+  approval, so `shed tracker rebuild` keeps it; no other seal records this,
+  and a seal whose event records nothing either way, because it was made
+  before shed recorded this, counts as not following an approval. A horizon
+  amendment is owner-accepted when it lands by `shed frame -accept`
+  (S.frame.4), or when the unit's latest seal before its landing records
+  that it follows the owner's `approve`; a unit sealed again after such a
+  seal, as when it is resealed out of the amendment lane (S.shed.11), is
+  judged by that later seal alone. Every other horizon amendment is
+  auto-accepted. The landing of a horizon amendment
+  records in the event log whether it is owner-accepted, so
+  `shed tracker rebuild` keeps the sampling count, which is the number of
+  auto-accepted horizon amendments landed; a horizon amendment whose
+  landing records neither, because it landed before shed recorded this, is
+  owner-accepted when it landed by `shed frame -accept` and auto-accepted
+  otherwise. The operator setting `owner.sample_every`, a
+  whole number that defaults to 0, samples horizon amendments to the owner:
+  when it is N above 0, the landing of an auto-accepted horizon amendment
+  whose place in the sampling count is a multiple of N, counted from one in
+  landing order, also records that the unit is sampled; when it is 0
+  nothing is sampled, and auto-accepted horizon amendments landed meanwhile
+  still count. Changing the setting does not restart the count. Shed
+  refuses a negative `owner.sample_every` as under S.config.2. An
+  owner-accepted horizon amendment is never recorded as sampled and takes
+  no place in the sampling count, so with N above 0 one in every N
+  auto-accepted horizon amendments is sampled. Sampling moves no unit and
+  never holds back or fails a landing.
 - **S.owner.12** (H.owner.1) `shed inbox` then lists sampled amendments:
   each unit sampled (S.owner.11) after the sequence number stored by the
   previous recorded `shed inbox` (S.owner.7), or every sampled unit when no

@@ -183,6 +183,10 @@ func (t *Tracker) Expired() ([]ExpiredUnit, error) {
 // horizon amendments.
 const horizonAmendmentsKey = "horizon_amendments"
 
+// samplingCountKey is the meta key counting the auto-accepted horizon
+// amendments landed: the sampling count (S.owner.11).
+const samplingCountKey = "auto_accepted_amendments"
+
 // Sampled returns the units sampled to the owner after the latest event
 // the last recorded inbox read, or every sampled unit when no inbox has
 // been recorded, in landing order (S.owner.11, S.owner.12).

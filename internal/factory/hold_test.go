@@ -135,7 +135,7 @@ func TestPainterSessionEndsAHeldSeal(t *testing.T) {
 	}
 }
 
-//shed:proves S.shed.17
+//shed:proves S.shed.17 S.owner.11
 func TestPainterSessionEndsAnApproval(t *testing.T) {
 	r := project(t)
 	fake := newFake(t)
@@ -203,6 +203,11 @@ func TestPainterSessionEndsAnApproval(t *testing.T) {
 	must(t, err)
 	if u.Bounces != 0 || u.Seal == nil {
 		t.Fatalf("unit = %+v, want sealed with no bounce", u)
+	}
+	// The painter's session ended the approval, so this seal, reached
+	// through a fresh round, does not follow it (S.owner.11).
+	if u.Seal.FollowsApprove {
+		t.Errorf("unit = %+v, want its seal not to follow the ended approval", u)
 	}
 	got := r.Git("show", u.Seal.Commit+":horizon.md")
 	if !strings.Contains(got, "The tool bows.") || strings.Contains(got, "H.greet.5") {

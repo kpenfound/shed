@@ -120,6 +120,7 @@ CREATE TABLE IF NOT EXISTS units (
 	expired INTEGER NOT NULL DEFAULT 0,
 	wait INTEGER NOT NULL DEFAULT 0,
 	sampled_seq INTEGER NOT NULL DEFAULT 0,
+	follows_approval INTEGER NOT NULL DEFAULT 0,
 	opened_seq INTEGER NOT NULL,
 	opened_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
@@ -128,6 +129,7 @@ CREATE TABLE IF NOT EXISTS seals (
 	change TEXT PRIMARY KEY,
 	main TEXT NOT NULL,
 	commit_id TEXT NOT NULL DEFAULT '',
+	follows_approve INTEGER NOT NULL DEFAULT 0,
 	sealed_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS footprints (
@@ -189,7 +191,7 @@ var tables = []string{"units", "seals", "footprints", "actual_footprints", "sess
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 16
+const schemaVersion = 17
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -404,6 +406,22 @@ func apply(tx *sql.Tx, e Event) error {
 			if err := setMeta(tx, horizonAmendmentsKey, n+1); err != nil {
 				return err
 			}
+			// A landing recorded before shed tracked owner acceptance is
+			// owner-accepted only when it landed by shed frame -accept,
+			// which lands straight from proposed (S.owner.11).
+			ownerAccepted := e.From == unit.Proposed
+			if e.OwnerAccepted != nil {
+				ownerAccepted = *e.OwnerAccepted
+			}
+			if !ownerAccepted {
+				n, err := metaInt(tx, samplingCountKey)
+				if err != nil {
+					return err
+				}
+				if err := setMeta(tx, samplingCountKey, n+1); err != nil {
+					return err
+				}
+			}
 		}
 		if e.Sampled {
 			if err := exec(`UPDATE units SET sampled_seq = ? WHERE change = ?`, e.Seq, e.Unit); err != nil {
@@ -411,12 +429,16 @@ func apply(tx *sql.Tx, e Event) error {
 			}
 		}
 		if e.Seal != nil {
-			if err := exec(`INSERT OR REPLACE INTO seals (change, main, commit_id, sealed_at) VALUES (?, ?, ?, ?)`,
-				e.Unit, e.Seal.Main, e.Seal.Commit, at); err != nil {
+			if err := exec(`INSERT OR REPLACE INTO seals (change, main, commit_id, follows_approve, sealed_at) VALUES (?, ?, ?, ?, ?)`,
+				e.Unit, e.Seal.Main, e.Seal.Commit, boolInt(e.Seal.FollowsApprove), at); err != nil {
 				return err
 			}
-			// A seal starts a fresh run of uncounted bounces (S.vcs.17).
-			if err := exec(`UPDATE units SET uncounted_bounces = 0 WHERE change = ?`, e.Unit); err != nil {
+			// A seal starts a fresh run of uncounted bounces (S.vcs.17), and
+			// records whether it follows the owner's approve, so a horizon
+			// amendment it leads to is owner-accepted (S.owner.11); any later
+			// seal overwrites this, as it is judged by that later seal alone.
+			if err := exec(`UPDATE units SET uncounted_bounces = 0, follows_approval = ? WHERE change = ?`,
+				boolInt(e.Seal.FollowsApprove), e.Unit); err != nil {
 				return err
 			}
 		}

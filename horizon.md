@@ -371,7 +371,7 @@ distant and get promoted as the soon tier drains.
   realised, in the same diff as its spec change. Verification checks each
   claim against the unit's behaviour, and refuses one the spec does not
   fully satisfy.
-- **H.hz.11** (near, refines H.hz.4) Sampling under `owner.sample_every`
+- **H.hz.11** (near, refines H.hz.4, realised) Sampling under `owner.sample_every`
   covers only auto-accepted horizon amendments. A landing whose seal came
   from the owner's `approve`, or from `shed frame -accept`, is never sampled
   and takes no place in the sampling count, so one in every N amendments

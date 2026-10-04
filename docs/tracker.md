@@ -240,15 +240,27 @@ one.
 
 Every landing records in the event log whether the unit is a horizon
 amendment, so `shed tracker rebuild` keeps the count of horizon amendments.
-Landings from before shed recorded this do not count. With
-`owner.sample_every` set to N above 0, the landing of every Nth horizon
-amendment in that count, counting from one in landing order, also records
-the unit as sampled. With the default of 0 nothing is sampled, but horizon
-amendments still count, and changing the setting does not restart the count.
-A landing by [`shed frame -accept`](autopilot.md#framing-the-horizon) is
-never recorded as sampled, since the owner already accepted the framing, but
-it still takes its place in the count, so a multiple of N that falls on it
-samples nothing (S.owner.11).
+Landings from before shed recorded this do not count.
+
+A horizon amendment's landing also records whether it is owner-accepted:
+true when it lands by [`shed frame -accept`](autopilot.md#framing-the-horizon),
+or when the unit's latest seal before landing follows the owner's `approve`
+(see below); a unit sealed again after that, as when it is resealed out of
+the amendment lane, is judged by that later seal alone. Every other horizon
+amendment is auto-accepted. A horizon amendment landed before shed recorded
+this is owner-accepted when it landed by `shed frame -accept` and
+auto-accepted otherwise.
+
+Sampling covers only auto-accepted horizon amendments: `shed tracker rebuild`
+also keeps the sampling count, the number of auto-accepted horizon amendments
+landed. With `owner.sample_every` set to N above 0, the landing of every Nth
+auto-accepted horizon amendment in that count, counting from one in landing
+order, also records the unit as sampled. With the default of 0 nothing is
+sampled, but auto-accepted horizon amendments still count, and changing the
+setting does not restart the count. An owner-accepted horizon amendment is
+never recorded as sampled and takes no place in the sampling count, so with N
+above 0 one in every N auto-accepted horizon amendments is sampled
+(S.owner.11).
 
 The inbox lists each unit sampled after the event sequence number the
 previous recorded `shed inbox` stored, or every sampled unit when no inbox
@@ -354,7 +366,10 @@ shed answer qpvuntsm approve the new distant clause matches where shed is going
   as actor and the reason as the move's reason. Its next debate runs no
   round and seals it; a bounce before that seal ends the approval. Shed
   refuses `approve` for a unit contested for any other reason (S.shed.17).
-  See [autopilot](autopilot.md#debate).
+  See [autopilot](autopilot.md#debate). If the unit's seal from that debate
+  is the one it lands under, its landing is owner-accepted: it takes no
+  place in the sampling count described [above](#the-owner-inbox) and is
+  never sampled (S.owner.11).
 
 A reject's reason names charter clauses through its ID-shaped tokens, read
 whole as citations anywhere in the text. `C12` names C12 and not C1, `XC1`
@@ -479,7 +494,7 @@ max_proposed = 1         # proposals that may wait before the painter proposes a
 tick = "1m"              # wakes the controllers when nothing else has
 
 [owner]
-sample_every = 0         # sample every Nth horizon amendment to the inbox; 0 for none
+sample_every = 0         # sample every Nth auto-accepted horizon amendment to the inbox; 0 for none
 ```
 
 A profile's fallback must name another profile, and fallbacks may not loop.

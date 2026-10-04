@@ -516,10 +516,10 @@ func TestFrameAcceptLandsTheFraming(t *testing.T) {
 		t.Errorf("the landing move = %+v", move)
 	}
 
-	// It is a horizon amendment, never sampled even when every amendment
-	// is.
-	if move.HorizonAmendment == nil || !*move.HorizonAmendment || move.Sampled {
-		t.Errorf("the landing records horizon amendment %v, sampled %v", move.HorizonAmendment, move.Sampled)
+	// It is a horizon amendment, owner-accepted, and never sampled even
+	// when every amendment is.
+	if move.HorizonAmendment == nil || !*move.HorizonAmendment || move.OwnerAccepted == nil || !*move.OwnerAccepted || move.Sampled {
+		t.Errorf("the landing records horizon amendment %v, owner accepted %v, sampled %v", move.HorizonAmendment, move.OwnerAccepted, move.Sampled)
 	}
 
 	// Its actual footprint holds no spec clause and no dependency, and

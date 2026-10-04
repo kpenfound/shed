@@ -159,9 +159,9 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 	start := u.Round
 	switch pendingSeal(events) {
 	case approvedSeal:
-		return f.seal(ctx, u, "the owner approved its horizon amendment", lane)
+		return f.seal(ctx, u, "the owner approved its horizon amendment", lane, true)
 	case heldSeal:
-		return f.seal(ctx, u, fmt.Sprintf("no objection stands after round %d", u.Round), lane)
+		return f.seal(ctx, u, fmt.Sprintf("no objection stands after round %d", u.Round), lane, false)
 	case endedSeal:
 		start = 0
 	}
@@ -211,7 +211,7 @@ func (f *Factory) Debate(ctx context.Context, change string) (Outcome, error) {
 				}
 				return Contested, nil
 			}
-			out, err := f.seal(ctx, u, fmt.Sprintf("no objection stands after round %d", round), lane)
+			out, err := f.seal(ctx, u, fmt.Sprintf("no objection stands after round %d", round), lane, false)
 			if err == nil && out == Waiting {
 				err = f.Tracker.HoldSeal(u.Change, round)
 			}
@@ -708,8 +708,10 @@ func (f *Factory) farTier(ctx context.Context, change string) (string, string, e
 // after that capture (S.vcs.17). A seal out of the amendment lane records
 // the estimate recorded at the unit's previous seal, whatever was declared
 // since; when that seal recorded none, it records the unit's estimate at
-// sealing (S.impl.7).
-func (f *Factory) seal(ctx context.Context, u tracker.Unit, reason string, lane amendment) (Outcome, error) {
+// sealing (S.impl.7). With approved, the seal records that it follows the
+// owner's approve (S.shed.17), so a horizon amendment it leads to is
+// owner-accepted (S.owner.11).
+func (f *Factory) seal(ctx context.Context, u tracker.Unit, reason string, lane amendment, approved bool) (Outcome, error) {
 	if full, err := f.inFlightFull(u.Change); err != nil || full {
 		return Waiting, err
 	}
@@ -743,7 +745,11 @@ func (f *Factory) seal(ctx context.Context, u tracker.Unit, reason string, lane 
 	if err != nil {
 		return "", err
 	}
-	if err := f.Tracker.Seal(u.Change, commit, head, fp, unit.Committee, reason, onMain(main)); err != nil {
+	sealFn := f.Tracker.Seal
+	if approved {
+		sealFn = f.Tracker.SealApproved
+	}
+	if err := sealFn(u.Change, commit, head, fp, unit.Committee, reason, onMain(main)); err != nil {
 		return f.bounce(u, err.Error())
 	}
 	if err := f.entangle(ctx, u.Change, main); err != nil {

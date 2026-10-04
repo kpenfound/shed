@@ -72,16 +72,23 @@ func (t *Tracker) ReopenFootprint(change string, actor unit.Actor, reason string
 // change points to, and its footprint, and moves it to sealed. onMain
 // reports whether a spec clause is on main.
 func (t *Tracker) Seal(change, main, commit string, fp Footprint, actor unit.Actor, reason string, onMain func(clause.ID) bool) error {
-	return t.seal(change, main, commit, fp, actor, reason, false, onMain)
+	return t.seal(change, main, commit, fp, actor, reason, false, false, onMain)
 }
 
 // SealRejected seals a unit whose requested amendment was rejected, as
 // Seal does, and marks the seal as that rejection.
 func (t *Tracker) SealRejected(change, main, commit string, fp Footprint, actor unit.Actor, reason string, onMain func(clause.ID) bool) error {
-	return t.seal(change, main, commit, fp, actor, reason, true, onMain)
+	return t.seal(change, main, commit, fp, actor, reason, true, false, onMain)
 }
 
-func (t *Tracker) seal(change, main, commit string, fp Footprint, actor unit.Actor, reason string, rejected bool, onMain func(clause.ID) bool) error {
+// SealApproved seals a unit as Seal does, and marks the seal as the one
+// that follows the owner's approve (S.shed.17), so a horizon amendment
+// landed under it is owner-accepted (S.owner.11).
+func (t *Tracker) SealApproved(change, main, commit string, fp Footprint, actor unit.Actor, reason string, onMain func(clause.ID) bool) error {
+	return t.seal(change, main, commit, fp, actor, reason, false, true, onMain)
+}
+
+func (t *Tracker) seal(change, main, commit string, fp Footprint, actor unit.Actor, reason string, rejected, approved bool, onMain func(clause.ID) bool) error {
 	if strings.TrimSpace(main) == "" {
 		return errors.New("a seal needs the main commit")
 	}
@@ -89,7 +96,7 @@ func (t *Tracker) seal(change, main, commit string, fp Footprint, actor unit.Act
 		return errors.New("a seal needs the unit's commit")
 	}
 	return t.move(change, Event{To: unit.Sealed, Actor: actor, Reason: reason, Rejected: rejected,
-		Seal: &Seal{Main: main, Change: change, Commit: commit}, Footprint: &fp}, onMain)
+		Seal: &Seal{Main: main, Change: change, Commit: commit, FollowsApprove: approved}, Footprint: &fp}, onMain)
 }
 
 // Entangle records an entanglement advisory on a sealed unit for every
@@ -172,9 +179,10 @@ func (fp Footprint) specClauses() []string {
 // actual footprint drifted from the sealed one.
 //
 // amendment says whether the landed commit amends a horizon clause
-// (S.owner.11). The landing records it, and a horizon amendment whose place
-// in the count of horizon amendments is a multiple of SampleEvery is
-// recorded as sampled.
+// (S.owner.11). The landing records it, and, for a horizon amendment,
+// whether it is owner-accepted: whether the unit's latest seal follows the
+// owner's approve. An auto-accepted amendment whose place in the sampling
+// count is a multiple of SampleEvery is recorded as sampled.
 func (t *Tracker) Land(change, commit string, actual Footprint, amendment bool, actor unit.Actor, reason string) error {
 	if strings.TrimSpace(commit) == "" {
 		return errors.New("a landing needs the commit on main")
@@ -185,9 +193,9 @@ func (t *Tracker) Land(change, commit string, actual Footprint, amendment bool, 
 // LandFraming lands a proposed unit that shed frame opened, moving it
 // straight from proposed to landed: the only route from proposed to landed
 // (S.unit.3), taken only by `shed frame -accept` (S.frame.4). The landing
-// always records a horizon amendment, which takes its place in the count of
-// horizon amendments, but never as sampled, since the owner accepted it
-// (S.owner.11).
+// always records a horizon amendment, owner-accepted, which takes its place
+// in the count of horizon amendments but never in the sampling count and
+// never as sampled, since the owner accepted it (S.owner.11).
 func (t *Tracker) LandFraming(change, commit string, actual Footprint, actor unit.Actor, reason string) error {
 	if strings.TrimSpace(commit) == "" {
 		return errors.New("a landing needs the commit on main")
@@ -198,7 +206,7 @@ func (t *Tracker) LandFraming(change, commit string, actual Footprint, actor uni
 	if strings.TrimSpace(reason) == "" {
 		return errors.New("a move needs a reason")
 	}
-	amendment := true
+	amendment, ownerAccepted := true, true
 	_, err := t.write(func(tx *sql.Tx) ([]Event, error) {
 		state, openedBy, err := stateAndOpener(tx, change)
 		if err != nil {
@@ -211,7 +219,7 @@ func (t *Tracker) LandFraming(change, commit string, actual Footprint, actor uni
 			return nil, fmt.Errorf("unit %s is %s; only a proposed framing lands this way", unit.Short(change), state)
 		}
 		return []Event{{Kind: UnitMoved, Unit: change, From: state, To: unit.Landed, Commit: commit,
-			Actual: &actual, HorizonAmendment: &amendment, Actor: actor, Reason: reason}}, nil
+			Actual: &actual, HorizonAmendment: &amendment, OwnerAccepted: &ownerAccepted, Actor: actor, Reason: reason}}, nil
 	})
 	return err
 }
@@ -346,12 +354,22 @@ func (t *Tracker) moveThen(change string, e Event, then []Event, onMain ...func(
 			drift := FootprintDrift(sealed, *e.Actual)
 			e.Drift = &drift
 		}
-		if e.HorizonAmendment != nil && *e.HorizonAmendment && t.opts.SampleEvery > 0 {
-			n, err := metaInt(tx, horizonAmendmentsKey)
-			if err != nil {
-				return nil, err
+		if e.HorizonAmendment != nil && *e.HorizonAmendment {
+			if e.OwnerAccepted == nil {
+				var follows int
+				if err := tx.QueryRow(`SELECT follows_approval FROM units WHERE change = ?`, change).Scan(&follows); err != nil {
+					return nil, err
+				}
+				accepted := follows != 0
+				e.OwnerAccepted = &accepted
 			}
-			e.Sampled = (n+1)%int64(t.opts.SampleEvery) == 0
+			if !*e.OwnerAccepted && t.opts.SampleEvery > 0 {
+				n, err := metaInt(tx, samplingCountKey)
+				if err != nil {
+					return nil, err
+				}
+				e.Sampled = (n+1)%int64(t.opts.SampleEvery) == 0
+			}
 		}
 		e.Kind, e.Unit, e.From = UnitMoved, change, from
 		events := []Event{e}
