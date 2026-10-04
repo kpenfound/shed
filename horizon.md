@@ -545,6 +545,30 @@ distant and get promoted as the soon tier drains.
 - **H.ctx.3** (distant) Provenance flows one way. Nothing in Hearsay changes
   shed's git history or tracker, and shed never writes Hearsay's distilled
   layers.
+- **H.ctx.4** (near, refines H.ctx.1) A shed command prints the event log as
+  L0 records, one JSON line each, oldest first, with no network access. It
+  covers unit opened, footprint declared, each objection, answer and
+  withdrawal, seal, reopen, archive and landing. Each record carries an ID
+  derived from its event's sequence number, the time, the kind, the unit as
+  its topic, the actor, the clause IDs it cites and its text. The same log
+  always gives the same records, and other event kinds give none.
+- **H.ctx.5** (near, refines H.ctx.1) The same command also prints one L0
+  record for each clause added, removed or changed in `charter.md`, `spec/`
+  or `horizon.md` by each commit on main, oldest commit first, computed as
+  under H.doc.6. Each record names the document, the clause ID, its text
+  before and after, the commit and, for a landing, the unit's change ID. Its
+  ID derives from the commit and clause ID, so the same history always gives
+  the same records.
+- **H.ctx.6** (soon, refines H.ctx.1) When the operator configures a Hearsay
+  ingest endpoint, `shed serve` sends it the records of H.ctx.4 and H.ctx.5
+  in order and logs the last record Hearsay accepted, so a tracker rebuild
+  keeps it. An unreachable or refusing endpoint never blocks, fails or
+  delays a transition or session. Shed retries later from the last accepted
+  record, and may resend a record but never skips one. With no endpoint
+  configured shed sends nothing and needs nothing beyond its git remote.
+- **H.ctx.7** (soon, refines H.ctx.1) `shed status` shows, when a Hearsay
+  endpoint is configured, how many records are waiting to be sent, the time
+  of the last accepted record and the last delivery error.
 
 ## Adoption
 
