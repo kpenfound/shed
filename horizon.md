@@ -281,6 +281,28 @@ distant and get promoted as the soon tier drains.
   changed and otherwise re-seals it with a notice.
 - **H.queue.5** (soon, realised) The same three outcomes apply when the horizon
   changes, using horizon footprints.
+- **H.queue.6** (near, refines H.queue.3) Shed computes a landing order for
+  the queued units from the tracker alone, and `shed serve` lands the first
+  unit in that order that nothing holds back, such as a horizon review. Until
+  another rule moves a unit, the order is the order the units opened, as
+  `shed status` lists them. `shed status` shows each queued unit's place in
+  the landing order.
+- **H.queue.7** (near, refines H.queue.3) Two queued units are entangled
+  when the spec footprints recorded at their last seals share a clause, as
+  S.fp.5 counts it. A queued unit lands only after every queued unit
+  entangled with it whose spec footprint has fewer clauses, or as many and
+  an earlier place in the opening order. A unit entangled with no other
+  queued unit keeps its place. `shed status` names, for each queued unit
+  held back this way, the units it waits behind.
+- **H.queue.8** (soon, refines H.queue.3) When two or more queued units are
+  pairwise disjoint, none is held back, and none would change, remove or
+  gain a refining clause for a horizon clause recorded at another's seal,
+  `shed serve` lands them back to back as one batch, in the landing order,
+  starting no other stage in between. Each lands through S.queue.2 as its
+  own commit. The notices, reopens, review marks and rebase sweep that
+  follow a landing run once, after the batch, comparing the last landed
+  commit with main before the batch. A member that reopens or fails to land
+  ends the batch there, and what already landed is reconciled.
 
 ## Scheduling
 
