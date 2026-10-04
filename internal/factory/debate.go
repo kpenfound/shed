@@ -369,6 +369,10 @@ func (f *Factory) outside(ctx context.Context, a amendment, change string) ([]st
 
 // committeeRound runs every committee member's session of a round at once.
 func (f *Factory) committeeRound(ctx context.Context, u tracker.Unit, round, max int, lane amendment) error {
+	overrun, hasOverrun, err := f.overrunSection(u.Change)
+	if err != nil {
+		return err
+	}
 	members := f.Operator.Concurrency.Committee
 	errs := make([]error, members)
 	var wg sync.WaitGroup
@@ -387,6 +391,10 @@ func (f *Factory) committeeRound(ctx context.Context, u tracker.Unit, round, max
 			if profiles := f.Operator.Committee.Profiles; len(profiles) > 0 {
 				profile = profiles[(member-1)%len(profiles)]
 			}
+			extra := []bundle.Section{{Title: "Your standing objections", Body: mine}, {Title: "Amendment request", Body: lane.request}}
+			if hasOverrun {
+				extra = append(extra, overrun)
+			}
 			res, err := f.session(ctx, work{
 				Member: member, Perspective: perspective, Profile: profile,
 				Unit: u, Role: unit.Committee, Prompt: roles.Committee,
@@ -394,7 +402,7 @@ func (f *Factory) committeeRound(ctx context.Context, u tracker.Unit, round, max
 				Task:     fmt.Sprintf("Debate the proposal %q. This is round %d of at most %d, and you are member %d.", u.Title, round, max, member) + lane.told(),
 				Tools:    func(_ string, head *docs.Set) []session.Tool { return f.committeeTools(u.Change, member, head) },
 				Outcomes: []string{outcomeClean, outcomeObjecting},
-				Extra:    []bundle.Section{{Title: "Your standing objections", Body: mine}, {Title: "Amendment request", Body: lane.request}},
+				Extra:    extra,
 			})
 			if err == nil && res.Failure != session.NoFailure {
 				err = fmt.Errorf("committee member %d: %s: %s", member, res.Failure, res.Reason)
@@ -477,13 +485,22 @@ func (f *Factory) reply(ctx context.Context, u tracker.Unit, round int, lane ame
 		Depends  *[]string `json:"depends,omitempty" jsonschema:"Replace the spec dependencies; omit to preserve, empty array to clear."`
 		Advances *[]string `json:"advances,omitempty" jsonschema:"Replace the horizon clauses advanced; omit to preserve, empty array to clear."`
 	}
+	overrun, hasOverrun, err := f.overrunSection(u.Change)
+	if err != nil {
+		return err
+	}
+	var extra []bundle.Section
+	if hasOverrun {
+		extra = append(extra, overrun)
+	}
 	var mu sync.Mutex
 	fp := u.Footprint
 	declared := false
 	res, err := f.session(ctx, work{
 		Unit: u, Role: unit.Painter, Prompt: roles.PainterReply, Writable: true,
-		Step: fmt.Sprintf("reply to round %d", round),
-		Task: fmt.Sprintf("Answer the committee's standing objections to %q after round %d.", u.Title, round) + lane.told(),
+		Step:  fmt.Sprintf("reply to round %d", round),
+		Task:  fmt.Sprintf("Answer the committee's standing objections to %q after round %d.", u.Title, round) + lane.told(),
+		Extra: extra,
 		Tools: func(string, *docs.Set) []session.Tool {
 			return []session.Tool{session.NewTool("answer", "Answer one standing objection.",
 				func(_ context.Context, in answerIn) (string, error) {

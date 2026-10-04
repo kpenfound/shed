@@ -87,3 +87,30 @@
   overrunning unit it finds with no session running, as after a restart or
   a lower multiple. An overrun never ends a running session and never
   moves a unit other than by that reopen.
+- **S.impl.10** (H.impl.10) Every committee and painter debate bundle of a
+  proposed unit whose latest reopen is the overrun reopen of S.impl.9 holds
+  an overrun section, which adds to what S.sess.5 says the bundle holds and
+  replaces nothing in it. The section gives the estimate recorded at the
+  unit's most recent seal (S.impl.7) and the cost since the seal that set
+  that estimate as it stood at that reopen, written as under S.impl.8, as
+  `$16.20 of $5.00`. It then lists, in the order they finished in the event
+  log (S.track.3), every session of the unit that finished after that seal
+  and before that reopen, each with its session ID, role, step (empty for a
+  session with no step), outcome and cost, retried attempts (S.sess.9) each
+  on a line of their own. After the sessions it gives a subtotal for each
+  formula step, in the order of each step's first listed session, and one
+  for each role whose listed sessions have no step. Every amount is in USD
+  to the cent, and the cost the section gives is the sum of the listed
+  sessions' costs before rounding, so sessions that finish after that
+  reopen, such as this debate's, add nothing to it. The section also states
+  that the painter may declare a revised estimate under S.impl.6, which the
+  unit's next seal records under S.impl.7, and that a member may instead
+  object that the footprint is too large and ask for a split under S.shed.7.
+  Shed builds the section from the seal's recorded estimate and the
+  sessions' recorded IDs, roles, steps, outcomes and costs alone. It never
+  reads or quotes the reopen's reason or any other reason, answer, objection
+  or notice, so it is none of what S.shed.1 has committee bundles omit, and
+  a committee member's bundle holds the same section as the painter's. A
+  bundle of any other unit, including one whose latest reopen was of another
+  kind, has no overrun section. After `shed tracker rebuild` (S.track.5) the
+  section is the same as before it.

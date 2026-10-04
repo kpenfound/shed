@@ -247,7 +247,7 @@ distant and get promoted as the soon tier drains.
   and reopens it with a reason naming the cost, the estimate and the multiple.
   The reopen counts a bounce. A multiple of zero turns this off. Shed never
   ends a session, pauses a unit or archives a unit on its cost alone.
-- **H.impl.10** (soon, refines H.impl.5) The debate bundle of a unit reopened
+- **H.impl.10** (soon, refines H.impl.5, realised) The debate bundle of a unit reopened
   for an overrun shows its cost per step and per session against its estimate.
   The committee may keep the scope with a revised estimate or split the unit
   by footprint (H.shed.7), and the next seal records the new estimate.

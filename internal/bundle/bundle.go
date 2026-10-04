@@ -85,6 +85,7 @@ const (
 	AnswersSection   = "Owner's answers"
 	NoticesSection   = "Notices"
 	ConflictsSection = "Stored conflicts"
+	OverrunSection   = "Overrun"
 )
 
 // ConflictLine lists a unit's conflicted files as `shed conflicts` does: its

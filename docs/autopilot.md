@@ -601,6 +601,45 @@ scheduling decision or move between states, so two units that differ only
 in which positive estimate they record, and whose debates receive the same
 objections, answers and withdrawals, move the same way.
 
+When a unit's latest reopen is the overrun reopen, every committee and
+painter debate bundle adds an Overrun section on top of what it otherwise
+holds. It gives the estimate recorded at the unit's most recent seal and,
+as it stood at the reopen, the cost since the seal that set it: the same
+seal [`shed status`](tracker.md#footprints-and-seals) measures the
+`ESTIMATE` column's cost-since-seal window from, which is not necessarily
+the unit's most recent seal, since a seal out of the amendment lane carries
+the estimate forward and leaves that window where it was. It writes the
+pair as `$16.20 of $5.00`, then lists every session that finished between
+that seal and the reopen, in the order it finished, each with its session
+ID, role, step (blank for a session with none) and outcome, and its cost; a
+retried attempt gets a line of its own. A subtotal follows for each formula
+step, in the order of its first listed session, and one for each role
+whose listed sessions carry no formula step, such as the committee's
+review of an implemented unit:
+
+```
+$16.20 of $5.00
+
+- se123 (mechanic, proofs): done, $4.00
+- se124 (mechanic, implement): done, $12.20
+
+proofs: $4.00
+implement: $12.20
+
+The painter may declare a revised estimate under S.impl.6, which this
+unit's next seal records under S.impl.7. A member may instead object that
+the footprint is too large and ask for a split under S.shed.7.
+```
+
+The section comes only from the seal's recorded estimate and the sessions'
+recorded IDs, roles, steps, outcomes and costs; it never reads or quotes the
+reopen's reason, so a committee member sees it even though committee
+bundles otherwise omit the unit's latest reason. Sessions that finish after
+the reopen, including the current debate's own, add nothing to the figures.
+A unit reopened for any other reason carries no Overrun section. Since the
+section comes only from the event log, `shed tracker rebuild` leaves it
+unchanged.
+
 A footprint dependency is a behavioral guarantee a modified clause directly
 uses. Context citations and statements that behavior is unchanged do not alone
 create dependencies, and dependency lists do not recursively expand through
