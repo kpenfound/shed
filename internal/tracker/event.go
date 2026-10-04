@@ -57,6 +57,9 @@ const (
 	// keyed by the unit and the sequence number of its latest move to
 	// contested (S.frame.8).
 	ExpiryAttempted = "expiry.attempted"
+	// UnitSampledAnswered records the owner's agree or disagree answer to a
+	// sampled amendment (S.owner.20). It moves no unit.
+	UnitSampledAnswered = "unit.sampled_answered"
 )
 
 // Event is one line of the event log. The log is the tracker's source of
@@ -127,6 +130,9 @@ type Event struct {
 	// Sampled is set on the landing of a horizon amendment sampled to the
 	// owner.
 	Sampled bool `json:"sampled,omitempty"`
+	// Agreed is set on a UnitSampledAnswered event: whether the owner
+	// agreed with the sampled amendment (S.owner.20).
+	Agreed bool `json:"agreed,omitempty"`
 	// SpecConflict is set on a painter capture (S.vcs.17) that found spec/
 	// holding an unresolved conflict.
 	SpecConflict bool         `json:"spec_conflict,omitempty"`

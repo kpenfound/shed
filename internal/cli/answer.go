@@ -16,22 +16,41 @@ import (
 // retry moves it to proposed, a defer archives it on the deferred shelf, a
 // reject archives it on the rejected shelf and an approve moves a unit
 // contested for the tier of its horizon amendment to proposed to be sealed
-// (S.owner.4, S.owner.5, S.owner.8, S.shed.17). A first argument that parses as a charter citation names a
-// charter clause, and the answer keeps it (S.owner.10). A refused answer
-// records nothing (S.owner.6).
+// (S.owner.4, S.owner.5, S.owner.8, S.shed.17). An agree or disagree answers
+// a sampled amendment, recording whether the owner agreed, without moving
+// the unit (S.owner.20). A first argument that parses as a charter citation
+// names a charter clause, and the answer keeps it (S.owner.10). A refused
+// answer records nothing (S.owner.6).
 func (e env) answer(args []string) int {
 	if len(args) < 2 {
-		return e.misuse("answer needs a unit, retry, defer, reject or approve, and a reason, or a charter clause, keep and a reason")
+		return e.misuse("answer needs a unit, retry, defer, reject, approve, agree or disagree, and a reason, or a charter clause, keep and a reason")
 	}
 	kind, reason := args[1], strings.TrimSpace(strings.Join(args[2:], " "))
 	if c, err := clause.ParseCitation(args[0]); err == nil && c.ID.Kind == clause.Charter {
 		return e.keep(c, kind, reason)
 	}
-	if kind != tracker.Retry && kind != tracker.Defer && kind != tracker.Reject && kind != tracker.Approve {
-		return e.misuse("an answer is %s, %s, %s or %s, not %q", tracker.Retry, tracker.Defer, tracker.Reject, tracker.Approve, kind)
+	if kind != tracker.Retry && kind != tracker.Defer && kind != tracker.Reject && kind != tracker.Approve && kind != tracker.Agree && kind != tracker.Disagree {
+		return e.misuse("an answer is %s, %s, %s, %s, %s or %s, not %q", tracker.Retry, tracker.Defer, tracker.Reject, tracker.Approve, tracker.Agree, tracker.Disagree, kind)
 	}
 	if reason == "" {
 		return e.misuse("answer needs a reason")
+	}
+	if kind == tracker.Agree || kind == tracker.Disagree {
+		return e.withTracker(func(t *tracker.Tracker) int {
+			u, err := t.Unit(args[0])
+			if err != nil {
+				return e.fail(err)
+			}
+			if err := t.SampledAnswer(u.Change, kind, reason); err != nil {
+				return e.fail(err)
+			}
+			verb := "agreed with"
+			if kind == tracker.Disagree {
+				verb = "disagreed with"
+			}
+			fmt.Fprintf(e.stdout, "%s %s's sampled amendment\n", verb, unit.Short(u.Change))
+			return OK
+		})
 	}
 	if kind == tracker.Retry {
 		return e.withTracker(func(t *tracker.Tracker) int {

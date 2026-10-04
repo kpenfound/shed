@@ -1,6 +1,7 @@
 package tracker
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -19,6 +20,10 @@ const (
 	Approve = "approve"
 	// Keep is the owner's answer to a charter question (S.owner.10).
 	Keep = "keep"
+	// Agree and Disagree are the owner's answer to a sampled amendment
+	// (S.owner.20).
+	Agree    = "agree"
+	Disagree = "disagree"
 )
 
 // Answer is the owner's answer to a contested unit: a move out of
@@ -117,6 +122,52 @@ func (t *Tracker) Retry(change, reason string) error {
 		then = append(then, Event{Kind: UnitRestarted, Unit: u.Change, Actor: unit.Shed, Reason: strings.Join(lines, "\n")})
 	}
 	return t.moveThen(u.Change, Event{To: unit.Proposed, Actor: unit.Owner, Reason: reason}, then)
+}
+
+// CheckSampledAnswer reports whether the owner may answer a unit's sampled
+// amendment with a kind and a reason: the kind must be agree or disagree,
+// the reason not empty, the unit landed, its landing recorded as sampled,
+// and it must not already have an agree or disagree answer, including one
+// recorded before a rebuild (S.owner.20).
+func (t *Tracker) CheckSampledAnswer(change, kind, reason string) error {
+	if kind != Agree && kind != Disagree {
+		return fmt.Errorf("an answer to a sampled amendment is %s or %s, not %q", Agree, Disagree, kind)
+	}
+	if strings.TrimSpace(reason) == "" {
+		return errors.New("an answer needs a reason")
+	}
+	u, err := t.Unit(change)
+	if err != nil {
+		return err
+	}
+	if u.State != unit.Landed {
+		return fmt.Errorf("unit %s is %s; only a landed unit answers a sampled amendment", unit.Short(u.Change), u.State)
+	}
+	var sampled, answered bool
+	if err := t.db.QueryRow(`SELECT sampled_seq > 0, sampled_answered != 0 FROM units WHERE change = ?`, u.Change).Scan(&sampled, &answered); err != nil {
+		return err
+	}
+	if !sampled {
+		return fmt.Errorf("unit %s's landing was not recorded as sampled; only a sampled amendment is answered", unit.Short(u.Change))
+	}
+	if answered {
+		return fmt.Errorf("unit %s already has an agree or disagree answer", unit.Short(u.Change))
+	}
+	return nil
+}
+
+// SampledAnswer records the owner's agree or disagree answer to a unit's
+// sampled amendment in the event log, with the reason and whether the owner
+// agreed. It moves no unit, changes no archive entry and makes no commit
+// (S.owner.20).
+func (t *Tracker) SampledAnswer(change, kind, reason string) error {
+	if err := t.CheckSampledAnswer(change, kind, reason); err != nil {
+		return err
+	}
+	_, err := t.write(func(tx *sql.Tx) ([]Event, error) {
+		return []Event{{Kind: UnitSampledAnswered, Unit: change, Actor: unit.Owner, Reason: reason, Agreed: kind == Agree}}, nil
+	})
+	return err
 }
 
 // Answers returns the owner's answers to a unit, oldest first. Only the

@@ -30,10 +30,11 @@
 - **S.owner.6** (H.owner.1) `shed answer` reads its first argument as a
   charter clause when it parses as a charter citation under S.cite.1, with
   or without a revision, and as a unit otherwise; an answer to a clause is
-  governed by S.owner.10. Shed refuses an answer to a unit that is not
-  contested, with a kind other than `retry`, `defer`, `reject` or
-  `approve` (S.shed.17), or with an empty reason. A refused answer records
-  nothing and moves nothing.
+  governed by S.owner.10. Shed refuses an answer to a unit with a kind
+  other than `retry`, `defer`, `reject`, `approve` (S.shed.17), `agree` or
+  `disagree` (S.owner.20), an answer of the first four kinds to a unit that
+  is not contested, and an answer with an empty reason. A refused answer
+  records nothing and moves nothing.
 - **S.owner.7** (H.owner.1) `shed inbox` marks as new each contested unit
   it lists whose latest move to contested has a higher event sequence number
   (S.track.3, S.track.4) than the one stored by the previous recorded
@@ -206,3 +207,14 @@
   reason naming its short change ID and `charter.md`, and counts a bounce
   as any reopen does under S.unit.5; `shed land` prints that reason. Main
   stays at the commit it had before the landing.
+- **S.owner.20** (H.hz.12) `shed answer <unit> agree <reason>` and
+  `shed answer <unit> disagree <reason>` answer a sampled amendment: a unit
+  whose landing recorded that it is sampled (S.owner.11). The answer is
+  recorded in the event log with the owner as actor, the reason as the
+  event's reason, the unit, and whether the owner agreed, so
+  `shed tracker rebuild` keeps it. Shed refuses either kind for a unit
+  whose landing did not record it as sampled, as for a unit that has not
+  landed, and for a unit that already has an `agree` or `disagree` answer,
+  including one recorded before a `shed tracker rebuild`; a refused answer
+  records nothing. An `agree` or `disagree` answer moves no unit, changes
+  no archive entry and makes no commit, so main is unchanged.

@@ -203,6 +203,7 @@ shed run <unit>                    # debate, implement, verify, land
 | `shed status` | Lists units, what waits for the owner, and whether the factory is paused. |
 | `shed inbox [-peek]` | Lists contested units, the horizon changes, the charter clauses that keep getting proposals rejected, sampled horizon amendments and units the frame builder archived on timeout, marking what is new since you last looked. |
 | `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: retry it in the shed, defer or reject it to the archive, or approve its distant, eventual or split soon horizon amendment. |
+| `shed answer <unit> agree\|disagree <reason>` | Answers a sampled amendment, recording whether the owner agreed with it. |
 | `shed answer <clause> keep <reason>` | Answers a charter question by keeping the clause as it stands. |
 | `shed unit open\|declare\|move\|reopen\|log\|path` | Drives units by hand. |
 | `shed conflicts` | Lists the in-flight units whose changes carry stored conflicts, and their conflicted files. |
@@ -224,7 +225,7 @@ from repeated rejections, sampled horizon amendments and units the frame
 builder archived on timeout, for the owner. A distant or eventual horizon amendment waits
 for the owner, and so does a soon one the committee splits over, or any tier if the operator's
 `shed.horizon_owner_approval` setting widens the wait to cover it. `shed answer` retries, defers, rejects or approves a contested
-unit, and keeps a charter clause to answer its question. `shed serve`
+unit, agrees or disagrees with a sampled amendment, and keeps a charter clause to answer its question. `shed serve`
 automatically expires overdue contested units, one at a time, oldest first,
 archiving each on the shelf its session reports or leaving it contested;
 `shed frame -expire` runs the same frame builder session by hand for an

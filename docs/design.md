@@ -395,7 +395,7 @@ One consequence deserves stating plainly. Agents co-author the horizon and the o
 |mechanic|bundle, formula, notices|code, proofs, amendment requests|unit in `sealed` or `implementing`, step with dependencies met|
 |wheelbuilder|queue, footprints, jj conflicts, sealed specs|landings, re-seals, reopen notices, entanglement advisories, conflict resolutions|landing event, unit enters `queued`, unit sealed|
 |sweeper|main, spec, proofs|bug units, extracted spec clauses|patrol timer, bootstrap|
-|owner|contested units, charter questions, sampled amendments, horizon diffs|charter ratifications, horizon vetoes, contested answers, vision edits|never dispatched; the factory waits only for charter ratification|
+|owner|contested units, charter questions, sampled amendments, horizon diffs|charter ratifications, horizon vetoes, contested answers, sampled amendment answers, vision edits|never dispatched; the factory waits only for charter ratification|
 
 Only the frame builder can discard. Only the owner can ratify a charter amendment. Only the wheelbuilder identity can push to main.
 
@@ -525,7 +525,7 @@ The human's hard powers, in full:
 1. Write and ratify the charter. Synchronous and rare.
 2. Edit the distant and eventual tiers of the horizon. Veto any horizon amendment after the fact.
 3. Answer contested units and charter questions. The factory routes around until they do.
-4. Receive sampled auto-accepted horizon amendments for calibration.
+4. Receive sampled auto-accepted horizon amendments for calibration, and answer each by agreeing or disagreeing with it.
 5. Optionally require approval for horizon amendments at every tier.
 
 Everything else is agent work. The human never writes a proposal, never resolves a conflict, never merges. A proposal reaches the human only when the agents cannot agree, and even then the factory keeps running.

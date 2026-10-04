@@ -120,6 +120,7 @@ CREATE TABLE IF NOT EXISTS units (
 	expired INTEGER NOT NULL DEFAULT 0,
 	wait INTEGER NOT NULL DEFAULT 0,
 	sampled_seq INTEGER NOT NULL DEFAULT 0,
+	sampled_answered INTEGER NOT NULL DEFAULT 0,
 	follows_approval INTEGER NOT NULL DEFAULT 0,
 	opened_seq INTEGER NOT NULL,
 	opened_at TEXT NOT NULL,
@@ -191,7 +192,7 @@ var tables = []string{"units", "seals", "footprints", "actual_footprints", "sess
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 17
+const schemaVersion = 18
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -553,6 +554,8 @@ func apply(tx *sql.Tx, e Event) error {
 		return setMeta(tx, frameAttemptKey+e.Clause+":"+e.Commit, e.Seq)
 	case ExpiryAttempted:
 		return setMeta(tx, expiryAttemptKey+e.Unit+":"+strconv.FormatInt(e.ContestSeq, 10), e.Seq)
+	case UnitSampledAnswered:
+		return exec(`UPDATE units SET sampled_answered = 1 WHERE change = ?`, e.Unit)
 	}
 	return fmt.Errorf("unknown event kind %q", e.Kind)
 }

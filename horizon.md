@@ -376,7 +376,7 @@ distant and get promoted as the soon tier drains.
   from the owner's `approve`, or from `shed frame -accept`, is never sampled
   and takes no place in the sampling count, so one in every N amendments
   accepted without the owner is sampled.
-- **H.hz.12** (near, refines H.hz.4) `shed answer <unit> agree <reason>` and
+- **H.hz.12** (near, refines H.hz.4, realised) `shed answer <unit> agree <reason>` and
   `shed answer <unit> disagree <reason>` record in the event log, with the
   owner as actor, whether the owner agreed with a sampled amendment, so
   `shed tracker rebuild` keeps the answer. Shed refuses either for a unit

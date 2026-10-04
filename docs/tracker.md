@@ -387,9 +387,33 @@ deferred or rejected unit's archive entry holds them too.
 
 `shed answer` reads its first argument as a charter clause when it is a
 charter citation such as `C3` or `C3@HEAD~1`, and as a unit otherwise. Shed
-refuses an answer to a unit that is not contested, an answer to a unit that
-is not `retry`, `defer`, `reject` or `approve`, and an answer with an empty
-reason. A refused answer records nothing and moves nothing (S.owner.6).
+refuses an answer to a unit with a kind other than `retry`, `defer`,
+`reject`, `approve`, `agree` or `disagree`, an answer of the first four
+kinds to a unit that is not contested, and an answer with an empty reason. A
+refused answer records nothing and moves nothing (S.owner.6). `agree` and
+`disagree` answer a sampled amendment instead, and are not held to the
+contested check; see [below](#answering-sampled-amendments).
+
+## Answering sampled amendments
+
+The owner answers a sampled amendment (see
+[the owner inbox](#the-owner-inbox)) with `shed answer`, naming the landed
+unit instead of a contested one:
+
+```
+shed answer xtnwkqpl agree the change matches where shed is going
+shed answer xtnwkqpl disagree this drifted further than I'd like
+```
+
+`agree` and `disagree` record the owner's answer in the event log, with the
+owner as actor, the reason as the event's reason, the unit, and whether the
+owner agreed, so `shed tracker rebuild` keeps it. Shed refuses either kind
+for a unit whose landing was not recorded as sampled, for a unit that has
+not landed, and for a unit that already has an `agree` or `disagree`
+answer, including one recorded before a `shed tracker rebuild`; a refused
+answer records nothing. An `agree` or `disagree` answer moves no unit,
+changes no archive entry and makes no commit, so main is unchanged
+(S.owner.20).
 
 ## Answering charter questions
 
@@ -421,6 +445,7 @@ answer with an empty reason. A refused answer records nothing (S.owner.10).
 | `shed inbox [-peek]` | Lists contested units with their wait and, once overdue, an `overdue` mark, the horizon changes on main, the charter questions from repeated rejections, the sampled horizon amendments and the units the frame builder archived on timeout, marking what is new since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
 | `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: moves it back to `proposed`, defers or rejects it to the archive, or approves its distant, eventual or split soon horizon amendment. |
+| `shed answer <unit> agree\|disagree <reason>` | Answers a sampled amendment, recording whether the owner agreed with it; moves no unit. |
 | `shed answer <clause> keep <reason>` | Answers a charter question by keeping the clause, clearing the question until two more rejections cite it. |
 | `shed unit move <unit> <state> <reason>` | Moves a unit by hand to `implementing`, `verifying` or `queued`. |
 | `shed unit reopen [-amendment] <unit> <reason>` | Sends a unit back to the shed. |
