@@ -505,7 +505,7 @@ distant and get promoted as the soon tier drains.
   sweep in the tracker and the event log: the main commit, when it ran, and
   pass or fail per clause. It calls no model and changes no unit. It prints
   the failing clauses and exits non-zero when any fails.
-- **H.sweep.4** (near, refines H.sweep.1) A clause that fails a sweep is filed
+- **H.sweep.4** (near, refines H.sweep.1, realised) A clause that fails a sweep is filed
   as a bug in the tracker, naming the clause, the main commit and the output
   of its failing proofs. While its bug is open a clause that keeps failing is
   not filed again, and the first sweep in which it passes closes the bug and

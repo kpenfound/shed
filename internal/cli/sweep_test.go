@@ -378,7 +378,7 @@ func TestSweepRecordsItselfAndRebuildReplays(t *testing.T) {
 	}
 }
 
-//shed:proves S.sweep.2
+//shed:proves S.sweep.2 S.sweep.3
 func TestSweepRecordsNothingWhenMainIsUnreachable(t *testing.T) {
 	r := testrepo.Minimal(t)
 	_, stderr, code := run(t, r.Dir, "sweep")
@@ -388,5 +388,90 @@ func TestSweepRecordsNothingWhenMainIsUnreachable(t *testing.T) {
 	logPath := filepath.Join(r.Dir, DefaultStateDir, tracker.LogFile)
 	if data, err := os.ReadFile(logPath); err == nil && strings.Contains(string(data), tracker.SweepRan) {
 		t.Errorf("a sweep that could not check out main recorded itself: %s", data)
+	}
+	state := filepath.Join(r.Dir, DefaultStateDir)
+	tr, err := tracker.Open(state, tracker.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Close()
+	if bugs, err := tr.Bugs(); err != nil || len(bugs) != 0 {
+		t.Errorf("bugs after a sweep that recorded nothing = %+v, %v, want none filed or closed", bugs, err)
+	}
+}
+
+// TestSweepFilesAndClosesBugs checks that sweeping the main of a real
+// project files a bug naming a failing clause, the commit the sweep checked
+// out and the output of its failing proof; that sweeping again while the
+// clause still fails files no other bug and keeps the commit and output it
+// was filed with; that fixing the clause and sweeping again closes the bug,
+// recording the new commit; and that `shed tracker rebuild` gives back the
+// same bugs.
+//
+//shed:proves S.sweep.3
+func TestSweepFilesAndClosesBugs(t *testing.T) {
+	r, _ := sweepProject(t)
+	state := filepath.Join(r.Dir, DefaultStateDir)
+	bugsNow := func() []tracker.Bug {
+		t.Helper()
+		tr, err := tracker.Open(state, tracker.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tr.Close()
+		bugs, err := tr.Bugs()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return bugs
+	}
+
+	r.Write("spec/core.md", testrepo.Spec+"- **S.core.2** (H.greet.2) Says goodbye.\n")
+	r.Write("bye_test.go", "package greet\n\nimport \"testing\"\n\n//shed:proves S.core.2\nfunc TestBye(t *testing.T) { t.Fatal(\"no goodbye\") }\n")
+	r.JJ("commit", "-m", "goodbye spec")
+	r.JJ("bookmark", "set", "main", "-r", "@-")
+	commit1 := r.Git("rev-parse", "main")
+
+	if _, _, code := run(t, r.Dir, "sweep"); code != Failed {
+		t.Fatal("sweep of the failing clause did not report failure")
+	}
+	bugs := bugsNow()
+	if len(bugs) != 1 || bugs[0].Clause != "S.core.2" || bugs[0].Commit != commit1 || !bugs[0].Open() {
+		t.Fatalf("bugs after the failing sweep = %+v", bugs)
+	}
+	if !strings.Contains(bugs[0].Output, "no goodbye") {
+		t.Errorf("bug output = %q, want it to contain the failing proof's output", bugs[0].Output)
+	}
+
+	// Sweeping again while the clause still fails files no other bug, and
+	// the bug keeps the commit and output it was filed with.
+	if _, _, code := run(t, r.Dir, "sweep"); code != Failed {
+		t.Fatal("second sweep of the still-failing clause did not report failure")
+	}
+	bugs = bugsNow()
+	if len(bugs) != 1 || bugs[0].Commit != commit1 {
+		t.Fatalf("bugs after a second failing sweep = %+v, want the original bug unchanged", bugs)
+	}
+
+	// Fixing the clause and sweeping again closes the bug, recording the
+	// new commit the sweep checked out.
+	r.Write("bye_test.go", "package greet\n\nimport \"testing\"\n\n//shed:proves S.core.2\nfunc TestBye(t *testing.T) {}\n")
+	r.JJ("commit", "-m", "fix goodbye")
+	r.JJ("bookmark", "set", "main", "-r", "@-")
+	commit2 := r.Git("rev-parse", "main")
+
+	if _, _, code := run(t, r.Dir, "sweep"); code != OK {
+		t.Fatal("sweep of the fixed clause did not succeed")
+	}
+	bugs = bugsNow()
+	if len(bugs) != 1 || bugs[0].Open() || bugs[0].ClosedCommit != commit2 {
+		t.Fatalf("bugs after the fix = %+v, want the bug closed at %s", bugs, commit2)
+	}
+
+	if out := mustRun(t, r.Dir, "tracker", "rebuild"); !strings.Contains(out, "rebuilt the tracker from events.jsonl") {
+		t.Errorf("rebuild = %q", out)
+	}
+	if after := bugsNow(); !reflect.DeepEqual(bugs, after) {
+		t.Errorf("bugs after rebuild = %+v, want %+v", after, bugs)
 	}
 }

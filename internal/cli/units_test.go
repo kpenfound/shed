@@ -56,7 +56,7 @@ func seal(t *testing.T, state, change string) {
 //shed:proves S.track.1 S.track.9
 func TestStatus(t *testing.T) {
 	r := testrepo.Colocated(t)
-	noUnits := "no units\npainter: may propose now\namendments: 0 auto-accepted, 0 sampled (0 agreed, 0 disagreed, 0 unanswered)\n"
+	noUnits := "no units\npainter: may propose now\namendments: 0 auto-accepted, 0 sampled (0 agreed, 0 disagreed, 0 unanswered)\nbugs: none\n"
 	if out := mustRun(t, r.Dir, "status"); out != noUnits {
 		t.Errorf("empty status = %q", out)
 	}
@@ -84,6 +84,7 @@ func TestStatus(t *testing.T) {
 		unit.Short(a) + " Unit " + unit.Short(a) + " is contested: bounced 1 time, over the threshold of 0.",
 		"painter: 1 proposals are waiting in the shed (painter.max_proposed = 1)",
 		"amendments: 0 auto-accepted, 0 sampled (0 agreed, 0 disagreed, 0 unanswered)",
+		"bugs: none",
 	}
 	if got := collapsed(mustRun(t, r.Dir, "status")); !reflect.DeepEqual(got, want) {
 		t.Errorf("status =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -126,6 +127,7 @@ func TestStatusShowsWaitAndOverdue(t *testing.T) {
 	notice := unit.Short(a) + " Unit " + unit.Short(a) + " is contested: bounced 1 time, over the threshold of 0."
 	painter := "painter: 1 proposals are waiting in the shed (painter.max_proposed = 1)"
 	amendments := "amendments: 0 auto-accepted, 0 sampled (0 agreed, 0 disagreed, 0 unanswered)"
+	bugs := "bugs: none"
 	status := func(now time.Time) []string {
 		t.Helper()
 		return collapsed(runAt(t, r.Dir, state, now, env.status))
@@ -141,6 +143,7 @@ func TestStatusShowsWaitAndOverdue(t *testing.T) {
 		notice,
 		painter,
 		amendments,
+		bugs,
 	}
 	if got := status(base.Add(26 * time.Hour)); !reflect.DeepEqual(got, want) {
 		t.Errorf("status under the timeout =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -155,6 +158,7 @@ func TestStatusShowsWaitAndOverdue(t *testing.T) {
 		notice,
 		painter,
 		amendments,
+		bugs,
 	}
 	if got := status(base.Add(100 * time.Hour)); !reflect.DeepEqual(got, want) {
 		t.Errorf("status beyond the timeout =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -170,6 +174,7 @@ func TestStatusShowsWaitAndOverdue(t *testing.T) {
 		notice,
 		painter,
 		amendments,
+		bugs,
 	}
 	if got := status(base.Add(1000 * time.Hour)); !reflect.DeepEqual(got, want) {
 		t.Errorf("status with a zero timeout =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -224,6 +229,7 @@ func TestStatusShowsTheLandingOrder(t *testing.T) {
 		unit.Short(working) + " implementing 0 0 $0.00 Working",
 		"painter: may propose now",
 		"amendments: 0 auto-accepted, 0 sampled (0 agreed, 0 disagreed, 0 unanswered)",
+		"bugs: none",
 	}
 	if got := collapsed(mustRun(t, r.Dir, "status")); !reflect.DeepEqual(got, want) {
 		t.Errorf("status =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

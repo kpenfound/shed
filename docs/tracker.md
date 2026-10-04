@@ -450,14 +450,46 @@ main's current commit in a fresh directory outside every unit's workspace
 and reports pass or fail per clause. A sweep whose proofs ran records
 itself in the event log as one event naming no unit: the main commit it
 checked out, when it started and pass or fail for each clause it swept.
-`shed tracker rebuild` gives back the same sweeps. A sweep that cannot
-bring in or check out main records nothing, prints why and exits non-zero.
+
+The same event files and closes bugs. Each clause that fails the sweep and
+has no bug already open gets a new one, naming the clause, the commit the
+sweep checked out and the output of the clause's proofs in that sweep: what
+the `go test -json` run behind `shed prove` reported for each proof, joined
+proof by proof in the order it was reported, empty for a clause with no
+proofs. A clause whose bug is already open gets no second one, and its bug
+keeps the commit and output it was filed with. A clause whose open bug the
+sweep finds passing has that bug closed, recording the commit the sweep
+checked out. A clause missing from the sweep, as one removed from the spec
+is, leaves its bug as it is. The event line names each bug filed, with its
+clause and output, and each bug closed, so `shed tracker rebuild` gives
+back the same sweeps and the same bugs, open and closed. A sweep that
+cannot bring in or check out main records nothing, prints why and exits
+non-zero.
+
+## Bugs
+
+After the amendments line (see [autopilot](autopilot.md#autopilot)), `shed
+status` lists every open bug, oldest filed first, each with the clause it
+names, the commit it was filed at, and how long it has been open: the time
+from the start of the sweep that filed it to the moment the status is read,
+rounded down to the whole minute as the inbox's wait is (see
+[the owner inbox](#the-owner-inbox)). It prints `bugs: none` when no bug is
+open:
+
+```
+bugs:
+S.core.2  commit1  wait 26h5m
+S.core.3  commit2  wait 25h5m
+```
+
+A closed bug is not listed. Printing the list moves no unit and records
+nothing.
 
 ## Commands
 
 | Command | Does |
 | --- | --- |
-| `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost, estimate (with the cost since the seal that set it) and wait; a contested unit's line also carries an `overdue` mark once its wait passes `shed.contested_timeout`, and a queued unit's line shows its place in the landing order as `land #<n>` (see [autopilot](autopilot.md#autopilot)). Then comes the title. After the units it lists the notices waiting for the owner, then one line on whether the painter may propose now, and ends with one line counting auto-accepted and sampled horizon amendments, agreed, disagreed and unanswered (see [autopilot](autopilot.md#autopilot)). |
+| `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost, estimate (with the cost since the seal that set it) and wait; a contested unit's line also carries an `overdue` mark once its wait passes `shed.contested_timeout`, and a queued unit's line shows its place in the landing order as `land #<n>` (see [autopilot](autopilot.md#autopilot)). Then comes the title. After the units it lists the notices waiting for the owner, then one line on whether the painter may propose now, one line counting auto-accepted and sampled horizon amendments, agreed, disagreed and unanswered (see [autopilot](autopilot.md#autopilot)), and ends by listing the open bugs (see [bugs](#bugs), above). |
 | `shed inbox [-peek]` | Lists contested units with their wait and, once overdue, an `overdue` mark, the horizon changes on main, the charter questions from repeated rejections, the sampled horizon amendments and the units the frame builder archived on timeout, marking what is new since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
 | `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: moves it back to `proposed`, defers or rejects it to the archive, or approves its distant, eventual or split soon horizon amendment. |
@@ -468,7 +500,7 @@ bring in or check out main records nothing, prints why and exits non-zero.
 | `shed unit log <unit>` | Prints a unit's events. |
 | `shed unit path <unit>` | Prints the directory of the unit's workspace. |
 | `shed land <unit>` | Lands a queued unit that is not marked for horizon review on main, reports its footprint drift and how each unit in flight was rebased and reconciles the other units in flight against the horizon changes it made. See [version control](vcs.md) and [autopilot](autopilot.md#landing). |
-| `shed sweep` | Proves main's current commit in a fresh directory and records the sweep. See [clauses and proofs](clauses.md#sweeping-main). |
+| `shed sweep` | Proves main's current commit in a fresh directory and records the sweep, filing or closing bugs as it does (see [sweeps](#sweeps), above). See [clauses and proofs](clauses.md#sweeping-main). |
 | `shed tracker rebuild` | Rebuilds the database from the event log. |
 | `shed config` | Prints the operator settings in effect. |
 

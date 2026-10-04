@@ -8,14 +8,19 @@ import (
 	"github.com/kpenfound/shed/internal/testrepo"
 )
 
-// amendmentsLine returns the last line of shed status's output, trimmed:
-// the horizon-amendments line S.owner.21 adds after the painter line of
-// S.serve.9.
+// amendmentsLine returns the horizon-amendments line S.owner.21 adds after
+// the painter line of S.serve.9, found by its "amendments:" prefix rather
+// than assumed to be last: the bugs line of S.sweep.4 follows it in turn.
 func amendmentsLine(t *testing.T, dir string) string {
 	t.Helper()
-	out := strings.TrimRight(mustRun(t, dir, "status"), "\n")
-	lines := strings.Split(out, "\n")
-	return strings.TrimSpace(lines[len(lines)-1])
+	out := mustRun(t, dir, "status")
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "amendments:") {
+			return strings.TrimSpace(line)
+		}
+	}
+	t.Fatalf("status has no amendments line:\n%s", out)
+	return ""
 }
 
 // TestStatusCountsHorizonAmendments checks that shed status prints a line

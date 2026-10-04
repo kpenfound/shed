@@ -54,7 +54,7 @@ func (e env) sweep(args []string) int {
 		var sweptClauses []tracker.SweepClause
 		w := tabwriter.NewWriter(e.stdout, 0, 4, 2, ' ', 0)
 		for _, cr := range results {
-			sweptClauses = append(sweptClauses, tracker.SweepClause{Clause: cr.ID.String(), Pass: cr.Pass})
+			sweptClauses = append(sweptClauses, tracker.SweepClause{Clause: cr.ID.String(), Pass: cr.Pass, Output: cr.Output})
 			if cr.Pass {
 				fmt.Fprintf(w, "pass\t%s\n", cr.ID)
 				continue
@@ -118,9 +118,9 @@ func sweepProofs(ctx context.Context, root string, stderr io.Writer) ([]proof.Cl
 		}
 	}
 	runner := proof.Runner{Root: root, Prefix: cfg.Proofs.Runner, Stderr: stderr}
-	results, err := runner.Run(ctx, selected)
+	results, err := runner.RunDetailed(ctx, selected)
 	if err != nil {
 		return nil, err
 	}
-	return proof.ByClause(ids, proofs, results), nil
+	return proof.ByClauseDetailed(ids, proofs, results), nil
 }

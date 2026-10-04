@@ -146,8 +146,38 @@ func (e env) status(args []string) int {
 		}
 		fmt.Fprintf(e.stdout, "amendments: %d auto-accepted, %d sampled (%d agreed, %d disagreed, %d unanswered)\n",
 			counts.AutoAccepted, counts.Sampled, counts.Agreed, counts.Disagreed, counts.Unanswered)
-		return OK
+		return e.printBugs(t, now)
 	})
+}
+
+// printBugs prints shed status's bugs section, after the amendments line
+// (S.sweep.4): "bugs: none" when no bug is open, or a "bugs:" header
+// followed by one line per open bug, oldest filed first, naming its clause,
+// the commit it was filed at and how long it has been open.
+func (e env) printBugs(t *tracker.Tracker, now time.Time) int {
+	bugs, err := t.Bugs()
+	if err != nil {
+		return e.fail(err)
+	}
+	var open []tracker.Bug
+	for _, b := range bugs {
+		if b.Open() {
+			open = append(open, b)
+		}
+	}
+	if len(open) == 0 {
+		fmt.Fprintln(e.stdout, "bugs: none")
+		return OK
+	}
+	fmt.Fprintln(e.stdout, "bugs:")
+	w := tabwriter.NewWriter(e.stdout, 0, 4, 2, ' ', 0)
+	for _, b := range open {
+		fmt.Fprintf(w, "%s\t%s\twait %s\n", b.Clause, b.Commit, tracker.FormatWait(now.Sub(b.Filed)))
+	}
+	if err := w.Flush(); err != nil {
+		return e.fail(err)
+	}
+	return OK
 }
 
 // paintersReadiness is the line shed status prints for the painter, after

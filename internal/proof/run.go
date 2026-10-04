@@ -152,24 +152,47 @@ func (r Runner) Test(ctx context.Context, dirs []string, run string) (Report, er
 // Run runs the proofs and returns each one's status by Name.
 func (r Runner) Run(ctx context.Context, proofs []Proof) (map[string]Status, error) {
 	results := map[string]Status{}
+	for _, p := range proofs {
+		results[p.Name()] = NoResult
+	}
+	detailed, err := r.RunDetailed(ctx, proofs)
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range detailed {
+		results[d.Proof.Name()] = d.Status
+	}
+	return results, nil
+}
+
+// Result is one proof's status and the output go test -json reported for
+// it.
+type Result struct {
+	Proof  Proof
+	Status Status
+	Output string
+}
+
+// RunDetailed runs the proofs with go test -json as Run does, keeping each
+// one's output, in the order the run reported them (S.sweep.3).
+func (r Runner) RunDetailed(ctx context.Context, proofs []Proof) ([]Result, error) {
 	if len(proofs) == 0 {
-		return results, nil
+		return nil, nil
 	}
 	module, err := modulePath(r.Root)
 	if err != nil {
 		return nil, err
 	}
 	var tests, dirs []string
-	byTest := map[string]string{}
+	byTest := map[string]Proof{}
 	for _, p := range proofs {
-		results[p.Name()] = NoResult
 		if !slices.Contains(tests, p.Test) {
 			tests = append(tests, p.Test)
 		}
 		if !slices.Contains(dirs, p.Dir) {
 			dirs = append(dirs, p.Dir)
 		}
-		byTest[importPath(module, p.Dir)+"."+p.Test] = p.Name()
+		byTest[importPath(module, p.Dir)+"."+p.Test] = p
 	}
 	slices.Sort(tests)
 	slices.Sort(dirs)
@@ -177,12 +200,13 @@ func (r Runner) Run(ctx context.Context, proofs []Proof) (map[string]Status, err
 	if err != nil {
 		return nil, err
 	}
+	var out []Result
 	for _, t := range report.Tests {
-		if name, ok := byTest[t.Package+"."+t.Test]; ok {
-			results[name] = t.Status
+		if p, ok := byTest[t.Package+"."+t.Test]; ok {
+			out = append(out, Result{Proof: p, Status: t.Status, Output: t.Output})
 		}
 	}
-	return results, nil
+	return out, nil
 }
 
 // ClauseResult is the outcome of a clause's proofs. A clause passes only when
@@ -191,6 +215,10 @@ type ClauseResult struct {
 	ID     clause.ID
 	Pass   bool
 	Proofs map[string]Status
+	// Output is the output of the clause's proofs a run reported, joined
+	// proof by proof in the order the run reported them. ByClause leaves it
+	// empty; ByClauseDetailed sets it (S.sweep.3).
+	Output string
 }
 
 // ByClause folds proof results into clause results.
@@ -208,6 +236,26 @@ func ByClause(ids []clause.ID, proofs []Proof, results map[string]Status) []Clau
 			}
 		}
 		out = append(out, cr)
+	}
+	return out
+}
+
+// ByClauseDetailed folds detailed proof results into clause results,
+// keeping each clause's combined proof output (S.sweep.3).
+func ByClauseDetailed(ids []clause.ID, proofs []Proof, results []Result) []ClauseResult {
+	statuses := map[string]Status{}
+	for _, r := range results {
+		statuses[r.Proof.Name()] = r.Status
+	}
+	out := ByClause(ids, proofs, statuses)
+	for i := range out {
+		var output strings.Builder
+		for _, r := range results {
+			if slices.Contains(r.Proof.Clauses, out[i].ID) {
+				output.WriteString(r.Output)
+			}
+		}
+		out[i].Output = output.String()
 	}
 	return out
 }

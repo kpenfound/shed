@@ -193,14 +193,22 @@ CREATE TABLE IF NOT EXISTS sweeps (
 	started_at TEXT NOT NULL,
 	clauses TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS bugs (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	clause TEXT NOT NULL,
+	commit_id TEXT NOT NULL,
+	output TEXT NOT NULL DEFAULT '',
+	filed_at TEXT NOT NULL,
+	closed_commit TEXT NOT NULL DEFAULT ''
+);
 `
 
-var tables = []string{"units", "seals", "footprints", "actual_footprints", "sessions", "steps", "notices", "objections", "sweeps", "meta"}
+var tables = []string{"units", "seals", "footprints", "actual_footprints", "sessions", "steps", "notices", "objections", "sweeps", "bugs", "meta"}
 
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 20
+const schemaVersion = 21
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -569,8 +577,23 @@ func apply(tx *sql.Tx, e Event) error {
 		if err != nil {
 			return err
 		}
-		return exec(`INSERT INTO sweeps (seq, commit_id, started_at, clauses) VALUES (?, ?, ?, ?)`,
-			e.Seq, e.Commit, e.Sweep.Started.UTC().Format(time.RFC3339Nano), string(clauses))
+		if err := exec(`INSERT INTO sweeps (seq, commit_id, started_at, clauses) VALUES (?, ?, ?, ?)`,
+			e.Seq, e.Commit, e.Sweep.Started.UTC().Format(time.RFC3339Nano), string(clauses)); err != nil {
+			return err
+		}
+		filedAt := e.Sweep.Started.UTC().Format(time.RFC3339Nano)
+		for _, f := range e.Sweep.Filed {
+			if err := exec(`INSERT INTO bugs (clause, commit_id, output, filed_at) VALUES (?, ?, ?, ?)`,
+				f.Clause, e.Commit, f.Output, filedAt); err != nil {
+				return err
+			}
+		}
+		for _, clause := range e.Sweep.Closed {
+			if err := exec(`UPDATE bugs SET closed_commit = ? WHERE clause = ? AND closed_commit = ''`, e.Commit, clause); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	return fmt.Errorf("unknown event kind %q", e.Kind)
 }

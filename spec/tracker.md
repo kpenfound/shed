@@ -6,17 +6,21 @@
   `tracker.db`, the event log `events.jsonl` and a `sessions` directory.
 - **S.track.2** (H.track.1) The tracker holds each unit's title, state,
   bounce count, amendment count, latest reason, shelf, seal, footprint,
-  finished steps, sessions and notices.
+  finished steps, sessions and notices. It also holds the sweeps of main
+  (S.sweep.2) and the bugs they file (S.sweep.3).
 - **S.track.3** (H.track.2) Every change to the tracker is appended to the
   event log as one JSON line before it reaches the database. Each line names
   its sequence number, time, kind, unit, actor and reason, the states before
-  and after a move, and the cost of a finished session.
+  and after a move, and the cost of a finished session. A sweep's line also
+  names the main commit it checked out, the time it started, pass or fail
+  for each clause it swept, each bug it files with its clause and proof
+  output, and each bug it closes.
 - **S.track.4** (H.track.1) One shed process changes the tracker at a time.
   A change waits for the state directory's lock, and sequence numbers never
   repeat.
 - **S.track.5** (H.track.3) `shed tracker rebuild` empties the database and
   replays the event log, giving back the same units, seals, footprints,
-  counters, sessions and notices.
+  counters, sessions, notices, sweeps and bugs.
 - **S.track.6** (H.track.3, H.track.5) Opening the tracker applies any logged
   events the database lacks. A last line cut short by a crash is ignored, and
   the next change overwrites it.

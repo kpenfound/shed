@@ -429,6 +429,10 @@ and sampled horizon amendments [`shed tracker rebuild` keeps](tracker.md#the-own
 prints, zero counts included, whatever `owner.sample_every` is, and printing
 it moves no unit and records nothing (S.owner.21).
 
+After the amendments line, `shed status` ends by listing the bugs that
+sweeps of main have filed. See [bugs](tracker.md#bugs) for what the list
+shows and how it is read.
+
 The painter works on the gap: near and soon horizon clauses that are not
 realised and that no unit in flight advances. Each gap clause comes with the
 spec clauses already advancing it and, if it refines another clause, that

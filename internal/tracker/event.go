@@ -254,18 +254,30 @@ type RebasedEv struct {
 	Outcome string `json:"outcome"`
 }
 
-// SweepEv describes a sweep of main in the event log: when it started and
-// pass or fail for each spec clause it swept.
+// SweepEv describes a sweep of main in the event log: when it started, pass
+// or fail for each spec clause it swept, each bug it filed with its clause
+// and proof output, and each bug it closed (S.sweep.3, S.track.3).
 type SweepEv struct {
 	Started time.Time     `json:"started"`
 	Clauses []SweepClause `json:"clauses"`
+	Filed   []FiledBugEv  `json:"filed,omitempty"`
+	Closed  []string      `json:"closed,omitempty"`
 }
 
-// SweepClause is one spec clause a sweep checked, and whether its proofs
-// passed.
+// SweepClause is one spec clause a sweep checked, whether its proofs passed,
+// and, kept as the sweep ran them, the output of its proofs in that sweep
+// (S.sweep.3).
 type SweepClause struct {
 	Clause string `json:"clause"`
 	Pass   bool   `json:"pass"`
+	Output string `json:"output,omitempty"`
+}
+
+// FiledBugEv names a bug a sweep filed: the clause that failed and the
+// output of its proofs in that sweep (S.sweep.3).
+type FiledBugEv struct {
+	Clause string `json:"clause"`
+	Output string `json:"output,omitempty"`
 }
 
 // ObjectionEv describes an objection, its withdrawal or its answer in the

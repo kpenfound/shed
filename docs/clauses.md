@@ -141,9 +141,12 @@ every unit and the working copy exactly as it found them, apart from the
 recovery any shed process runs when it opens the repository and the
 tracker. It calls no model. A sweep whose proofs ran records the commit it
 checked out, when it started and pass or fail per clause in the tracker and
-the event log, naming no unit; `shed tracker rebuild` gives the same sweeps
-back. A sweep that cannot bring in or check out main records nothing and
-exits non-zero with a reason on stderr.
+the event log, naming no unit; the same recording files a bug for each
+clause newly failing and closes the bug of each clause found passing, and
+`shed tracker rebuild` gives the same sweeps and bugs back (see
+[sweeps](tracker.md#sweeps) and [bugs](tracker.md#bugs)). A sweep that
+cannot bring in or check out main records nothing and exits non-zero with a
+reason on stderr.
 
 ## Commands
 
@@ -155,7 +158,7 @@ exits non-zero with a reason on stderr.
 | `shed trace` | Lists every horizon clause with its tier, whether it is realised, the spec clauses advancing it, and the clause it refines or the clauses refining it, then the near and soon clauses that refine nothing. |
 | `shed gap` | Lists the horizon clauses not yet realised, with their tier, the spec clauses advancing them, and the ID and tier of the clause each refines. |
 | `shed prove [<id>...]` | Runs proofs and reports per clause. |
-| `shed sweep` | Checks main's current commit out into a fresh directory, runs its proofs and reports per clause, and records the sweep. |
+| `shed sweep` | Checks main's current commit out into a fresh directory, runs its proofs and reports per clause, and records the sweep, filing or closing bugs as it does. |
 
 ## Diffs
 
