@@ -61,9 +61,27 @@
   the tracker alone: the landing order is the order the units opened, as
   `shed status` lists them under S.track.9. When `shed serve` lands
   (S.serve.4), it lands the first queued unit in the landing order that is
-  not marked for horizon review (S.queue.5). A marked unit keeps its place,
-  and the units behind it may land before it.
+  neither marked for horizon review (S.queue.5) nor held back (S.queue.9).
+  A marked or held back unit keeps its place, and the units behind it may
+  land before it.
 - **S.queue.8** (H.queue.6) On the line of each queued unit it lists under
   S.track.9, `shed status` shows the unit's place in the landing order of
   S.queue.7 as `land #<n>`, counting from 1 and counting every queued unit,
   marked for horizon review or not. Units in other states show no place.
+- **S.queue.9** (H.queue.7) Two queued units are entangled when the spec
+  footprints recorded at their last seals, the clauses each modifies and
+  depends on, share a clause, as S.fp.5 counts it; horizon clauses never
+  count. A queued unit waits behind every queued unit entangled with it
+  whose spec footprint holds fewer distinct clauses, or as many and an
+  earlier place in the landing order of S.queue.7. A unit that waits behind
+  at least one unit is held back: `shed serve` does not land it, and
+  `shed land` refuses it, naming the units it waits behind by their short
+  change IDs, and lands nothing. Only queued units count, so a unit stops
+  waiting behind another once that unit lands or leaves queued. A held back
+  unit keeps its place in the landing order, as does a unit entangled with
+  no other queued unit. Being held back moves no unit and records no event.
+- **S.queue.10** (H.queue.7) On the line of each queued unit held back
+  under S.queue.9, `shed status` shows, after its place in the landing
+  order (S.queue.8), `waits behind` followed by the short change IDs of the
+  units it waits behind, in the landing order and separated by commas. A
+  unit that is not held back shows no such list.

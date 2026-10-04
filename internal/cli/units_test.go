@@ -192,6 +192,69 @@ func toQueued(t *testing.T, dir, state, title string) string {
 	return change
 }
 
+// sealWithFootprint seals a unit directly through the tracker with the
+// given footprint, as seal does with whatever footprint the unit already
+// had.
+func sealWithFootprint(t *testing.T, state, change string, fp tracker.Footprint) {
+	t.Helper()
+	tr, err := tracker.Open(state, tracker.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Close()
+	if err := tr.Seal(change, "main1", "unitcommit", fp, unit.Committee, "consensus", nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// toQueuedWithFootprint opens a unit, seals it with the given footprint and
+// moves it straight through to queued.
+func toQueuedWithFootprint(t *testing.T, dir, state, title string, fp tracker.Footprint) string {
+	t.Helper()
+	change := openUnit(t, dir, title)
+	sealWithFootprint(t, state, change, fp)
+	for _, s := range []string{"implementing", "verifying", "queued"} {
+		mustRun(t, dir, "unit", "move", change, s, "by hand")
+	}
+	return change
+}
+
+// TestStatusShowsUnitsWaitingBehind checks that shed status shows, after a
+// held back unit's place in the landing order (S.queue.8), "waits behind"
+// followed by the short change IDs, in the landing order and separated by
+// commas, of every queued unit it waits behind under S.queue.9, and shows
+// no such list for a unit that is not held back.
+//
+//shed:proves S.queue.10
+func TestStatusShowsUnitsWaitingBehind(t *testing.T) {
+	r := testrepo.Colocated(t)
+	state := filepath.Join(r.Dir, DefaultStateDir)
+	r.Write(".shed/config.toml", "[shed]\nbounce_threshold = 0\n")
+
+	// small and big share a clause; big is larger, so it waits behind
+	// small. huge shares a clause with each and is larger than both, so it
+	// waits behind both, in the order they opened. independent shares no
+	// clause with anything and is not held back.
+	small := toQueuedWithFootprint(t, r.Dir, state, "Small", tracker.Footprint{Modifies: []string{"S.core.1"}})
+	big := toQueuedWithFootprint(t, r.Dir, state, "Big", tracker.Footprint{Modifies: []string{"S.core.1", "S.core.2"}})
+	huge := toQueuedWithFootprint(t, r.Dir, state, "Huge", tracker.Footprint{Modifies: []string{"S.core.1", "S.core.2", "S.core.3"}})
+	independent := toQueuedWithFootprint(t, r.Dir, state, "Independent", tracker.Footprint{Modifies: []string{"S.other.1"}})
+
+	want := []string{
+		"UNIT STATE BOUNCES AMENDMENTS COST ESTIMATE WAIT OVERDUE LAND TITLE",
+		unit.Short(small) + " queued 0 0 $0.00 land #1 Small",
+		unit.Short(big) + " queued 0 0 $0.00 land #2 waits behind " + unit.Short(small) + " Big",
+		unit.Short(huge) + " queued 0 0 $0.00 land #3 waits behind " + unit.Short(small) + ", " + unit.Short(big) + " Huge",
+		unit.Short(independent) + " queued 0 0 $0.00 land #4 Independent",
+		"painter: may propose now",
+		"amendments: 0 auto-accepted, 0 sampled (0 agreed, 0 disagreed, 0 unanswered)",
+		"bugs: none",
+	}
+	if got := collapsed(mustRun(t, r.Dir, "status")); !reflect.DeepEqual(got, want) {
+		t.Errorf("status =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
 // TestStatusShowsTheLandingOrder checks that shed status shows each queued
 // unit's place in the landing order of S.queue.7 as "land #<n>", counting
 // every queued unit whether it is marked for horizon review or not, and

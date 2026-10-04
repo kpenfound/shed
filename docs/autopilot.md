@@ -375,7 +375,7 @@ land` prints each unit's outcome, and each unit's log records it. See
 
 | Controller | Starts | When |
 | --- | --- | --- |
-| wheelbuilder | horizon review, then landing | a unit is marked for horizon review and has no stage running; the first queued unit in landing order that is not marked, one landing at a time |
+| wheelbuilder | horizon review, then landing | a unit is marked for horizon review and has no stage running; the first queued unit in landing order that is neither marked nor held back, one landing at a time |
 | verifier | verification | a unit is verifying |
 | mechanic | implementation | a unit is implementing, or sealed while fewer than `concurrency.units` units implement or verify |
 | shed | debate | a proposal declares a horizon clause and an estimate, and fewer than `concurrency.in_flight` units are sealed through queued; one debate at a time |
@@ -385,11 +385,17 @@ land` prints each unit's outcome, and each unit's log records it. See
 
 The landing order is the order the queued units opened, as `shed status`
 lists them, and is computed from the tracker alone (S.queue.7). `shed serve`
-lands the first unit in that order that is not marked for horizon review; a
-marked unit keeps its place, so the units behind it may land before it.
-`shed status` shows each queued unit's place in the landing order beside its
-line, as `land #<n>`, counting from one and counting every queued unit,
-marked or not (S.queue.8).
+lands the first unit in that order that is neither marked for horizon review
+nor held back; a marked or held back unit keeps its place, so the units
+behind it may land before it. `shed status` shows each queued unit's place
+in the landing order beside its line, as `land #<n>`, counting from one and
+counting every queued unit, marked or not (S.queue.8).
+
+A unit is held back when it waits behind another queued unit: see [held
+back units](tracker.md#held-back-units) (S.queue.9). `shed status` names,
+after a held back unit's `land #<n>`, the units it waits behind, as `waits
+behind` followed by their short change IDs in landing order and separated by
+commas (S.queue.10).
 
 Units opened by `shed frame` never count toward `painter.max_proposed`, and
 `shed serve -once` does not report them as drafts waiting to be declared.

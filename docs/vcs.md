@@ -84,7 +84,8 @@ writes is thrown away. See [sessions](sessions.md#bundles-and-prompts).
 ## Landing
 
 `shed land <unit>` lands a queued, sealed unit, and refuses one marked for
-[horizon review](autopilot.md#landing):
+[horizon review](autopilot.md#landing) or [held back](tracker.md#held-back-units)
+behind another queued unit:
 
 1. Fetch main from the configured remote.
 2. Rebase the unit's change onto main. A change that conflicts with main, or

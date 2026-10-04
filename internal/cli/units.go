@@ -86,6 +86,7 @@ func (e env) status(args []string) int {
 			w := tabwriter.NewWriter(e.stdout, 0, 4, 2, ' ', 0)
 			fmt.Fprintln(w, "UNIT\tSTATE\tBOUNCES\tAMENDMENTS\tCOST\tESTIMATE\tWAIT\tOVERDUE\tLAND\tTITLE")
 			land := 0
+			held := factory.HeldBack(units)
 			for _, u := range units {
 				var wait, overdueMark string
 				if u.State == unit.Contested {
@@ -103,6 +104,13 @@ func (e env) status(args []string) int {
 				if u.State == unit.Queued {
 					land++
 					place = fmt.Sprintf("land #%d", land)
+					if blockers := held[u.Change]; len(blockers) > 0 {
+						names := make([]string, len(blockers))
+						for i, b := range blockers {
+							names[i] = unit.Short(b)
+						}
+						place += " waits behind " + strings.Join(names, ", ")
+					}
 				}
 				fmt.Fprintf(w, "%s\t%s\t%d\t%d\t$%.2f\t%s\t%s\t%s\t%s\t%s\n",
 					unit.Short(u.Change), u.State, u.Bounces, u.Amendments, u.CostUSD, estimate, wait, overdueMark, place, u.Title)

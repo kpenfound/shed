@@ -591,6 +591,13 @@ func (f *Factory) LandReport(ctx context.Context, change string) (Outcome, []Reb
 	if err := unmarked(u, "landed"); err != nil {
 		return "", nil, err
 	}
+	units, err := f.Tracker.Units()
+	if err != nil {
+		return "", nil, err
+	}
+	if blockers := HeldBack(units)[u.Change]; len(blockers) > 0 {
+		return "", nil, heldBackErr(u.Change, blockers)
+	}
 	if reason, over := f.overrun(u); over {
 		return unreported(f.overrunReopen(ctx, u, reason))
 	}

@@ -163,6 +163,33 @@ A unit may depend only on spec clauses that are on main or that it modifies
 itself. Depending on a clause another in-flight unit is adding is refused.
 Wait for that unit to land, or merge the two units.
 
+### Held back units
+
+Entanglement also holds back landing. Two *queued* units are entangled when
+the spec footprints recorded at their last seals share a clause, the same
+test as above; horizon clauses never count. A queued unit waits behind every
+queued unit entangled with it whose spec footprint holds fewer distinct
+clauses, or as many and an earlier place in the landing order (see
+[autopilot](autopilot.md#autopilot)). Only queued units count, so a unit
+stops waiting behind another once that unit lands or leaves `queued`.
+
+A unit that waits behind at least one unit is held back: `shed serve` lands
+nothing for it, and `shed land` refuses it, naming the units it waits behind
+by their short change IDs, and lands nothing. A held back unit keeps its
+place in the landing order, as does a unit entangled with no other queued
+unit. Being held back moves no unit and records no event, unlike the
+sealing-time advisory above.
+
+`shed status` shows, after a held back unit's place in the landing order,
+`waits behind` followed by the short change IDs of the units it waits
+behind, in the landing order and separated by commas:
+
+```
+qpvuntsm queued 0 0 $0.00 land #2 waits behind qrstuvwx Big
+```
+
+A unit that is not held back shows no such list.
+
 ## The owner inbox
 
 `shed inbox` gathers what is waiting for the owner. It lists every contested
@@ -530,7 +557,7 @@ nothing.
 
 | Command | Does |
 | --- | --- |
-| `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost, estimate (with the cost since the seal that set it) and wait; a contested unit's line also carries an `overdue` mark once its wait passes `shed.contested_timeout`, and a queued unit's line shows its place in the landing order as `land #<n>` (see [autopilot](autopilot.md#autopilot)). Then comes the title. After the units it lists the notices waiting for the owner, then one line on whether the painter may propose now, one line counting auto-accepted and sampled horizon amendments, agreed, disagreed and unanswered (see [autopilot](autopilot.md#autopilot)), and ends by listing the open bugs (see [bugs](#bugs), above). |
+| `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost, estimate (with the cost since the seal that set it) and wait; a contested unit's line also carries an `overdue` mark once its wait passes `shed.contested_timeout`, and a queued unit's line shows its place in the landing order as `land #<n>`, followed by `waits behind` and the units it waits behind when it is [held back](#held-back-units) (see [autopilot](autopilot.md#autopilot)). Then comes the title. After the units it lists the notices waiting for the owner, then one line on whether the painter may propose now, one line counting auto-accepted and sampled horizon amendments, agreed, disagreed and unanswered (see [autopilot](autopilot.md#autopilot)), and ends by listing the open bugs (see [bugs](#bugs), above). |
 | `shed inbox [-peek]` | Lists contested units with their wait and, once overdue, an `overdue` mark, the horizon changes on main, the charter questions from repeated rejections, the sampled horizon amendments and the units the frame builder archived on timeout, marking what is new since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
 | `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: moves it back to `proposed`, defers or rejects it to the archive, or approves its distant, eventual or split soon horizon amendment. |
@@ -540,7 +567,7 @@ nothing.
 | `shed unit reopen [-amendment] <unit> <reason>` | Sends a unit back to the shed. |
 | `shed unit log <unit>` | Prints a unit's events. |
 | `shed unit path <unit>` | Prints the directory of the unit's workspace. |
-| `shed land <unit>` | Lands a queued unit that is not marked for horizon review on main, reports its footprint drift and how each unit in flight was rebased and reconciles the other units in flight against the horizon changes it made. See [version control](vcs.md) and [autopilot](autopilot.md#landing). |
+| `shed land <unit>` | Lands a queued unit that is not marked for horizon review or [held back](#held-back-units) on main, reports its footprint drift and how each unit in flight was rebased and reconciles the other units in flight against the horizon changes it made. See [version control](vcs.md) and [autopilot](autopilot.md#landing). |
 | `shed sweep` | Proves main's current commit in a fresh directory and records the sweep, filing or closing bugs as it does (see [sweeps](#sweeps), above). See [clauses and proofs](clauses.md#sweeping-main). |
 | `shed tracker rebuild` | Rebuilds the database from the event log. |
 | `shed records` | Prints the event log as L0 records (see [records](#records), above). |

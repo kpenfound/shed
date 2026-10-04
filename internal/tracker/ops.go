@@ -136,14 +136,14 @@ func (t *Tracker) Entangle(change string, order func([]string) []string) error {
 		if err := rows.Err(); err != nil {
 			return nil, err
 		}
-		mine := own.specClauses()
+		mine := own.SpecClauses()
 		var events []Event
 		for _, other := range others {
 			fp, err := loadFootprint(tx, "footprints", other)
 			if err != nil {
 				return nil, err
 			}
-			theirs := fp.specClauses()
+			theirs := fp.SpecClauses()
 			var shared []string
 			for _, id := range mine {
 				if slices.Contains(theirs, id) {
@@ -161,9 +161,9 @@ func (t *Tracker) Entangle(change string, order func([]string) []string) error {
 	return err
 }
 
-// specClauses returns the spec clauses a footprint modifies or depends on,
+// SpecClauses returns the spec clauses a footprint modifies or depends on,
 // each once.
-func (fp Footprint) specClauses() []string {
+func (fp Footprint) SpecClauses() []string {
 	var out []string
 	for _, id := range slices.Concat(fp.Modifies, fp.Depends) {
 		if parsed, err := clause.ParseID(id); err == nil && parsed.Kind == clause.Spec && !slices.Contains(out, id) {

@@ -150,11 +150,12 @@ func (f *Factory) controllers() []controller {
 			if s.reviewing() {
 				return nil
 			}
+			held := HeldBack(units)
 			for _, u := range oldestFirst(units, unit.Queued) {
 				if s.isBusy(landerKey) {
 					return nil
 				}
-				if u.Review {
+				if u.Review || len(held[u.Change]) > 0 {
 					continue
 				}
 				change := u.Change

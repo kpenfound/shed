@@ -287,7 +287,7 @@ distant and get promoted as the soon tier drains.
   another rule moves a unit, the order is the order the units opened, as
   `shed status` lists them. `shed status` shows each queued unit's place in
   the landing order.
-- **H.queue.7** (near, refines H.queue.3) Two queued units are entangled
+- **H.queue.7** (near, refines H.queue.3, realised) Two queued units are entangled
   when the spec footprints recorded at their last seals share a clause, as
   S.fp.5 counts it. A queued unit lands only after every queued unit
   entangled with it whose spec footprint has fewer clauses, or as many and
