@@ -375,13 +375,21 @@ land` prints each unit's outcome, and each unit's log records it. See
 
 | Controller | Starts | When |
 | --- | --- | --- |
-| wheelbuilder | horizon review, then landing | a unit is marked for horizon review and has no stage running; a unit is queued and not marked, one landing at a time |
+| wheelbuilder | horizon review, then landing | a unit is marked for horizon review and has no stage running; the first queued unit in landing order that is not marked, one landing at a time |
 | verifier | verification | a unit is verifying |
 | mechanic | implementation | a unit is implementing, or sealed while fewer than `concurrency.units` units implement or verify |
 | shed | debate | a proposal declares a horizon clause and an estimate, and fewer than `concurrency.in_flight` units are sealed through queued; one debate at a time |
 | painter | a proposal | the gap is not empty, fewer than `painter.max_proposed` units are proposed, and the painter is not backing off |
 | frame builder | an expiry session (see [automatic expiry](#automatic-expiry)) | a contested unit `shed inbox` would mark overdue; oldest first, one session at a time, before framing |
 | frame builder | a horizon framing | no unrealised near/soon clauses remain on main; one session at a time |
+
+The landing order is the order the queued units opened, as `shed status`
+lists them, and is computed from the tracker alone (S.queue.7). `shed serve`
+lands the first unit in that order that is not marked for horizon review; a
+marked unit keeps its place, so the units behind it may land before it.
+`shed status` shows each queued unit's place in the landing order beside its
+line, as `land #<n>`, counting from one and counting every queued unit,
+marked or not (S.queue.8).
 
 Units opened by `shed frame` never count toward `painter.max_proposed`, and
 `shed serve -once` does not report them as drafts waiting to be declared.

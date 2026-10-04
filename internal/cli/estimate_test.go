@@ -154,7 +154,7 @@ func TestStatusShowsEstimateAndCostSinceSeal(t *testing.T) {
 	tr.Close()
 
 	want := []string{
-		"UNIT STATE BOUNCES AMENDMENTS COST ESTIMATE WAIT OVERDUE TITLE",
+		"UNIT STATE BOUNCES AMENDMENTS COST ESTIMATE WAIT OVERDUE LAND TITLE",
 		unit.Short(unsealed) + " proposed 0 0 $0.75 Say goodbye",
 		unit.Short(legacy) + " sealed 0 0 $0.40 Shrug",
 		unit.Short(fresh) + " sealed 0 0 $0.00 $0.00 of $50.00 Wave",

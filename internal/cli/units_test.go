@@ -76,7 +76,7 @@ func TestStatus(t *testing.T) {
 	// TestStatusShowsWaitAndOverdue; here the contested unit's wait renders
 	// as under an hour and the proposed unit shows neither.
 	want := []string{
-		"UNIT STATE BOUNCES AMENDMENTS COST ESTIMATE WAIT OVERDUE TITLE",
+		"UNIT STATE BOUNCES AMENDMENTS COST ESTIMATE WAIT OVERDUE LAND TITLE",
 		unit.Short(a) + " contested 1 1 $0.00 0h0m Say goodbye",
 		unit.Short(b) + " proposed 0 0 $0.00 Wave",
 		"Waiting for the owner:",
@@ -131,7 +131,7 @@ func TestStatusShowsWaitAndOverdue(t *testing.T) {
 	// Under the timeout: the contested unit's wait renders and it is not
 	// overdue; the proposed unit shows neither.
 	want := []string{
-		"UNIT STATE BOUNCES AMENDMENTS COST ESTIMATE WAIT OVERDUE TITLE",
+		"UNIT STATE BOUNCES AMENDMENTS COST ESTIMATE WAIT OVERDUE LAND TITLE",
 		row("26h0m", false),
 		unit.Short(b) + " proposed 0 0 $0.00 Wave",
 		"Waiting for the owner:",
@@ -144,7 +144,7 @@ func TestStatusShowsWaitAndOverdue(t *testing.T) {
 
 	// Beyond the timeout: the unit is marked overdue.
 	want = []string{
-		"UNIT STATE BOUNCES AMENDMENTS COST ESTIMATE WAIT OVERDUE TITLE",
+		"UNIT STATE BOUNCES AMENDMENTS COST ESTIMATE WAIT OVERDUE LAND TITLE",
 		row("100h0m", true),
 		unit.Short(b) + " proposed 0 0 $0.00 Wave",
 		"Waiting for the owner:",
@@ -158,7 +158,7 @@ func TestStatusShowsWaitAndOverdue(t *testing.T) {
 	// A zero timeout marks no unit overdue however long the wait.
 	r.Write(".shed/config.toml", "[shed]\nbounce_threshold = 0\ncontested_timeout = \"0s\"\n")
 	want = []string{
-		"UNIT STATE BOUNCES AMENDMENTS COST ESTIMATE WAIT OVERDUE TITLE",
+		"UNIT STATE BOUNCES AMENDMENTS COST ESTIMATE WAIT OVERDUE LAND TITLE",
 		row("1000h0m", false),
 		unit.Short(b) + " proposed 0 0 $0.00 Wave",
 		"Waiting for the owner:",
@@ -167,6 +167,59 @@ func TestStatusShowsWaitAndOverdue(t *testing.T) {
 	}
 	if got := status(base.Add(1000 * time.Hour)); !reflect.DeepEqual(got, want) {
 		t.Errorf("status with a zero timeout =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// toQueued opens, seals and moves a unit straight through to queued.
+func toQueued(t *testing.T, dir, state, title string) string {
+	t.Helper()
+	change := openUnit(t, dir, title)
+	seal(t, state, change)
+	for _, s := range []string{"implementing", "verifying", "queued"} {
+		mustRun(t, dir, "unit", "move", change, s, "by hand")
+	}
+	return change
+}
+
+// TestStatusShowsTheLandingOrder checks that shed status shows each queued
+// unit's place in the landing order of S.queue.7 as "land #<n>", counting
+// every queued unit whether it is marked for horizon review or not, and
+// shows no place for a unit in another state.
+//
+//shed:proves S.queue.8
+func TestStatusShowsTheLandingOrder(t *testing.T) {
+	r := testrepo.Colocated(t)
+	state := filepath.Join(r.Dir, DefaultStateDir)
+	r.Write(".shed/config.toml", "[shed]\nbounce_threshold = 0\n")
+
+	first := toQueued(t, r.Dir, state, "First")
+	second := toQueued(t, r.Dir, state, "Second")
+	third := toQueued(t, r.Dir, state, "Third")
+	working := openUnit(t, r.Dir, "Working")
+	seal(t, state, working)
+	mustRun(t, r.Dir, "unit", "move", working, "implementing", "by hand")
+
+	// The first unit is marked for horizon review (S.queue.5): it still
+	// counts, and keeps its place, in the landing order.
+	tr, err := tracker.Open(state, tracker.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tr.AddReviewNotice(first, unit.Shed, "horizon", "reworded", unit.Shed, true); err != nil {
+		t.Fatal(err)
+	}
+	tr.Close()
+
+	want := []string{
+		"UNIT STATE BOUNCES AMENDMENTS COST ESTIMATE WAIT OVERDUE LAND TITLE",
+		unit.Short(first) + " queued 0 0 $0.00 land #1 First",
+		unit.Short(second) + " queued 0 0 $0.00 land #2 Second",
+		unit.Short(third) + " queued 0 0 $0.00 land #3 Third",
+		unit.Short(working) + " implementing 0 0 $0.00 Working",
+		"painter: may propose now",
+	}
+	if got := collapsed(mustRun(t, r.Dir, "status")); !reflect.DeepEqual(got, want) {
+		t.Errorf("status =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
 

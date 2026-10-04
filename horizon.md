@@ -281,7 +281,7 @@ distant and get promoted as the soon tier drains.
   changed and otherwise re-seals it with a notice.
 - **H.queue.5** (soon, realised) The same three outcomes apply when the horizon
   changes, using horizon footprints.
-- **H.queue.6** (near, refines H.queue.3) Shed computes a landing order for
+- **H.queue.6** (near, refines H.queue.3, realised) Shed computes a landing order for
   the queued units from the tracker alone, and `shed serve` lands the first
   unit in that order that nothing holds back, such as a horizon review. Until
   another rule moves a unit, the order is the order the units opened, as

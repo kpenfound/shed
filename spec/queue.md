@@ -57,3 +57,13 @@
   marked for horizon review under S.queue.5 because of them, keeps its state
   and its seal, and moves nothing. A unit that reopens under S.queue.4 for
   the same landing gets no notice.
+- **S.queue.7** (H.queue.6) Shed orders the queued units for landing from
+  the tracker alone: the landing order is the order the units opened, as
+  `shed status` lists them under S.track.9. When `shed serve` lands
+  (S.serve.4), it lands the first queued unit in the landing order that is
+  not marked for horizon review (S.queue.5). A marked unit keeps its place,
+  and the units behind it may land before it.
+- **S.queue.8** (H.queue.6) On the line of each queued unit it lists under
+  S.track.9, `shed status` shows the unit's place in the landing order of
+  S.queue.7 as `land #<n>`, counting from 1 and counting every queued unit,
+  marked for horizon review or not. Units in other states show no place.
