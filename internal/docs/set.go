@@ -78,6 +78,12 @@ func missing(path string, err error) clause.Problem {
 	return clause.Problem{File: path, Msg: err.Error()}
 }
 
+// Missing reports whether a problem Load returns says a document or file is
+// simply absent, as opposed to malformed or unreadable for another reason.
+func Missing(p clause.Problem) bool {
+	return p.Line == 0 && p.Msg == "missing"
+}
+
 // Documents returns the charter, the spec files and the horizon.
 func (s *Set) Documents() []*clause.Document {
 	docs := []*clause.Document{s.Charter}

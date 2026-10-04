@@ -14,6 +14,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 )
 
 // ErrNotExist reports a file or directory missing from a source.
@@ -172,23 +173,23 @@ func IsAncestor(root, commit, rev string) (bool, error) {
 	return err == nil, err
 }
 
-// Commit is a commit's hash, author name, subject line and full message, as
-// FirstParentSince reads them.
+// Commit is a commit's hash, author name, committer time, subject line and
+// full message, as FirstParent and FirstParentSince read them.
 type Commit struct {
 	Hash    string
 	Author  string
+	Time    time.Time
 	Subject string
 	Message string
 }
 
-// FirstParentSince lists, oldest first, the commits on head's first-parent
-// history after since, excluding since itself. It fails when since is not on
-// that history.
-func FirstParentSince(root, since, head string) ([]Commit, error) {
+// firstParentChain lists, oldest first, every commit on head's first-parent
+// history.
+func firstParentChain(root, head string) ([]Commit, error) {
 	const field = "\x01"
 	const record = "\x02"
 	out, err := run(root, "log", "--first-parent",
-		"--format="+record+"%H"+field+"%an"+field+"%s"+field+"%B", head)
+		"--format="+record+"%H"+field+"%an"+field+"%cI"+field+"%s"+field+"%B", head)
 	if err != nil {
 		return nil, err
 	}
@@ -197,22 +198,42 @@ func FirstParentSince(root, since, head string) ([]Commit, error) {
 		if rec == "" {
 			continue
 		}
-		parts := strings.SplitN(rec, field, 4)
-		if len(parts) != 4 {
+		parts := strings.SplitN(rec, field, 5)
+		if len(parts) != 5 {
 			continue
 		}
+		t, err := time.Parse(time.RFC3339, parts[2])
+		if err != nil {
+			return nil, fmt.Errorf("parsing committer time of %s: %w", parts[0], err)
+		}
 		chain = append(chain, Commit{
-			Hash: parts[0], Author: parts[1], Subject: parts[2],
-			Message: strings.TrimRight(parts[3], "\n"),
+			Hash: parts[0], Author: parts[1], Time: t, Subject: parts[3],
+			Message: strings.TrimRight(parts[4], "\n"),
 		})
+	}
+	slices.Reverse(chain)
+	return chain, nil
+}
+
+// FirstParent lists, oldest first, every commit on head's first-parent
+// history.
+func FirstParent(root, head string) ([]Commit, error) {
+	return firstParentChain(root, head)
+}
+
+// FirstParentSince lists, oldest first, the commits on head's first-parent
+// history after since, excluding since itself. It fails when since is not on
+// that history.
+func FirstParentSince(root, since, head string) ([]Commit, error) {
+	chain, err := firstParentChain(root, head)
+	if err != nil {
+		return nil, err
 	}
 	idx := slices.IndexFunc(chain, func(c Commit) bool { return c.Hash == since })
 	if idx == -1 {
 		return nil, fmt.Errorf("%s is not on %s's first-parent history", since, head)
 	}
-	after := chain[:idx]
-	slices.Reverse(after)
-	return after, nil
+	return chain[idx+1:], nil
 }
 
 // OnlyChanges reports whether a commit, against its first parent, changes

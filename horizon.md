@@ -545,14 +545,14 @@ distant and get promoted as the soon tier drains.
 - **H.ctx.3** (distant) Provenance flows one way. Nothing in Hearsay changes
   shed's git history or tracker, and shed never writes Hearsay's distilled
   layers.
-- **H.ctx.4** (near, refines H.ctx.1) A shed command prints the event log as
+- **H.ctx.4** (near, refines H.ctx.1, realised) A shed command prints the event log as
   L0 records, one JSON line each, oldest first, with no network access. It
   covers unit opened, footprint declared, each objection, answer and
   withdrawal, seal, reopen, archive and landing. Each record carries an ID
   derived from its event's sequence number, the time, the kind, the unit as
   its topic, the actor, the clause IDs it cites and its text. The same log
   always gives the same records, and other event kinds give none.
-- **H.ctx.5** (near, refines H.ctx.1) The same command also prints one L0
+- **H.ctx.5** (near, refines H.ctx.1, realised) The same command also prints one L0
   record for each clause added, removed or changed in `charter.md`, `spec/`
   or `horizon.md` by each commit on main, oldest commit first, computed as
   under H.doc.6. Each record names the document, the clause ID, its text

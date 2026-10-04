@@ -495,13 +495,27 @@ non-zero.
 
 ## Records
 
-`shed records` prints the event log as L0 records: one JSON object per
-line, oldest first. It reads `events.jsonl` directly, the way opening the
-tracker does, ignoring a last line a crash cut short, and nothing else: it
-makes no network access, opens no repository, and records nothing in the
-tracker.
+`shed records` prints the event log as L0 records, then one L0 record for
+each clause that each commit on main's first-parent history adds, removes
+or changes.
+Before it prints anything, it reads the event log, opens the repository
+and the tracker, brings in main ([version control](vcs.md)) and reads
+main's first-parent history and every document version the clause records
+compare, below. It makes no network access. If any of these steps fails,
+it fails with a message saying why and prints no record at all, not even
+the event records that would otherwise come first. Beyond bringing in
+main and the recovery every shed command does on opening the repository
+and the tracker ([version control](vcs.md) and
+[the state directory](#the-state-directory), above), it moves no unit,
+records nothing in the tracker, and leaves main and the remote as they
+were. The same event log, tracker and main history always print the same
+bytes.
 
-Each record has exactly these keys, in this order:
+### Event records
+
+The event records come from `events.jsonl` directly, the way opening the
+tracker does, ignoring a last line a crash cut short: one JSON object per
+line, oldest first. Each has exactly these keys, in this order:
 
 ```json
 {"id":"shed/event/42","time":"2026-01-02T03:04:05Z","kind":"seal","topic":"zmrxyxowmkzvokuxzmllxyqvlnuyomst","actor":"owner","cites":[],"text":"consensus reached"}
@@ -530,9 +544,54 @@ exactly one record each:
 A plain move to proposed that is not a reopen, and every event not listed
 above, such as a sweep, gives no record.
 
-An empty or missing log prints nothing and exits zero. A log `shed records`
-cannot read fails with a message saying why, and prints no record. The
-same log always prints the same bytes.
+An empty or missing event log gives no event record, and does not by
+itself fail the command. A log `shed records` cannot read fails with a
+message saying why, and prints no record at all, including clause
+records.
+
+### Clause records
+
+After the event records, `shed records` prints one record for each clause
+that each commit on main's first-parent history adds, removes or changes
+in the charter, the spec or the horizon, commits oldest first. A spec or
+horizon clause counts as added, removed or changed the way `shed diff`
+counts it ([clauses](clauses.md#diffs)); a charter clause changes when its
+text changes, since it carries no tags.
+
+Each commit is compared, document by document, with that document at the
+latest earlier commit on the same history at which the document had none
+of the problems `shed check` refuses — a malformed ID, an ID in the wrong
+document, a duplicate ID or a clause nested inside another
+([clauses](clauses.md)) — which is normally the commit's parent. When no
+earlier commit qualifies, as for history's first commit, the comparison is
+against none of the document's clauses. A document with such a problem at
+a commit gives that document no record at all at that commit, and later
+commits' baselines skip back past it, all the way to no clauses when every
+earlier commit had the problem. A commit that simply lacks the document
+(its file or directory is absent) is an ordinary clean baseline holding
+none of its clauses, unlike a malformed one: the document reappearing
+later compares against that empty baseline, not further back.
+
+Within one commit, the charter's clauses come first, then the spec's,
+then the horizon's, each in ascending order of clause ID: alphabetically
+by area, then numerically, with IDs that carry no area, such as `M2`,
+sorting after those that do.
+
+```json
+{"id":"shed/clause/3f2504e04f8964efa5c0758df1a44bcf2b7c3b87/S.greet.1","time":"2026-01-02T03:04:05Z","kind":"clause.changed","topic":"zmrxyxowmkzvokuxzmllxyqvlnuyomst","actor":"Jane Doe","cites":["S.greet.1"],"document":"spec","commit":"3f2504e04f8964efa5c0758df1a44bcf2b7c3b87","before":"Greets once.","after":"Greets once more."}
+```
+
+`id` is `shed/clause/<commit>/<clause ID>`, built from the commit's full
+hash and the clause ID. `time` is the commit's committer time. `kind` is
+`clause.added`, `clause.removed` or `clause.changed`. `topic` is the full
+change ID of the unit that landed the commit, when the commit's `Unit:`
+trailer names a unit the tracker records as landed with that very commit
+([version control](vcs.md#landing)), and empty otherwise — most commits
+give no topic. `actor` is the commit's author name, not a tracker role.
+`cites` always holds just the one clause ID. `document` is `charter`,
+`spec` or `horizon`. `commit` is the commit's full hash. `before` and
+`after` are the clause's text at the compared commit and at this one:
+`before` is empty for an added clause, `after` empty for a removed one.
 
 ## Bugs
 
@@ -570,7 +629,7 @@ nothing.
 | `shed land <unit>` | Lands a queued unit that is not marked for horizon review or [held back](#held-back-units) on main, reports its footprint drift and how each unit in flight was rebased and reconciles the other units in flight against the horizon changes it made. See [version control](vcs.md) and [autopilot](autopilot.md#landing). |
 | `shed sweep` | Proves main's current commit in a fresh directory and records the sweep, filing or closing bugs as it does (see [sweeps](#sweeps), above). See [clauses and proofs](clauses.md#sweeping-main). |
 | `shed tracker rebuild` | Rebuilds the database from the event log. |
-| `shed records` | Prints the event log as L0 records (see [records](#records), above). |
+| `shed records` | Prints the event log and main's clause history as L0 records (see [records](#records), above). |
 | `shed config` | Prints the operator settings in effect. |
 
 A unit argument is any prefix of its change ID that names one unit.

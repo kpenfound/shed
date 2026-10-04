@@ -78,7 +78,7 @@ Documents:
   uncovered          report source files' statements no proof executes
 
 Units:
-  records                                 print the event log as L0 records
+  records                                 print the event log and main's clause history as L0 records
   status                                  list units and what waits for the owner
   outside                                 list main commits since outside.since that did not land as a shed unit
   inbox [-peek]                           list contested units and horizon changes since the last inbox
