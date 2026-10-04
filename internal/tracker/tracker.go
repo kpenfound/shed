@@ -6,6 +6,7 @@ package tracker
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -185,14 +186,20 @@ CREATE TABLE IF NOT EXISTS notices (
 	created_at TEXT NOT NULL,
 	delivered_at TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS sweeps (
+	seq INTEGER PRIMARY KEY,
+	commit_id TEXT NOT NULL,
+	started_at TEXT NOT NULL,
+	clauses TEXT NOT NULL
+);
 `
 
-var tables = []string{"units", "seals", "footprints", "actual_footprints", "sessions", "steps", "notices", "objections", "meta"}
+var tables = []string{"units", "seals", "footprints", "actual_footprints", "sessions", "steps", "notices", "objections", "sweeps", "meta"}
 
 // schemaVersion changes whenever the schema does. The database is derived
 // from the event log, so a database with another version is dropped and
 // rebuilt rather than migrated.
-const schemaVersion = 18
+const schemaVersion = 19
 
 func (t *Tracker) migrate() error {
 	var v string
@@ -556,6 +563,13 @@ func apply(tx *sql.Tx, e Event) error {
 		return setMeta(tx, expiryAttemptKey+e.Unit+":"+strconv.FormatInt(e.ContestSeq, 10), e.Seq)
 	case UnitSampledAnswered:
 		return exec(`UPDATE units SET sampled_answered = 1 WHERE change = ?`, e.Unit)
+	case SweepRan:
+		clauses, err := json.Marshal(e.Sweep.Clauses)
+		if err != nil {
+			return err
+		}
+		return exec(`INSERT INTO sweeps (seq, commit_id, started_at, clauses) VALUES (?, ?, ?, ?)`,
+			e.Seq, e.Commit, e.Sweep.Started.UTC().Format(time.RFC3339Nano), string(clauses))
 	}
 	return fmt.Errorf("unknown event kind %q", e.Kind)
 }

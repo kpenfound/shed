@@ -4,10 +4,13 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/kpenfound/shed/internal/landing"
 	"github.com/kpenfound/shed/internal/testrepo"
 	"github.com/kpenfound/shed/internal/tracker"
 	"github.com/kpenfound/shed/internal/unit"
@@ -181,4 +184,209 @@ func TestLandReportsTheSweep(t *testing.T) {
 		}
 		return nil
 	})
+}
+
+// sweepProject is a colocated repository whose main holds a Go module with
+// one passing proof of S.core.1, and a runner that logs each run of the
+// proofs it wraps to an absolute path outside any directory a sweep makes
+// and removes, so the log survives the sweep that used it.
+func sweepProject(t *testing.T) (*testrepo.Repo, string) {
+	t.Helper()
+	r := testrepo.Colocated(t)
+	r.Write("go.mod", "module example.com/greet\n\ngo 1.21\n")
+	r.Write("greet_test.go", "package greet\n\nimport \"testing\"\n\n//shed:proves S.core.1\nfunc TestHello(t *testing.T) {}\n")
+	logPath := filepath.Join(t.TempDir(), "runner.log")
+	r.Write("run-here", "#!/bin/sh\necho ran >> "+logPath+"\nexec \"$@\"\n")
+	if err := os.Chmod(filepath.Join(r.Dir, "run-here"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r.Write("shed.toml", "[proofs]\nrunner = [\"./run-here\"]\n")
+	r.JJ("commit", "-m", "module")
+	r.JJ("bookmark", "set", "main", "-r", "@-")
+	return r, logPath
+}
+
+//shed:proves S.sweep.1
+func TestSweepReportsPerClauseAndLeavesEverythingUnchanged(t *testing.T) {
+	r, logPath := sweepProject(t)
+	mainBefore := r.Git("rev-parse", "main")
+	statusBefore := r.Git("status", "--porcelain")
+
+	stdout, _, code := run(t, r.Dir, "sweep")
+	if code != OK || stdout != "pass  S.core.1\n" {
+		t.Fatalf("sweep = %d, %q", code, stdout)
+	}
+	if log, err := os.ReadFile(logPath); err != nil || string(log) != "ran\n" {
+		t.Errorf("runner log = %q, %v; the sweep did not run the swept commit's runner", log, err)
+	}
+	if main := r.Git("rev-parse", "main"); main != mainBefore {
+		t.Errorf("main moved from %s to %s", mainBefore, main)
+	}
+	if status := r.Git("status", "--porcelain"); status != statusBefore {
+		t.Errorf("the owner's working copy changed: %q", status)
+	}
+
+	// Sweeping twice leaves no stray directory in the way of the next sweep.
+	if _, _, code := run(t, r.Dir, "sweep"); code != OK {
+		t.Errorf("a second sweep = %d", code)
+	}
+
+	// A clause with a failing proof is reported, then listed again, and
+	// sweep exits non-zero.
+	r.Write("spec/core.md", testrepo.Spec+"- **S.core.2** (H.greet.2) Says goodbye.\n")
+	r.Write("bye_test.go", "package greet\n\nimport \"testing\"\n\n//shed:proves S.core.2\nfunc TestBye(t *testing.T) { t.Fatal(\"no goodbye\") }\n")
+	r.JJ("commit", "-m", "goodbye spec")
+	r.JJ("bookmark", "set", "main", "-r", "@-")
+
+	stdout, _, code = run(t, r.Dir, "sweep")
+	want := "pass  S.core.1\nfail  S.core.2  TestBye: fail\nS.core.2\n"
+	if code != Failed || stdout != want {
+		t.Errorf("sweep = %d\n%s\nwant\n%s", code, stdout, want)
+	}
+}
+
+//shed:proves S.sweep.1
+func TestSweepFinishesAnInterruptedLandingsRebase(t *testing.T) {
+	r, _ := sweepProject(t)
+	r.Write(".shed/config.toml", "[vcs]\nremote = \"origin\"\n")
+	state := filepath.Join(r.Dir, DefaultStateDir)
+	writeFile := func(change, name, content string) {
+		t.Helper()
+		dir := strings.TrimSpace(mustRun(t, r.Dir, "unit", "path", change))
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	other := openUnit(t, r.Dir, "Wave")
+	writeFile(other, "wave.txt", "wave\n")
+	lander := openUnit(t, r.Dir, "Say goodbye")
+	writeFile(lander, "bye.txt", "bye\n")
+	seal(t, state, lander)
+	for _, s := range []string{"implementing", "verifying", "queued"} {
+		mustRun(t, r.Dir, "unit", "move", lander, s, "by hand")
+	}
+
+	// The landing pushes main and records itself, but the process stops
+	// before rebasing the other unit onto it: the crash S.vcs.11 recovers
+	// from.
+	repo, err := vcs.Open(context.Background(), r.Dir, state, vcs.Options{Remote: "origin",
+		Landing: vcs.Identity{Name: "lander", Email: "lander@example.com"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr, err := tracker.Open(state, tracker.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	commit, err := landing.Land(context.Background(), tr, repo, lander, unit.Wheelbuilder)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr.Close()
+	if remote := r.GitRemote("rev-parse", "main"); remote != commit {
+		t.Fatalf("the landing did not push main: remote is at %s, want %s", remote, commit)
+	}
+
+	// shed sweep is the next shed process to open the repository.
+	stdout, stderr, code := run(t, r.Dir, "sweep")
+	if code != OK || stdout != "pass  S.core.1\n" {
+		t.Fatalf("sweep = %d, %q, stderr %q", code, stdout, stderr)
+	}
+
+	logged := sweepLog(t, r.Dir, other, lander)
+	if len(logged) != 1 || !strings.HasSuffix(logged[0], "landed: rebased cleanly") {
+		t.Errorf("the other unit logs the sweep as %q, want one clean rebase", logged)
+	}
+	dir := strings.TrimSpace(mustRun(t, r.Dir, "unit", "path", other))
+	if data, err := os.ReadFile(filepath.Join(dir, "bye.txt")); err != nil || string(data) != "bye\n" {
+		t.Errorf("the other unit's workspace lacks the landed file: %q, %v", data, err)
+	}
+
+	tr2, err := tracker.Open(state, tracker.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr2.Close()
+	if u, err := tr2.Unit(other); err != nil || u.State != unit.Proposed {
+		t.Errorf("the other unit = %s, %v; it should keep its state across the recovery", u.State, err)
+	}
+	if u, err := tr2.Unit(lander); err != nil || u.State != unit.Landed {
+		t.Errorf("the landed unit = %s, %v; sweep should not move it", u.State, err)
+	}
+	if remote := r.GitRemote("rev-parse", "main"); remote != commit {
+		t.Errorf("main moved from %s to %s during sweep", commit, remote)
+	}
+	sweeps, err := tr2.Sweeps()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sweeps) != 1 || sweeps[0].Commit != commit {
+		t.Errorf("sweeps = %+v, want one sweep of %s", sweeps, commit)
+	}
+}
+
+//shed:proves S.sweep.2
+func TestSweepRecordsItselfAndRebuildReplays(t *testing.T) {
+	r, _ := sweepProject(t)
+	commit := r.Git("rev-parse", "main")
+	state := filepath.Join(r.Dir, DefaultStateDir)
+
+	before := time.Now()
+	if _, _, code := run(t, r.Dir, "sweep"); code != OK {
+		t.Fatal("sweep did not succeed")
+	}
+	after := time.Now()
+
+	tr, err := tracker.Open(state, tracker.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sweeps, err := tr.Sweeps()
+	tr.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sweeps) != 1 {
+		t.Fatalf("got %d sweeps, want 1", len(sweeps))
+	}
+	s := sweeps[0]
+	if s.Commit != commit {
+		t.Errorf("sweep commit = %s, want %s", s.Commit, commit)
+	}
+	if s.Started.Before(before) || s.Started.After(after) {
+		t.Errorf("sweep started at %s, want between %s and %s", s.Started, before, after)
+	}
+	if len(s.Clauses) != 1 || s.Clauses[0].Clause != "S.core.1" || !s.Clauses[0].Pass {
+		t.Errorf("sweep clauses = %+v, want S.core.1 passing", s.Clauses)
+	}
+
+	if out := mustRun(t, r.Dir, "tracker", "rebuild"); !strings.Contains(out, "rebuilt the tracker from events.jsonl") {
+		t.Errorf("rebuild = %q", out)
+	}
+	tr2, err := tracker.Open(state, tracker.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr2.Close()
+	after2, err := tr2.Sweeps()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(sweeps, after2) {
+		t.Errorf("sweeps after rebuild = %+v, want %+v", after2, sweeps)
+	}
+}
+
+//shed:proves S.sweep.2
+func TestSweepRecordsNothingWhenMainIsUnreachable(t *testing.T) {
+	r := testrepo.Minimal(t)
+	_, stderr, code := run(t, r.Dir, "sweep")
+	if code == OK || stderr == "" {
+		t.Fatalf("sweep on a repository with no main = %d, stderr %q", code, stderr)
+	}
+	logPath := filepath.Join(r.Dir, DefaultStateDir, tracker.LogFile)
+	if data, err := os.ReadFile(logPath); err == nil && strings.Contains(string(data), tracker.SweepRan) {
+		t.Errorf("a sweep that could not check out main recorded itself: %s", data)
+	}
 }

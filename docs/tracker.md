@@ -437,6 +437,16 @@ revision such as `C6@HEAD~1`, an ID that is not a clause of the charter on
 main, a clause with no charter question listed for it at that moment, and an
 answer with an empty reason. A refused answer records nothing (S.owner.10).
 
+## Sweeps
+
+`shed sweep` (see [clauses and proofs](clauses.md#sweeping-main)) proves
+main's current commit in a fresh directory outside every unit's workspace
+and reports pass or fail per clause. A sweep whose proofs ran records
+itself in the event log as one event naming no unit: the main commit it
+checked out, when it started and pass or fail for each clause it swept.
+`shed tracker rebuild` gives back the same sweeps. A sweep that cannot
+bring in or check out main records nothing, prints why and exits non-zero.
+
 ## Commands
 
 | Command | Does |
@@ -452,6 +462,7 @@ answer with an empty reason. A refused answer records nothing (S.owner.10).
 | `shed unit log <unit>` | Prints a unit's events. |
 | `shed unit path <unit>` | Prints the directory of the unit's workspace. |
 | `shed land <unit>` | Lands a queued unit that is not marked for horizon review on main, reports its footprint drift and how each unit in flight was rebased and reconciles the other units in flight against the horizon changes it made. See [version control](vcs.md) and [autopilot](autopilot.md#landing). |
+| `shed sweep` | Proves main's current commit in a fresh directory and records the sweep. See [clauses and proofs](clauses.md#sweeping-main). |
 | `shed tracker rebuild` | Rebuilds the database from the event log. |
 | `shed config` | Prints the operator settings in effect. |
 

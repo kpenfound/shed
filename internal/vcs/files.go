@@ -1,12 +1,15 @@
 package vcs
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -41,6 +44,73 @@ func (r *Repo) Export(ctx context.Context, change, dir string) error {
 		}
 	}
 	return os.MkdirAll(dir, 0o755)
+}
+
+// ExportMain copies the files of a commit on main into dir, which must not
+// exist or be empty. The directory gets plain files only: no .git, no .jj,
+// as Export does for a unit's change (S.sweep.1, S.vcs.2). It reads the
+// commit straight from git's object store, so it touches neither a jj
+// workspace nor the owner's working copy.
+func (r *Repo) ExportMain(ctx context.Context, commit, dir string) error {
+	if entries, err := os.ReadDir(dir); err == nil && len(entries) > 0 {
+		return fmt.Errorf("%s is not empty", dir)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, "git", "archive", commit)
+	cmd.Dir = r.root
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return &JJError{Args: []string{"git", "archive", commit}, Err: err, Stderr: strings.TrimSpace(stderr.String())}
+	}
+	return extractTar(bytes.NewReader(out), dir)
+}
+
+// extractTar extracts a tar stream into dir, keeping regular files' modes
+// and symlinks as symlinks.
+func extractTar(r io.Reader, dir string) error {
+	tr := tar.NewReader(r)
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dir, filepath.FromSlash(hdr.Name))
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, 0o755); err != nil {
+				return err
+			}
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return err
+			}
+			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(hdr.Mode))
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(f, tr); err != nil {
+				f.Close()
+				return err
+			}
+			if err := f.Close(); err != nil {
+				return err
+			}
+		case tar.TypeSymlink:
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return err
+			}
+			if err := os.Symlink(hdr.Linkname, target); err != nil {
+				return err
+			}
+		}
+	}
 }
 
 // Capture makes a unit's change hold exactly the files in dir: new and

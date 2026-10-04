@@ -424,6 +424,8 @@ func Describe(e Event) string {
 		fmt.Fprintf(&b, "framing %s at main %s", e.Clause, shortHash(e.Commit))
 	case ExpiryAttempted:
 		fmt.Fprintf(&b, "expiry of %s claimed at contested #%d", unit.Short(e.Unit), e.ContestSeq)
+	case SweepRan:
+		fmt.Fprintf(&b, "swept main %s", shortHash(e.Commit))
 	default:
 		b.WriteString(e.Kind)
 	}

@@ -499,7 +499,7 @@ distant and get promoted as the soon tier drains.
 - **H.sweep.2** (distant) When the code is wrong, the bug enters implementing
   directly against the existing spec, with the violated clauses as its
   footprint. When the spec is wrong, the bug becomes an ordinary proposed unit.
-- **H.sweep.3** (near, refines H.sweep.1) `shed sweep` checks main's current
+- **H.sweep.3** (near, refines H.sweep.1, realised) `shed sweep` checks main's current
   commit out into a fresh directory outside every unit's change, runs the
   proofs of every spec clause there as `shed prove` does, and records the
   sweep in the tracker and the event log: the main commit, when it ran, and

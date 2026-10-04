@@ -60,6 +60,10 @@ const (
 	// UnitSampledAnswered records the owner's agree or disagree answer to a
 	// sampled amendment (S.owner.20). It moves no unit.
 	UnitSampledAnswered = "unit.sampled_answered"
+	// SweepRan records a sweep of main: the commit it checked out, when it
+	// started, and pass or fail for each spec clause it swept (S.sweep.2).
+	// It names no unit.
+	SweepRan = "sweep.ran"
 )
 
 // Event is one line of the event log. The log is the tracker's source of
@@ -103,8 +107,8 @@ type Event struct {
 	Wait    time.Duration `json:"wait,omitempty"`
 	// Seal is set when a unit is sealed.
 	Seal *Seal `json:"seal,omitempty"`
-	// Commit is the commit on main a unit landed as, or the main commit an
-	// inbox read.
+	// Commit is the commit on main a unit landed as, the main commit an
+	// inbox read, or the main commit a sweep checked out.
 	Commit    string     `json:"commit,omitempty"`
 	Footprint *Footprint `json:"footprint,omitempty"`
 	// ReadSeq is the sequence number of the latest event an inbox read, or
@@ -143,8 +147,11 @@ type Event struct {
 	Entangled *EntangledEv `json:"entangled,omitempty"`
 	// Rebased is set when a landing's rebase of a unit is recorded.
 	Rebased *RebasedEv `json:"rebased,omitempty"`
-	Round   int        `json:"round,omitempty"`
-	CostUSD float64    `json:"cost_usd,omitempty"`
+	// Sweep is set on a SweepRan event: when the sweep started and pass or
+	// fail for each spec clause it swept.
+	Sweep   *SweepEv `json:"sweep,omitempty"`
+	Round   int      `json:"round,omitempty"`
+	CostUSD float64  `json:"cost_usd,omitempty"`
 }
 
 // Seal pins a sealed unit to the main commit it was sealed against and to
@@ -245,6 +252,20 @@ type EntangledEv struct {
 type RebasedEv struct {
 	Lander  string `json:"lander"`
 	Outcome string `json:"outcome"`
+}
+
+// SweepEv describes a sweep of main in the event log: when it started and
+// pass or fail for each spec clause it swept.
+type SweepEv struct {
+	Started time.Time     `json:"started"`
+	Clauses []SweepClause `json:"clauses"`
+}
+
+// SweepClause is one spec clause a sweep checked, and whether its proofs
+// passed.
+type SweepClause struct {
+	Clause string `json:"clause"`
+	Pass   bool   `json:"pass"`
 }
 
 // ObjectionEv describes an objection, its withdrawal or its answer in the

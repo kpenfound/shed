@@ -247,7 +247,10 @@ its own, and a failure or stop restores only that unit's rebase. The next
 shed process to open the repository rebases every unit that is neither
 landed nor archived, has no session running and whose change does not
 descend from main, by the same rules as after a landing, so a sweep that was
-interrupted finishes.
+interrupted finishes. `shed sweep` (see [clauses and proofs](clauses.md#sweeping-main))
+opens the repository like any other command, so running it after an
+interrupted landing finishes that rebase sweep too, beyond the main commit
+it checks out and the sweep of spec clauses it records.
 
 A landing that moved main but stopped before the tracker recorded it is
 completed by running `shed land` again: the unit's change is already on

@@ -119,6 +119,32 @@ Shed puts it in front of the `go test` command line:
 runner = ["scripts/in-dagger"]
 ```
 
+## Sweeping main
+
+`shed sweep` checks whether main still does what its own spec says. It
+brings in main, checks its current commit out into a fresh directory outside
+the repository's working copy and every unit's workspace, and runs the
+proofs of every spec clause in that commit's documents there, exactly as
+`shed prove` with no clauses named does, using the runner that commit's
+`shed.toml` sets. It prints pass or fail per clause, then the failing
+clauses again, one per line, and exits non-zero when any clause fails:
+
+```
+pass  S.greet.1
+fail  S.greet.2  TestBye: fail
+S.greet.2
+```
+
+A clause with no proof fails and prints `no proof` instead of a test name.
+The directory is removed before `shed sweep` exits, and it leaves main,
+every unit and the working copy exactly as it found them, apart from the
+recovery any shed process runs when it opens the repository and the
+tracker. It calls no model. A sweep whose proofs ran records the commit it
+checked out, when it started and pass or fail per clause in the tracker and
+the event log, naming no unit; `shed tracker rebuild` gives the same sweeps
+back. A sweep that cannot bring in or check out main records nothing and
+exits non-zero with a reason on stderr.
+
 ## Commands
 
 | Command | Does |
@@ -129,6 +155,7 @@ runner = ["scripts/in-dagger"]
 | `shed trace` | Lists every horizon clause with its tier, whether it is realised, the spec clauses advancing it, and the clause it refines or the clauses refining it, then the near and soon clauses that refine nothing. |
 | `shed gap` | Lists the horizon clauses not yet realised, with their tier, the spec clauses advancing them, and the ID and tier of the clause each refines. |
 | `shed prove [<id>...]` | Runs proofs and reports per clause. |
+| `shed sweep` | Checks main's current commit out into a fresh directory, runs its proofs and reports per clause, and records the sweep. |
 
 ## Diffs
 

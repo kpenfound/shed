@@ -98,6 +98,7 @@ State:
   config             print the operator settings in effect
   doctor             check that everything running the factory needs is in place
   tracker rebuild    rebuild the tracker database from the event log
+  sweep              check main out fresh into a plain directory, prove it, and record the sweep
   version            print the release shed was built from
 
 The state directory defaults to .shed under the repository root, or
@@ -189,6 +190,8 @@ func RunWith(ctx context.Context, args []string, stdout, stderr io.Writer, runne
 		return e.config(rest)
 	case "tracker":
 		return e.tracker(rest)
+	case "sweep":
+		return e.sweep(rest)
 	case "doctor":
 		return e.doctor(rest)
 	case "version":
