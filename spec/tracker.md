@@ -11,7 +11,12 @@
 - **S.track.3** (H.track.2) Every change to the tracker is appended to the
   event log as one JSON line before it reaches the database. Each line names
   its sequence number, time, kind, unit, actor and reason, the states before
-  and after a move, and the cost of a finished session. A sweep's line also
+  and after a move, and the cost of a finished session. A unit opening's
+  line also names the unit's title. A footprint declaration's line also
+  names the clauses it records as modified, depended on and advanced, each
+  as a list in order. An objection's line also names its kind, the clause
+  IDs it cites in order and its text, and an answer's line names the
+  answer's text. A sweep's line also
   names the main commit it checked out, the time it started, pass or fail
   for each clause it swept, each bug it files with its clause and proof
   output, and each bug it closes.

@@ -161,32 +161,61 @@ func TestEventLog(t *testing.T) {
 	dir := t.TempDir()
 	tr := open(t, dir, Options{})
 	must(t, tr.OpenUnit(unitA, "Say goodbye", unit.Painter))
-	must(t, tr.Seal(unitA, "abc123", "unitcommit", Footprint{}, unit.Committee, "consensus", nil))
+	must(t, tr.SetFootprint(unitA, Footprint{Modifies: []string{"S.greet.2"}, Depends: []string{"S.greet.1"}, Advances: []string{"H.greet.2"}},
+		unit.Painter, "declared", onMain("S.greet.1")))
+	id, err := tr.Object(unitA, 1, SpecObjection, []string{"S.greet.1", "S.greet.2"}, "ambiguous")
+	must(t, err)
+	must(t, tr.Answer(id, "clarified", unit.Painter))
+	must(t, tr.Withdraw(id, 1, "resolved"))
+	must(t, tr.Seal(unitA, "abc123", "unitcommit", Footprint{Modifies: []string{"S.greet.2"}, Depends: []string{"S.greet.1"}, Advances: []string{"H.greet.2"}},
+		unit.Committee, "consensus", onMain("S.greet.1")))
 	s, err := tr.StartSession(unitA, unit.Mechanic, "proofs", 7)
 	must(t, err)
 	must(t, tr.FinishSession(s.ID, Failed, "gave up", 0.5, false))
 
 	lines := readLog(t, dir)
-	if len(lines) != 4 {
-		t.Fatalf("got %d log lines, want 4", len(lines))
+	if len(lines) != 8 {
+		t.Fatalf("got %d log lines, want 8", len(lines))
 	}
 	for i, l := range lines {
 		if l["seq"] != float64(i+1) || l["time"] == nil || l["unit"] != unitA {
 			t.Errorf("line %d = %v", i+1, l)
 		}
 	}
-	move := lines[1]
+	if lines[0]["kind"] != UnitOpened || lines[0]["title"] != "Say goodbye" {
+		t.Errorf("unit opened line = %v", lines[0])
+	}
+	fp, ok := lines[1]["footprint"].(map[string]any)
+	if lines[1]["kind"] != UnitFootprint || !ok ||
+		!reflect.DeepEqual(fp["modifies"], []any{"S.greet.2"}) ||
+		!reflect.DeepEqual(fp["depends"], []any{"S.greet.1"}) ||
+		!reflect.DeepEqual(fp["advances"], []any{"H.greet.2"}) {
+		t.Errorf("footprint declared line = %v", lines[1])
+	}
+	obj, ok := lines[2]["objection"].(map[string]any)
+	if lines[2]["kind"] != ObjectionRaised || !ok || obj["kind"] != SpecObjection ||
+		!reflect.DeepEqual(obj["citations"], []any{"S.greet.1", "S.greet.2"}) || obj["text"] != "ambiguous" {
+		t.Errorf("objection line = %v", lines[2])
+	}
+	ans, ok := lines[3]["objection"].(map[string]any)
+	if lines[3]["kind"] != ObjectionAnswer || !ok || ans["text"] != "clarified" {
+		t.Errorf("answer line = %v", lines[3])
+	}
+	if lines[4]["kind"] != ObjectionClosed || lines[4]["reason"] != "resolved" {
+		t.Errorf("withdrawal line = %v", lines[4])
+	}
+	move := lines[5]
 	if move["kind"] != UnitMoved || move["from"] != "proposed" || move["to"] != "sealed" ||
 		move["actor"] != "committee" || move["reason"] != "consensus" {
 		t.Errorf("move line = %v", move)
 	}
-	if lines[3]["kind"] != SessionFinished || lines[3]["cost_usd"] != 0.5 {
-		t.Errorf("session line = %v", lines[3])
+	if lines[7]["kind"] != SessionFinished || lines[7]["cost_usd"] != 0.5 {
+		t.Errorf("session line = %v", lines[7])
 	}
 	if err := tr.Move(unitA, unit.Implementing, unit.Mechanic, " "); err == nil {
 		t.Error("moved without a reason")
 	}
-	if got := len(readLog(t, dir)); got != 4 {
+	if got := len(readLog(t, dir)); got != 8 {
 		t.Errorf("a refused move was logged: %d lines", got)
 	}
 }

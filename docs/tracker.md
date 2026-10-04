@@ -466,6 +466,47 @@ back the same sweeps and the same bugs, open and closed. A sweep that
 cannot bring in or check out main records nothing, prints why and exits
 non-zero.
 
+## Records
+
+`shed records` prints the event log as L0 records: one JSON object per
+line, oldest first. It reads `events.jsonl` directly, the way opening the
+tracker does, ignoring a last line a crash cut short, and nothing else: it
+makes no network access, opens no repository, and records nothing in the
+tracker.
+
+Each record has exactly these keys, in this order:
+
+```json
+{"id":"shed/event/42","time":"2026-01-02T03:04:05Z","kind":"seal","topic":"zmrxyxowmkzvokuxzmllxyqvlnuyomst","actor":"owner","cites":[],"text":"consensus reached"}
+```
+
+`id` is `shed/event/<seq>`, built from the event's sequence number, which
+never repeats (see [the state directory](#the-state-directory), above).
+`topic` is the event's unit, as a full change ID. `cites` lists clause IDs
+and is empty when the record cites none.
+
+Not every event in the log becomes a record, and the ones that do give
+exactly one record each:
+
+| Event | `kind` | `cites` | `text` |
+| --- | --- | --- | --- |
+| Unit opened | `unit.opened` | (empty) | The unit's title. |
+| Footprint declared | `footprint.declared` | Modified, then depended-on, then advanced clauses, each in the order the declaration lists them. | The declaration's reason. |
+| Objection raised | `objection` | The clause IDs the objection cites. | The objection's text. |
+| Objection answered | `answer` | (empty) | The answer's text. |
+| Objection withdrawn | `withdrawal` | (empty) | The withdrawal's reason. |
+| Move to sealed | `seal` | (empty) | The move's reason. |
+| Reopen: a move to proposed that counts a bounce | `reopen` | (empty) | The move's reason. |
+| Move to archived | `archive` | (empty) | The move's reason. |
+| Move to landed | `landing` | (empty) | The move's reason. |
+
+A plain move to proposed that is not a reopen, and every event not listed
+above, such as a sweep, gives no record.
+
+An empty or missing log prints nothing and exits zero. A log `shed records`
+cannot read fails with a message saying why, and prints no record. The
+same log always prints the same bytes.
+
 ## Bugs
 
 After the amendments line (see [autopilot](autopilot.md#autopilot)), `shed
@@ -502,6 +543,7 @@ nothing.
 | `shed land <unit>` | Lands a queued unit that is not marked for horizon review on main, reports its footprint drift and how each unit in flight was rebased and reconciles the other units in flight against the horizon changes it made. See [version control](vcs.md) and [autopilot](autopilot.md#landing). |
 | `shed sweep` | Proves main's current commit in a fresh directory and records the sweep, filing or closing bugs as it does (see [sweeps](#sweeps), above). See [clauses and proofs](clauses.md#sweeping-main). |
 | `shed tracker rebuild` | Rebuilds the database from the event log. |
+| `shed records` | Prints the event log as L0 records (see [records](#records), above). |
 | `shed config` | Prints the operator settings in effect. |
 
 A unit argument is any prefix of its change ID that names one unit.

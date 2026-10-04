@@ -78,6 +78,7 @@ Documents:
   uncovered          report source files' statements no proof executes
 
 Units:
+  records                                 print the event log as L0 records
   status                                  list units and what waits for the owner
   outside                                 list main commits since outside.since that did not land as a shed unit
   inbox [-peek]                           list contested units and horizon changes since the last inbox
@@ -175,6 +176,8 @@ func RunWith(ctx context.Context, args []string, stdout, stderr io.Writer, runne
 		return e.prove(rest)
 	case "uncovered":
 		return e.uncovered(rest)
+	case "records":
+		return e.records(rest)
 	case "status":
 		return e.status(rest)
 	case "outside":

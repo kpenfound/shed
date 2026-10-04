@@ -316,6 +316,14 @@ func appendEvents(path string, events []Event) error {
 	return f.Close()
 }
 
+// ReadLog reads every complete event in the log at path, oldest first,
+// ignoring a last line cut short by a crash (S.track.6). A missing or empty
+// log gives no events and no error.
+func ReadLog(path string) ([]Event, error) {
+	events, _, err := readEvents(path, 0)
+	return events, err
+}
+
 // readEvents reads the events after a byte offset and returns them with the
 // offset just past the last complete line. A final line without a newline
 // was cut short by a crash and is left unread.

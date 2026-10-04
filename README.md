@@ -221,6 +221,7 @@ shed run <unit>                    # debate, implement, verify, land
 | `shed debate\|land\|run <unit>` | Runs one stage of a unit, or all of them. |
 | `shed frame <clause>`, `shed frame -accept\|-discard <unit>` | Breaks a distant or eventual horizon clause into near and soon clauses that refine it, recorded on a unit for you to read; accepts and lands such a unit, or discards it. |
 | `shed frame -expire <unit>` | Runs one frame builder session on an overdue contested unit by hand, and archives it on the shelf the session reports, or leaves it as it is. |
+| `shed records` | Prints the event log as L0 records, one JSON line each (see [the tracker](docs/tracker.md#records)). |
 | `shed serve [-once]` | Runs the factory. |
 | `shed config` | Prints the operator settings in effect. |
 | `shed doctor` | Checks that everything running the factory needs is in place. |
