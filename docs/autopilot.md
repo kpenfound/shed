@@ -374,6 +374,17 @@ that goes nowhere, archived or contested without being sealed, it waits
 `painter.max_interval`, and the next sealed proposal ends the streak. A
 painter session that failed before doing anything does not count.
 
+`shed status` ends with one line on the painter, after the units and the
+notices. While the daily budget pauses stages (above), it reads `painter:
+waits, like every stage, for the budget pause`. Otherwise it gives, word for
+word, whatever `shed serve -once` would print for the painter if run at that
+moment: a wait from the throttling above, a count of proposals waiting in
+the shed, or, when the gap holds no near or soon horizon clause that no unit
+in flight advances, that the painter is idle until the horizon moves. A
+framing proposal waiting for owner acceptance never holds the painter back,
+since it is not a proposal. When nothing holds the painter back, the line
+reads `painter: may propose now`.
+
 The painter works on the gap: near and soon horizon clauses that are not
 realised and that no unit in flight advances. Each gap clause comes with the
 spec clauses already advancing it and, if it refines another clause, that

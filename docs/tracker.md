@@ -417,7 +417,7 @@ answer with an empty reason. A refused answer records nothing (S.owner.10).
 
 | Command | Does |
 | --- | --- |
-| `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost, estimate (with the cost since the seal that set it), wait and title; a contested unit's line also carries an `overdue` mark once its wait passes `shed.contested_timeout`. Then it lists the notices waiting for the owner. |
+| `shed status` | Lists units in the order they opened, with state, bounces, amendments, cost, estimate (with the cost since the seal that set it), wait and title; a contested unit's line also carries an `overdue` mark once its wait passes `shed.contested_timeout`. Then it lists the notices waiting for the owner, and ends with one line on whether the painter may propose now (see [autopilot](autopilot.md#autopilot)). |
 | `shed inbox [-peek]` | Lists contested units with their wait and, once overdue, an `overdue` mark, the horizon changes on main, the charter questions from repeated rejections, the sampled horizon amendments and the units the frame builder archived on timeout, marking what is new since the last inbox. `-peek` records nothing. |
 | `shed unit open <title>` | Makes a jj change for the unit on top of main and opens the unit in `proposed`. |
 | `shed answer <unit> retry\|defer\|reject\|approve <reason>` | Answers a contested unit: moves it back to `proposed`, defers or rejects it to the archive, or approves its distant, eventual or split soon horizon amendment. |

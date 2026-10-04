@@ -81,6 +81,7 @@ func TestStatus(t *testing.T) {
 		unit.Short(b) + " proposed 0 0 $0.00 Wave",
 		"Waiting for the owner:",
 		unit.Short(a) + " Unit " + unit.Short(a) + " is contested: bounced 1 time, over the threshold of 0.",
+		"painter: 1 proposals are waiting in the shed (painter.max_proposed = 1)",
 	}
 	if got := collapsed(mustRun(t, r.Dir, "status")); !reflect.DeepEqual(got, want) {
 		t.Errorf("status =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -121,6 +122,7 @@ func TestStatusShowsWaitAndOverdue(t *testing.T) {
 		return unit.Short(a) + " contested 1 0 $0.00 " + wait + mark + " Say goodbye"
 	}
 	notice := unit.Short(a) + " Unit " + unit.Short(a) + " is contested: bounced 1 time, over the threshold of 0."
+	painter := "painter: 1 proposals are waiting in the shed (painter.max_proposed = 1)"
 	status := func(now time.Time) []string {
 		t.Helper()
 		return collapsed(runAt(t, r.Dir, state, now, env.status))
@@ -134,6 +136,7 @@ func TestStatusShowsWaitAndOverdue(t *testing.T) {
 		unit.Short(b) + " proposed 0 0 $0.00 Wave",
 		"Waiting for the owner:",
 		notice,
+		painter,
 	}
 	if got := status(base.Add(26 * time.Hour)); !reflect.DeepEqual(got, want) {
 		t.Errorf("status under the timeout =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -146,6 +149,7 @@ func TestStatusShowsWaitAndOverdue(t *testing.T) {
 		unit.Short(b) + " proposed 0 0 $0.00 Wave",
 		"Waiting for the owner:",
 		notice,
+		painter,
 	}
 	if got := status(base.Add(100 * time.Hour)); !reflect.DeepEqual(got, want) {
 		t.Errorf("status beyond the timeout =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -159,6 +163,7 @@ func TestStatusShowsWaitAndOverdue(t *testing.T) {
 		unit.Short(b) + " proposed 0 0 $0.00 Wave",
 		"Waiting for the owner:",
 		notice,
+		painter,
 	}
 	if got := status(base.Add(1000 * time.Hour)); !reflect.DeepEqual(got, want) {
 		t.Errorf("status with a zero timeout =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

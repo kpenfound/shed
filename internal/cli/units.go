@@ -118,8 +118,41 @@ func (e env) status(args []string) int {
 				fmt.Fprintf(e.stdout, "  %s  %s\n", unit.Short(n.Unit), n.Body)
 			}
 		}
+		repo, err := e.openRepo(op)
+		if err != nil {
+			return e.fail(err)
+		}
+		f := &factory.Factory{Root: e.root, Operator: op, Tracker: t, Repo: repo}
+		line, err := paintersReadiness(e.ctx, f, now)
+		if err != nil {
+			return e.fail(err)
+		}
+		fmt.Fprintln(e.stdout, line)
 		return OK
 	})
+}
+
+// paintersReadiness is the line shed status prints for the painter, after
+// the units and notices (S.serve.9). While S.serve.6 pauses dispatch, it
+// reports the budget pause; otherwise it is the same words shed serve -once
+// uses for the painter under S.serve.1 (S.paint.1), or, when nothing holds
+// the painter back, "painter: may propose now".
+func paintersReadiness(ctx context.Context, f *factory.Factory, now time.Time) (string, error) {
+	paused, err := f.Paused(now)
+	if err != nil {
+		return "", err
+	}
+	if paused != "" {
+		return "painter: waits, like every stage, for the budget pause", nil
+	}
+	why, err := f.PainterWait(ctx, now)
+	if err != nil {
+		return "", err
+	}
+	if why == "" {
+		return "painter: may propose now", nil
+	}
+	return "painter: " + why, nil
 }
 
 // contestedWait returns a contested unit's wait rendered rounded down to

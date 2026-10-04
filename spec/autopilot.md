@@ -54,6 +54,15 @@
   the tracker holds: a debate from its last round, an implementation from its
   first unfinished step. A painter's draft that no session was working on is
   archived and discarded.
+- **S.serve.9** (H.sched.10) After the units and notices, `shed status`
+  prints one line for the painter. While S.serve.6 pauses stages, it reads
+  `painter: waits, like every stage, for the budget pause`. Otherwise, when
+  S.paint.1 holds the painter back, it is word for word the line `shed serve
+  -once` prints for the painter under S.serve.1; a framing waiting for owner
+  acceptance is not a proposal (S.frame.3) and does not hold it back. When
+  the gap it may work on (S.paint.3) is empty, both say the painter is idle
+  until the horizon moves. When nothing holds the painter back, the line
+  reads `painter: may propose now`.
 - **S.hz.1** (H.hz.10) A mechanic may mark horizon clauses the unit advances
   as realised by adding `realised` to their tag list. Verification refuses a
   unit that marks a clause it does not advance or changes the horizon in any
