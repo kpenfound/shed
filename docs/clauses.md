@@ -148,6 +148,38 @@ clause newly failing and closes the bug of each clause found passing, and
 cannot bring in or check out main records nothing and exits non-zero with a
 reason on stderr.
 
+## Coverage
+
+`shed uncovered` runs every proof the repository holds once, instrumented
+for statement coverage over the whole Go module at the repository root,
+using the runner `shed.toml` sets (see [proofs](#proofs), above). A
+statement counts as executed when any proof executes it, whichever package
+holds that proof; a package no proof reaches counts as entirely unexecuted.
+
+It prints one line for each non-test Go source file that the go tool, run
+behind that same runner, builds into a package of the module, skipping the
+directories the go tool skips, nested modules, and any file a build
+constraint excludes from that build. Each line holds the file's path from
+the repository root, its unexecuted statements, its total statements, and
+the unexecuted share as a whole percentage, 0% for a file with no
+statements. Lines are ordered by unexecuted statements, most first, then by
+path, and a last line gives the same three figures for the whole module:
+
+```
+lib/lib.go      1  2  50%
+types/types.go  0  0  0%
+total           1  2  50%
+```
+
+It exits zero once every proof has run, whether it passes, fails or skips; a
+failing proof still counts the statements it executed. It exits non-zero,
+saying why, when it cannot run the proofs, such as when the runner cannot
+start or the run yields no coverage profile, and when any proof never
+reports, such as because its package does not build, naming each such
+proof, even if other proofs ran and yielded coverage. It calls no model and
+leaves the repository's files, the state directory and the tracker exactly
+as it found them.
+
 ## Commands
 
 | Command | Does |
@@ -159,6 +191,7 @@ reason on stderr.
 | `shed gap` | Lists the horizon clauses not yet realised, with their tier, the spec clauses advancing them, and the ID and tier of the clause each refines. |
 | `shed prove [<id>...]` | Runs proofs and reports per clause. |
 | `shed sweep` | Checks main's current commit out into a fresh directory, runs its proofs and reports per clause, and records the sweep, filing or closing bugs as it does. |
+| `shed uncovered` | Runs every proof once, measuring statement coverage over the whole module, and reports each source file's share of unexecuted statements, most first, then the module's totals. |
 
 ## Diffs
 

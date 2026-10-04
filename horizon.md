@@ -582,7 +582,7 @@ distant and get promoted as the soon tier drains.
   remove it.
 - **H.adopt.3** (distant) Normal operation starts only once main is
   spec-conformant.
-- **H.adopt.4** (near, refines H.adopt.1) `shed uncovered` runs every proof
+- **H.adopt.4** (near, refines H.adopt.1, realised) `shed uncovered` runs every proof
   on main once, through the configured runner, with statement coverage over
   the whole Go module, and lists each non-test Go source file with the
   number and share of its statements that no proof executes, most

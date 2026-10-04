@@ -75,6 +75,7 @@ Documents:
   trace              list every horizon clause with the spec clauses advancing it
   gap                list the horizon clauses the spec has not realised
   prove [<id>...]    run the proofs of spec clauses and report per clause
+  uncovered          report source files' statements no proof executes
 
 Units:
   status                                  list units and what waits for the owner
@@ -172,6 +173,8 @@ func RunWith(ctx context.Context, args []string, stdout, stderr io.Writer, runne
 		return e.trace(rest, true)
 	case "prove":
 		return e.prove(rest)
+	case "uncovered":
+		return e.uncovered(rest)
 	case "status":
 		return e.status(rest)
 	case "outside":

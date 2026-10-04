@@ -64,17 +64,26 @@ func (r Report) Failed() bool {
 	return slices.ContainsFunc(r.Tests, func(t TestResult) bool { return t.Status != Pass && t.Status != Skip })
 }
 
-// Test runs go test in package directories, relative to Root, limited to the
-// tests the run pattern matches when it is not empty.
-func (r Runner) Test(ctx context.Context, dirs []string, run string) (Report, error) {
-	args := append([]string{}, r.Prefix...)
-	if len(args) > 0 && strings.ContainsRune(args[0], '/') && !filepath.IsAbs(args[0]) {
-		args[0] = filepath.Join(r.Root, args[0])
+// prefixArgs prepends the runner prefix to args, resolving a relative first
+// element from Root (S.proof.5).
+func (r Runner) prefixArgs(args []string) []string {
+	full := append([]string{}, r.Prefix...)
+	if len(full) > 0 && strings.ContainsRune(full[0], '/') && !filepath.IsAbs(full[0]) {
+		full[0] = filepath.Join(r.Root, full[0])
 	}
-	args = append(args, "go", "test", "-json", "-count=1")
+	return append(full, args...)
+}
+
+// Test runs go test in package directories, relative to Root, limited to the
+// tests the run pattern matches when it is not empty. extra is appended to
+// the go test command line before the package directories, such as coverage
+// flags.
+func (r Runner) Test(ctx context.Context, dirs []string, run string, extra ...string) (Report, error) {
+	args := r.prefixArgs([]string{"go", "test", "-json", "-count=1"})
 	if run != "" {
 		args = append(args, "-run", run)
 	}
+	args = append(args, extra...)
 	if len(dirs) == 0 {
 		dirs = []string{"./..."}
 	}
@@ -149,6 +158,61 @@ func (r Runner) Test(ctx context.Context, dirs []string, run string) (Report, er
 	return report, scan.Err()
 }
 
+// SourceFile is a non-test Go source file the go tool builds into a package
+// of the module (S.adopt.2).
+type SourceFile struct {
+	// Path is the file's path from the repository root, slash-separated.
+	Path string
+	// Key is how a coverage profile identifies the file: the package's
+	// import path joined with its file name.
+	Key string
+}
+
+// SourceFiles lists every non-test Go source file the go tool, run behind
+// the same runner, builds into a package of the module at Root, skipping
+// the directories the go tool skips and nested modules, and the files build
+// constraints exclude from the build (S.adopt.2).
+func (r Runner) SourceFiles(ctx context.Context) ([]SourceFile, error) {
+	args := r.prefixArgs([]string{"go", "list", "-json", "./..."})
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	cmd.Dir = r.Root
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if r.Stderr != nil {
+		cmd.Stderr = io.MultiWriter(&stderr, r.Stderr)
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("listing packages: %w: %s", err, stderr.String())
+	}
+
+	var files []SourceFile
+	dec := json.NewDecoder(bytes.NewReader(out))
+	for dec.More() {
+		var pkg struct {
+			Dir        string
+			ImportPath string
+			GoFiles    []string
+		}
+		if err := dec.Decode(&pkg); err != nil {
+			return nil, fmt.Errorf("listing packages: %w", err)
+		}
+		rel, err := filepath.Rel(r.Root, pkg.Dir)
+		if err != nil {
+			return nil, err
+		}
+		rel = filepath.ToSlash(rel)
+		for _, f := range pkg.GoFiles {
+			path := f
+			if rel != "." {
+				path = rel + "/" + f
+			}
+			files = append(files, SourceFile{Path: path, Key: pkg.ImportPath + "/" + f})
+		}
+	}
+	return files, nil
+}
+
 // Run runs the proofs and returns each one's status by Name.
 func (r Runner) Run(ctx context.Context, proofs []Proof) (map[string]Status, error) {
 	results := map[string]Status{}
@@ -176,6 +240,30 @@ type Result struct {
 // RunDetailed runs the proofs with go test -json as Run does, keeping each
 // one's output, in the order the run reported them (S.sweep.3).
 func (r Runner) RunDetailed(ctx context.Context, proofs []Proof) ([]Result, error) {
+	return r.runDetailed(ctx, proofs)
+}
+
+// Coverage runs the proofs as Run does, additionally instrumenting every
+// package of the module for statement coverage and writing the profile to
+// profilePath (S.adopt.1).
+func (r Runner) Coverage(ctx context.Context, proofs []Proof, profilePath string) (map[string]Status, error) {
+	results := map[string]Status{}
+	for _, p := range proofs {
+		results[p.Name()] = NoResult
+	}
+	detailed, err := r.runDetailed(ctx, proofs, "-coverprofile="+profilePath, "-coverpkg=./...")
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range detailed {
+		results[d.Proof.Name()] = d.Status
+	}
+	return results, nil
+}
+
+// runDetailed is RunDetailed with go test flags appended before the package
+// directories, such as coverage flags.
+func (r Runner) runDetailed(ctx context.Context, proofs []Proof, extra ...string) ([]Result, error) {
 	if len(proofs) == 0 {
 		return nil, nil
 	}
@@ -196,7 +284,7 @@ func (r Runner) RunDetailed(ctx context.Context, proofs []Proof) ([]Result, erro
 	}
 	slices.Sort(tests)
 	slices.Sort(dirs)
-	report, err := r.Test(ctx, dirs, "^("+strings.Join(quoteAll(tests), "|")+")$")
+	report, err := r.Test(ctx, dirs, "^("+strings.Join(quoteAll(tests), "|")+")$", extra...)
 	if err != nil {
 		return nil, err
 	}

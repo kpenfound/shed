@@ -207,6 +207,7 @@ shed run <unit>                    # debate, implement, verify, land
 | `shed gap`, `shed trace` | List the horizon clauses not yet realised, or every horizon clause, with the spec clauses that advance each and its refinement links. `shed trace` also names the near and soon clauses that refine nothing. |
 | `shed prove [<id>...]` | Runs the proofs of spec clauses and reports per clause. |
 | `shed sweep` | Checks main's current commit out into a fresh directory, runs its proofs and reports per clause, and records the sweep. |
+| `shed uncovered` | Runs every proof once, measuring statement coverage over the whole module, and reports each source file's share of unexecuted statements, most first, then the module's totals. |
 | `shed outside` | Lists the commits on main's first-parent history, after `shed.toml`'s `outside.since`, that did not land as a shed unit, charter changes apart. |
 | `shed show <citation>...` | Prints the clauses citations name, at any revision. |
 | `shed diff <from> [<to>]` | Lists spec and horizon clauses added, changed and removed between revisions, the parent each refining clause is judged at, and the horizon amendment's tier. |
