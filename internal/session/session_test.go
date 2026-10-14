@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kpenfound/busybees/core/agent"
-	"github.com/kpenfound/busybees/core/mcphost"
+	"github.com/kpenfound/agentcore/agent"
+	"github.com/kpenfound/agentcore/mcphost"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/kpenfound/shed/internal/config"

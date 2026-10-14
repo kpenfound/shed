@@ -1,7 +1,7 @@
 # Sessions
 
 - **S.sess.1** (H.sess.1) Shed runs each session as one headless agent
-  process through busybees/core, with the agent, model and fallback the
+  process through agentcore, with the agent, model and fallback the
   operator settings give the role's profile, or the member's selected profile
   under S.shed.20: claude, codex, opencode or pi.
   The session ends when the agent does.
