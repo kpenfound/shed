@@ -143,7 +143,7 @@ distant and get promoted as the soon tier drains.
 ## Sessions
 
 - **H.sess.1** (soon, realised) Every role runs as an ephemeral headless agent session
-  through busybees/core. No session outlives its step.
+  through agentcore. No session outlives its step.
 - **H.sess.2** (soon, realised) Each role has its own prompt and grants. A session gets
   only the files and tools its role needs.
 - **H.sess.3** (soon, realised) A session reports through its role's outcome tool, and
@@ -671,7 +671,7 @@ remaining milestones are not ordered among themselves.
   H.track.1 to H.track.4, H.track.6, H.track.7, H.unit.1 to H.unit.6.
 - **M3** Hands off version control. Shed owns every jj operation and sessions
   never see one. H.vcs.1, H.vcs.3 to H.vcs.6.
-- **M4** Sessions and bundles. Roles run through busybees/core with scoped
+- **M4** Sessions and bundles. Roles run through agentcore with scoped
   grants, outcome tools and assembled bundles, and can run the project's
   tests without holding version control. H.sess.1 to H.sess.9, H.vcs.2.
 - **M5** The shed. Debate, veto, deferral, consensus, sealing and the archive.

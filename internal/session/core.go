@@ -10,10 +10,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/kpenfound/busybees/core/agent"
-	"github.com/kpenfound/busybees/core/mcphost"
-	"github.com/kpenfound/busybees/core/ops"
-	corevcs "github.com/kpenfound/busybees/core/vcs"
+	"github.com/kpenfound/agentcore/agent"
+	"github.com/kpenfound/agentcore/mcphost"
+	"github.com/kpenfound/agentcore/ops"
+	corevcs "github.com/kpenfound/agentcore/vcs"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/kpenfound/shed/internal/config"
@@ -29,7 +29,7 @@ const serverName = "shed"
 // own PATH and HOME, so neither is passed in.
 var baseEnv = []string{"LANG", "LC_*", "TERM", "TZ", tokenEnv}
 
-// Core runs sessions through busybees/core, each in a Docker Sandbox: a
+// Core runs sessions through agentcore, each in a Docker Sandbox: a
 // microVM that sees only the directories the session is granted and holds
 // the agent's credential in its own proxy. A session is never granted
 // version control.

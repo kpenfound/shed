@@ -1,7 +1,7 @@
 # Sessions
 
 Every role runs as an ephemeral agent session: one headless agent process,
-started through busybees/core, that works on one unit for one step and ends.
+started through agentcore, that works on one unit for one step and ends.
 
 ## The sandbox
 
@@ -32,7 +32,7 @@ each agent the operator settings use.
 A session reaches shed's tools over MCP. Shed serves them on a loopback
 port with a token of the session's own, and the sandbox reaches the port
 through `host.docker.internal`. The sbx network policy denies that by
-default: shed grants the port to the session's sandbox, and busybees/core
+default: shed grants the port to the session's sandbox, and agentcore
 adds a rule for that sandbox alone once it exists and removes it before the
 sandbox goes. No global `localhost` rule is needed, and no other sandbox can
 reach the port. Every role has `done`, which ends the session

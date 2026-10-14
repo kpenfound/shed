@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kpenfound/busybees/core/agent"
+	"github.com/kpenfound/agentcore/agent"
 
 	"github.com/kpenfound/shed/internal/bundle"
 	"github.com/kpenfound/shed/internal/clause"
@@ -46,7 +46,7 @@ type Factory struct {
 }
 
 // Open opens the factory of a repository with its state directory. Runner
-// runs sessions; nil runs them in Docker Sandboxes through busybees/core.
+// runs sessions; nil runs them in Docker Sandboxes through agentcore.
 func Open(ctx context.Context, root, state string, runner session.Runner) (*Factory, error) {
 	// Session directories and views are granted to sessions by path, and a
 	// grant must be absolute.

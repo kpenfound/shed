@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/BurntSushi/toml v1.5.0
-	github.com/kpenfound/busybees/core v0.5.2
+	github.com/kpenfound/agentcore v1.0.2
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/yuin/goldmark v1.8.6
 	modernc.org/sqlite v1.59.0
