@@ -107,3 +107,12 @@ template = ""             # sbx template; empty uses sbx's own for the agent
 mounts = ["~/go/pkg/mod:ro"]
 env = ["GOFLAGS"]
 ```
+
+## Session tests
+
+The Core tests use agentcore's `enforcertest.Enforcer` to play the agent in
+an sbx session. The mock prepares the grants and admits each request with
+agentcore's policy checks. The fake agent inspects that policy and calls
+Shed's tools over loopback MCP, so `done` still validates allowed statuses
+and the turn's outcome check. Tests of the factory's own session runner use
+Shed's session fakes.

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/kpenfound/agentcore/agent"
+	"github.com/kpenfound/agentcore/agent/agenttest/enforcertest"
 	"github.com/kpenfound/agentcore/mcphost"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -91,18 +92,35 @@ func TestSessionsRecordEveryAttempt(t *testing.T) {
 	}
 }
 
-func testCore(t *testing.T, exec func(context.Context, agent.Request) (*agent.Result, error)) *Core {
+func testCore(t *testing.T, play func(context.Context, *enforcertest.Turn) (*agent.Result, error)) *Core {
 	t.Helper()
 	op := config.Defaults()
 	op.Budget.PerSessionUSD = 2
 	op.Profiles["backup"] = config.Profile{Agent: "codex", Model: "small", Mounts: []string{t.TempDir() + ":rw"}, Env: []string{"GOFLAGS"}}
 	op.Profiles["default"] = config.Profile{Agent: "claude", Model: "big", Fallback: "backup", Template: "shed-go"}
-	return &Core{Operator: op, Exec: exec}
+	return &Core{Operator: op, Exec: func(ctx context.Context, req agent.Request) (*agent.Result, error) {
+		enforcer := &enforcertest.Enforcer{
+			Sandbox:      agent.SandboxSbx,
+			Image:        req.Profile.SandboxImage,
+			SandboxAgent: req.Profile.Agent,
+			Agent:        play,
+		}
+		session, err := enforcer.Prepare(ctx, *req.Grants)
+		if err != nil {
+			return nil, err
+		}
+		defer session.Release(ctx)
+		return session.Run(ctx, req)
+	}}
 }
 
-// callTool calls a tool of a session's MCP server as the agent in the
-// sandbox would, reaching the host's loopback directly.
-func callTool(ctx context.Context, req agent.Request, name string, args map[string]any) (string, error) {
+// callTool checks the fake agent's tool grant and calls the session's MCP
+// server over the host's loopback.
+func callTool(ctx context.Context, turn *enforcertest.Turn, name string, args map[string]any) (string, error) {
+	if err := turn.UseTool("mcp__" + serverName + "__" + name); err != nil {
+		return "", err
+	}
+	req := turn.Request
 	entry := req.Profile.MCP[serverName]
 	session, err := mcp.NewClient(&mcp.Implementation{Name: "fake-agent"}, nil).Connect(ctx, &mcp.StreamableClientTransport{
 		Endpoint:   entry.URL,
@@ -130,31 +148,29 @@ func callTool(ctx context.Context, req agent.Request, name string, args map[stri
 
 //shed:proves S.sess.1 S.sess.3 S.sess.4 S.vcs.2
 func TestCoreRunsSandboxedSessions(t *testing.T) {
-	var c *Core
 	var echoed string
 	dir, sessionDir := t.TempDir(), t.TempDir()
-	c = testCore(t, func(ctx context.Context, req agent.Request) (*agent.Result, error) {
-		if req.Profile.Sandbox != agent.SandboxSbx || req.Profile.Agent != "claude" || req.Profile.Model != "big" || req.Profile.SandboxImage != "shed-go" {
+	c := testCore(t, func(ctx context.Context, turn *enforcertest.Turn) (*agent.Result, error) {
+		req := turn.Request
+		if req.Profile.Name != "default" || req.Profile.Sandbox != agent.SandboxSbx || req.Profile.Agent != "claude" || req.Profile.Model != "big" || req.Profile.SandboxImage != "shed-go" {
 			t.Errorf("profile = %+v", req.Profile)
 		}
-		turn, err := c.Runner.Verify(req)
-		if err != nil {
-			t.Fatalf("verify: %v", err)
-		}
-		if turn.VCS || req.Grants.VCS {
+		policy := turn.Policy
+		var err error
+		if policy.VCS || req.Grants.VCS {
 			t.Error("the session was granted version control")
 		}
 		for _, name := range []string{"git", "jj"} {
-			if !slices.Contains(turn.DeniedExecutables, name) {
-				t.Errorf("%s is not denied: %v", name, turn.DeniedExecutables)
+			if !slices.Contains(policy.DeniedExecutables, name) {
+				t.Errorf("%s is not denied: %v", name, policy.DeniedExecutables)
 			}
 		}
 		binds := map[string]agent.Access{}
-		for _, b := range turn.Binds {
+		for _, b := range policy.Binds {
 			binds[b.Source] = b.Access
 		}
-		if len(binds) != 2 || binds[evalDir(t, dir)] != agent.ReadWrite || binds[evalDir(t, sessionDir)] != agent.ReadWrite {
-			t.Errorf("binds = %+v", turn.Binds)
+		if len(policy.Binds) != 2 || len(binds) != 2 || binds[evalDir(t, dir)] != agent.ReadWrite || binds[evalDir(t, sessionDir)] != agent.ReadWrite {
+			t.Errorf("binds = %+v", policy.Binds)
 		}
 		// The tools server is granted to this sandbox alone, by its port.
 		entry := req.Profile.MCP[serverName]
@@ -164,16 +180,16 @@ func TestCoreRunsSandboxedSessions(t *testing.T) {
 		}
 		port, _ := strconv.Atoi(u.Port())
 		want := []agent.HostServer{{Name: serverName, Port: port}}
-		if !slices.Equal(req.Grants.HostServers, want) || !slices.Equal(turn.HostServers, want) {
-			t.Errorf("host servers granted %+v, verified %+v; want %+v", req.Grants.HostServers, turn.HostServers, want)
+		if !slices.Equal(req.Grants.HostServers, want) || !slices.Equal(policy.HostServers, want) {
+			t.Errorf("host servers granted %+v, admitted policy %+v; want %+v", req.Grants.HostServers, policy.HostServers, want)
 		}
-		if echoed, err = callTool(ctx, req, "echo", map[string]any{"text": "hi"}); err != nil {
+		if echoed, err = callTool(ctx, turn, "echo", map[string]any{"text": "hi"}); err != nil {
 			t.Errorf("echo: %v", err)
 		}
-		if _, err := callTool(ctx, req, "done", map[string]any{"status": "bogus"}); err == nil {
+		if _, err := callTool(ctx, turn, "done", map[string]any{"status": "bogus"}); err == nil {
 			t.Error("done accepted an outcome the turn does not allow")
 		}
-		if _, err := callTool(ctx, req, "done", map[string]any{"status": "done", "note": "all good"}); err != nil {
+		if _, err := callTool(ctx, turn, "done", map[string]any{"status": "done", "note": "all good"}); err != nil {
 			t.Errorf("done: %v", err)
 		}
 		return &agent.Result{CostUSD: 0.75}, nil
@@ -195,19 +211,17 @@ func TestCoreRunsSandboxedSessions(t *testing.T) {
 
 	// A reviewing role's working directory is read-write too: sbx needs its
 	// primary workspace writable, and nothing captures it.
-	c.Exec = func(ctx context.Context, req agent.Request) (*agent.Result, error) {
-		v, err := c.Runner.Verify(req)
-		if err != nil {
-			t.Fatal(err)
+	c = testCore(t, func(ctx context.Context, turn *enforcertest.Turn) (*agent.Result, error) {
+		binds := map[string]agent.Access{}
+		for _, b := range turn.Policy.Binds {
+			binds[b.Source] = b.Access
 		}
-		for _, b := range v.Binds {
-			if b.Source == evalDir(t, dir) && b.Access != agent.ReadWrite {
-				t.Errorf("a reviewer's working directory is %s", b.Access)
-			}
+		if len(turn.Policy.Binds) != 2 || len(binds) != 2 || binds[evalDir(t, dir)] != agent.ReadWrite || binds[evalDir(t, sessionDir)] != agent.ReadWrite {
+			t.Errorf("reviewer's binds = %+v", turn.Policy.Binds)
 		}
-		_, err = callTool(ctx, req, "done", map[string]any{"status": "pass"})
+		_, err := callTool(ctx, turn, "done", map[string]any{"status": "pass"})
 		return &agent.Result{}, err
-	}
+	})
 	turn.Role, turn.Writable, turn.Outcomes, turn.Tools = unit.Committee, false, []string{"pass", "fail"}, nil
 	res, err = c.Run(ctx, turn)
 	must(t, err)
@@ -221,11 +235,11 @@ func TestCoreRunsSandboxedSessions(t *testing.T) {
 //
 //shed:proves S.impl.5
 func TestDoneChecksTheOutcome(t *testing.T) {
-	c := testCore(t, func(ctx context.Context, req agent.Request) (*agent.Result, error) {
-		if _, err := callTool(ctx, req, "done", map[string]any{"status": "amend", "note": "the spec is wrong"}); err == nil {
+	c := testCore(t, func(ctx context.Context, turn *enforcertest.Turn) (*agent.Result, error) {
+		if _, err := callTool(ctx, turn, "done", map[string]any{"status": "amend", "note": "the spec is wrong"}); err == nil {
 			t.Error("done accepted an amend the turn's check refuses")
 		}
-		if _, err := callTool(ctx, req, "done", map[string]any{"status": "amend", "note": "S.core.2 should say where goodbye is printed"}); err != nil {
+		if _, err := callTool(ctx, turn, "done", map[string]any{"status": "amend", "note": "S.core.2 should say where goodbye is printed"}); err != nil {
 			t.Errorf("done refused an amend the turn's check accepts: %v", err)
 		}
 		return &agent.Result{}, nil
@@ -289,7 +303,8 @@ func TestGrants(t *testing.T) {
 func TestCoreFailures(t *testing.T) {
 	var profiles []string
 	var result *agent.Result
-	c := testCore(t, func(_ context.Context, req agent.Request) (*agent.Result, error) {
+	c := testCore(t, func(_ context.Context, turn *enforcertest.Turn) (*agent.Result, error) {
+		req := turn.Request
 		profiles = append(profiles, req.Profile.Name)
 		if req.CostCapUSD != 2 {
 			t.Errorf("cost cap = %v", req.CostCapUSD)
@@ -320,7 +335,8 @@ func TestCoreFailures(t *testing.T) {
 //shed:proves S.sess.1 S.sess.9 S.shed.20
 func TestMemberProfileFallback(t *testing.T) {
 	var profiles []string
-	c := testCore(t, func(_ context.Context, req agent.Request) (*agent.Result, error) {
+	c := testCore(t, func(_ context.Context, turn *enforcertest.Turn) (*agent.Result, error) {
+		req := turn.Request
 		profiles = append(profiles, req.Profile.Name)
 		return &agent.Result{ExitCode: 1, IsError: true}, nil
 	})
